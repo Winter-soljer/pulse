@@ -39,6 +39,8 @@ class LiveStreamLiveTest {
 
         val (code, master) = get(info.hlsUrl)
         assertEquals(200, code)
+        // BestLiveAudioParserFactory relies on this: an AAC-LC (mp4a.40.2, 128 kbps) audio rendition beside HE-AAC.
+        assertTrue(master.lines().any { it.startsWith("#EXT-X-MEDIA") && "TYPE=AUDIO" in it && "/itag/234/" in it })
         val variant = master.lines().first { it.startsWith("http") }
         val (vcode, playlist) = get(variant)
         assertEquals(200, vcode)

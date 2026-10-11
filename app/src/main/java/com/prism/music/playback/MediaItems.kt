@@ -13,7 +13,8 @@ const val EXTRA_VIDEO = "prism.video"
 
 /**
  * prism://audio/<id>[?video=<videoId>] – resolved to a real stream URL at load time.
- * Live streams are prism://live/<id>, resolved to their HLS manifest (no video mode: the stream carries its own picture).
+ * Live streams are prism://live/<id>, resolved to their HLS manifest, which carries the picture too: their video mode
+ * keeps the same URI (so switching doesn't reload the stream) and only turns the video track on.
  */
 fun Song.toMediaItem(videoId: String? = null): MediaItem {
     val uri = if (isLive) Uri.Builder().scheme("prism").authority("live").appendPath(id).build()
@@ -22,7 +23,7 @@ fun Song.toMediaItem(videoId: String? = null): MediaItem {
     }.build()
     val extras = Bundle().apply {
         putString(EXTRA_SONG, InnerTube.json.encodeToString(Song.serializer(), this@toMediaItem))
-        if (videoId != null && !isLive) putString(EXTRA_VIDEO, videoId)
+        if (videoId != null) putString(EXTRA_VIDEO, videoId)
     }
     return MediaItem.Builder()
         .setMediaId(id)

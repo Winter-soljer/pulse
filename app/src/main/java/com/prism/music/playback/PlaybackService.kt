@@ -212,6 +212,7 @@ class PlaybackService : MediaLibraryService(), Player.Listener {
 
     override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
         flushPlayTime()
+        applyLiveVideo()
         val song = mediaItem?.toSong() ?: return
         // Disliked songs are passed over when the queue reaches them on its own (tapping one still plays it).
         if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO && !c.queue.followingHost && c.library.isDisliked(song.id) && player.hasNextMediaItem()) {
@@ -268,6 +269,7 @@ class PlaybackService : MediaLibraryService(), Player.Listener {
             val song = player.currentMediaItem?.toSong()
             if (song != null && !song.isLive) {
                 player.replaceMediaItem(idx, song.copy(isLive = true).toMediaItem())
+                applyLiveVideo()
                 player.seekToDefaultPosition(idx)
                 player.prepare()
                 player.play()
@@ -436,8 +438,20 @@ class PlaybackService : MediaLibraryService(), Player.Listener {
         val idx = player.currentMediaItemIndex
         val item = player.currentMediaItem ?: return null
         val song = item.toSong() ?: return null
-        if (song.isLive) return if (enabled) "Live streams play as audio" else null
         if (enabled == (item.videoModeId != null)) return null
+        if (song.isLive) {
+            // The picture is already in the stream: same item, video track on (or off), no seeking about.
+            player.replaceMediaItem(idx, song.toMediaItem(if (enabled) song.id else null))
+            applyLiveVideo()
+            if (player.playbackState == Player.STATE_IDLE) player.prepare()
+            videoWatchdog?.cancel()
+            if (enabled) videoWatchdog = scope.launch {
+                delay(20_000)
+                val cur = player.currentMediaItem
+                if (cur?.mediaId == song.id && cur.videoModeId != null && player.videoSize.width <= 0) revertVideo(song.id)
+            }
+            return null
+        }
         val vid = if (enabled) {
             val found = videoIdFor(song)
             found.id ?: return if (found.lookupFailed) "Couldn't reach YouTube for the music video. Tap to try again." else "No music video for this song"
@@ -480,12 +494,33 @@ class PlaybackService : MediaLibraryService(), Player.Listener {
 
     private var videoWatchdog: Job? = null
 
+    /**
+     * A live stream's HLS variants carry video and audio together, so in audio mode its video track is turned off
+     * (nothing to decode, and the player can take a lighter variant); other items leave video on for music videos.
+     */
+    private fun applyLiveVideo() {
+        val item = player.currentMediaItem
+        val off = item != null && item.toSong()?.isLive == true && item.videoModeId == null
+        val params = player.trackSelectionParameters
+        if ((C.TRACK_TYPE_VIDEO in params.disabledTrackTypes) != off) {
+            player.trackSelectionParameters = params.buildUpon().setTrackTypeDisabled(C.TRACK_TYPE_VIDEO, off).build()
+        }
+    }
+
     /** Switches back to the audio version after a video failure; the video can be tried again. */
     private suspend fun revertVideo(songId: String) {
         videoWatchdog?.cancel()
         val idx = player.currentMediaItemIndex
         val current = player.currentMediaItem ?: return
         val song = current.toSong() ?: return
+        if (song.isLive) {
+            player.replaceMediaItem(idx, song.toMediaItem(null))
+            applyLiveVideo()
+            if (player.playbackState == Player.STATE_IDLE) { player.prepare(); player.play() }
+            c.player.onVideoFailed(songId)
+            c.player.reportError("The live video didn't load, so it's playing as audio. Tap the video button to try again.")
+            return
+        }
         current.videoModeId?.let { failedVideos += it; prefetched -= it }
         val lag = current.videoModeId?.takeIf { it != song.id }?.let { c.videoSync.cached(song.id, it) } ?: 0L
         val pos = (player.currentPosition - lag).coerceAtLeast(0)

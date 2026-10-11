@@ -120,13 +120,24 @@ offline downloads, EQ/spatial audio, on-device "Replay" stats, and full Android 
   `videoDetails.isLive`, `hlsManifestUrl`), `resolve()` throws `LiveStreamException`, and the item becomes `Song.isLive`
   → `prism://live/<id>` → `HlsMediaSource` via `AppContainer.liveDataSourceFactory()` (plain GETs on `http`, no stream
   interceptor, no cache). Detected up front for stations (`playMix`) and the next item (`prefetchNext`), else on the first
-  error. Live items skip the "song version" lookup and video mode; the player shows ● LIVE. `LiveStreamLiveTest` checks HLS.
+  error. Live items skip the "song version" lookup; the player shows ● LIVE. `LiveStreamLiveTest` checks HLS.
+  Live video (1.5.5): the HLS variants carry video too, so the Video button on a live item keeps the same
+  `prism://live/<id>` URI (no reload) and only sets `EXTRA_VIDEO`; `PlaybackService.applyLiveVideo` disables the video track
+  type while a live item is in audio mode and re-enables it otherwise. Checked on the test copy (lofi radio: video, full
+  screen, back to audio, then a normal song's music video).
+  Live audio quality: YouTube live manifests only offer two audio renditions, HE-AAC ~48 kbps (itag 233, `mp4a.40.5`) and
+  AAC-LC 128 kbps (itag 234, `mp4a.40.2`), no Opus. `BestLiveAudioParserFactory` (`playback/LiveAudio.kt`) drops the HE-AAC one
+  from the parsed manifest, so live always plays 128 kbps (logcat tag `PrismLive`). 128 kbps is the ceiling for live.
 - Not affiliated with Google/YouTube — keep the disclaimer in README.
 - `*.apk`, `local.properties`, keystores are gitignored.
 
 ## Current status / Next steps
+- v1.5.5 (versionCode 20, 2026-10-11): live video (the Video button on live streams) and 128 kbps live audio (see
+  "Live streams" above). **GitHub "Latest"** (`Prism.apk` release-key signed). Checked on the Pixel test copy; PiP for live
+  not tried. `ArtistAlbumLiveTest.topResultsAreRelevant` ("after hours" top result) failed at release time: YouTube's search
+  results, unrelated to this release.
 - v1.5.4 (versionCode 19, 2026-10-11): live streams play from HLS, so "Listen together" stations work (see "Live streams"
-  above). **GitHub "Latest"** (`Prism.apk` release-key signed). Live playback checked on the Pixel test copy (a 24/7 lofi
+  above). Live playback checked on the Pixel test copy (a 24/7 lofi
   radio); not yet checked: the station itself on the owner's signed-in Home.
 - v1.5.3 (versionCode 18, 2026-10-11): stations start a radio, artist discography grid + sorting, legible floating buttons,
   light/dark backgrounds + Simple designs, tabs keep their pages, system bars follow Prism's theme (see "1.5.3" above).

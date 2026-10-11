@@ -34,7 +34,7 @@ class PrismMediaSourceFactory(
     private val audio = ProgressiveMediaSource.Factory(audioDsf, extractors)
     private val video = ProgressiveMediaSource.Factory(videoDsf, extractors)
     private val local = localDsf?.let { ProgressiveMediaSource.Factory(it, extractors) }
-    private val live = liveDsf?.let { HlsMediaSource.Factory(it) }
+    private val live = liveDsf?.let { HlsMediaSource.Factory(it).setPlaylistParserFactory(BestLiveAudioParserFactory()) }
 
     override fun setDrmSessionManagerProvider(drmSessionManagerProvider: DrmSessionManagerProvider): MediaSource.Factory {
         audio.setDrmSessionManagerProvider(drmSessionManagerProvider)

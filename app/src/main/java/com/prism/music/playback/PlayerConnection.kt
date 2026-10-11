@@ -434,6 +434,7 @@ class PlayerConnection(private val context: Context, private val c: AppContainer
         val item = p.currentMediaItem
         val song = item?.toSong()
         val changed = song?.id != _current.value?.id
+        val wasLive = _current.value?.isLive == true
         _current.value = song
         _isPlaying.value = p.isPlaying
         _buffering.value = p.playbackState == Player.STATE_BUFFERING
@@ -456,7 +457,7 @@ class PlayerConnection(private val context: Context, private val c: AppContainer
             var i = tl.getNextWindowIndex(p.currentMediaItemIndex, Player.REPEAT_MODE_OFF, p.shuffleModeEnabled)
             while (i != C.INDEX_UNSET && size < tl.windowCount) { add(i); i = tl.getNextWindowIndex(i, Player.REPEAT_MODE_OFF, p.shuffleModeEnabled) }
         }
-        if (changed && song != null) checkVideo(song)
+        if (song != null && (changed || song.isLive != wasLive)) checkVideo(song)
         updateLyricTiming()
     }
 
@@ -472,6 +473,8 @@ class PlayerConnection(private val context: Context, private val c: AppContainer
      */
     private fun checkVideo(song: Song) {
         _videoLoading.value = false
+        // A live stream carries its own picture (the same HLS stream), so there's nothing to look up.
+        if (song.isLive) { _videoAvailable.value = true; return }
         if (song.id in c.queue.noVideo) { _videoAvailable.value = false; return }
         val known = if (song.isVideo) song.id else c.queue.counterparts[song.id]
         _videoAvailable.value = known != null
