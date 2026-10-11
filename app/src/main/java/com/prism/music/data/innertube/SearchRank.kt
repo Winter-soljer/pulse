@@ -132,6 +132,24 @@ object SearchRank {
             .map { ArtistItem(it.id!!, it.name, "Artist", it.thumbnail) }
     }
 
+    /** [song] is its album's title track and the query names exactly that ("after hours" → After Hours). */
+    fun namesItsAlbum(query: String, song: com.prism.music.data.model.Song): Boolean {
+        val album = song.album ?: return false
+        return core(album.title) == core(song.title) && core(album.title) == norm(query)
+    }
+
+    /** [album] becomes the top result; the song that was there leads the Songs section instead. */
+    fun withAlbumOnTop(r: TopSearch, album: AlbumItem): TopSearch {
+        val song = r.top as? SongItem
+        val sections = r.sections.map { (f, items) ->
+            val rest = items.filter { it.id != album.id }
+            f to if (f == SearchFilter.SONGS && song != null) listOf(song) + rest else rest
+        }.filter { it.second.isNotEmpty() }
+        val withSong = if (song == null || sections.any { it.first == SearchFilter.SONGS }) sections
+            else listOf(SearchFilter.SONGS to listOf<BrowseItem>(song)) + sections
+        return TopSearch(album, withSong)
+    }
+
     fun rank(query: String, results: List<Pair<SearchFilter, List<BrowseItem>>>, taste: Taste = Taste.NONE): TopSearch {
         // The listener's own artists lead YouTube's artist results when they fit and are missing from them.
         val known = knownArtists(query, taste)

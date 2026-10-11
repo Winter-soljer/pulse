@@ -190,14 +190,25 @@ class AppContainer(val app: Application) {
         return ResolvingDataSource.Factory(downloadsFirst) { spec -> resolveAudio(spec, true) }
     }
 
-    fun videoDataSourceFactory(): DataSource.Factory =
-        ResolvingDataSource.Factory(OkHttpDataSource.Factory(streamHttp)) { spec ->
+    /** A music video's picture: from Downloads when it's saved there (key `video:<id>`), else streamed (never cached). */
+    fun videoDataSourceFactory(): DataSource.Factory {
+        val downloadsFirst = CacheDataSource.Factory()
+            .setCache(downloadCache)
+            .setUpstreamDataSourceFactory(OkHttpDataSource.Factory(streamHttp))
+            .setCacheWriteDataSinkFactory(null)
+            .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
+        return ResolvingDataSource.Factory(downloadsFirst) { spec ->
             val id = spec.uri.lastPathSegment
-            if (spec.uri.scheme != "prism" || id == null) spec else {
-                val s = try { streams.resolve(id, withVideo = true) } catch (e: Exception) { throw IOException(e.message, e) }
-                spec.buildUpon().setUri(s.videoUrl ?: throw IOException("No video stream available")).build()
-            }
+            if (spec.uri.scheme != "prism" || id == null) spec
+            else if (downloadCache.fullyCached("video:$id", spec.position, spec.length)) spec.buildUpon().setKey("video:$id").build()
+            else spec.buildUpon().setUri(resolveVideoUrl(id)).setKey("video:$id").build()
         }
+    }
+
+    private fun resolveVideoUrl(id: String): android.net.Uri {
+        val s = try { streams.resolve(id, withVideo = true) } catch (e: Exception) { throw IOException(e.message, e) }
+        return android.net.Uri.parse(s.videoUrl ?: throw IOException("No video stream available"))
+    }
 
     /**
      * Live streams: prism://live/<id> becomes the stream's HLS manifest; its playlists and segments are plain GETs
@@ -214,8 +225,14 @@ class AppContainer(val app: Application) {
             }
         }
 
+    /** Song downloads (prism://audio/<id>) and saved music videos' pictures (prism://video/<id>). */
     fun downloadDataSourceFactory(): DataSource.Factory =
-        ResolvingDataSource.Factory(OkHttpDataSource.Factory(streamHttp)) { spec -> resolveAudio(spec, false) }
+        ResolvingDataSource.Factory(OkHttpDataSource.Factory(streamHttp)) { spec ->
+            val id = spec.uri.lastPathSegment
+            if (spec.uri.scheme == "prism" && spec.uri.authority == "video" && id != null) {
+                spec.buildUpon().setUri(resolveVideoUrl(id)).setKey("video:$id").build()
+            } else resolveAudio(spec, false)
+        }
 
     /** Animated-cover clips on the phone: recently played, and saved (from the player, by album, or with downloads). */
     val canvasStore by lazy { com.prism.music.data.canvas.CanvasStore(app, http, canvas, ytm, databaseProvider, scope) }

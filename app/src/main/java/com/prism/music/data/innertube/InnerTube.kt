@@ -50,7 +50,12 @@ class InnerTube(
 
     @Volatile
     var clientVersion = "1.20260928.13.00"
+    @Volatile
     private var versionChecked = false
+    /** The visitor id read at start-up, used until the saved one comes through the settings. */
+    @Volatile
+    private var fetchedVisitor = ""
+    private val visitorData: String get() = current.visitorData.ifBlank { fetchedVisitor }
 
     private val locale: Locale get() = Locale.getDefault()
 
@@ -80,7 +85,7 @@ class InnerTube(
             put("gl", locale.country.ifBlank { "US" })
             put("platform", "DESKTOP")
             put("userAgent", USER_AGENT)
-            if (s.visitorData.isNotBlank()) put("visitorData", s.visitorData)
+            if (visitorData.isNotBlank()) put("visitorData", visitorData)
         }
         putJsonObject("user") {
             val parts = s.dataSyncId.split("||")
@@ -96,7 +101,7 @@ class InnerTube(
         header("X-Origin", ORIGIN)
         header("X-YouTube-Client-Name", "67")
         header("X-YouTube-Client-Version", clientVersion)
-        if (s.visitorData.isNotBlank()) header("X-Goog-Visitor-Id", s.visitorData)
+        if (visitorData.isNotBlank()) header("X-Goog-Visitor-Id", visitorData)
         if (s.isLoggedIn) {
             header("Cookie", s.cookie)
             authorization()?.let { header("Authorization", it) }
@@ -105,16 +110,31 @@ class InnerTube(
         return this
     }
 
-    /** Reads the live web client version so requests keep looking like the current web app. */
+    private val versionLock = kotlinx.coroutines.sync.Mutex()
+
+    /**
+     * Reads the live web client version (and a visitor id) so requests keep looking like the current web app.
+     * Requests that arrive together (Top results asks five searches at once) wait for it: without a visitor id
+     * YouTube answers differently, and Top results lost "After Hours" by The Weeknd from its albums that way.
+     */
     private suspend fun ensureClientVersion() {
         if (versionChecked) return
-        versionChecked = true
+        versionLock.lock()
+        try {
+            if (!versionChecked) fetchClientVersion()
+        } finally {
+            versionChecked = true
+            versionLock.unlock()
+        }
+    }
+
+    private fun fetchClientVersion() {
         runCatching {
             val req = Request.Builder().url(ORIGIN).header("User-Agent", USER_AGENT).build()
             val html = http.newCall(req).execute().use { it.body.string() }
             Regex("\"INNERTUBE_CLIENT_VERSION\":\"([^\"]+)\"").find(html)?.groupValues?.get(1)?.let { clientVersion = it }
             if (current.visitorData.isBlank()) {
-                Regex("\"VISITOR_DATA\":\"([^\"]+)\"").find(html)?.groupValues?.get(1)?.let { saveVisitorData(it) }
+                Regex("\"VISITOR_DATA\":\"([^\"]+)\"").find(html)?.groupValues?.get(1)?.let { fetchedVisitor = it; saveVisitorData(it) }
             }
         }
     }

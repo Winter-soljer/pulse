@@ -214,7 +214,7 @@ fun rememberFullArtworkBlur(url: String?): ImageBitmap? {
 }
 
 @Composable
-fun FullArtworkBlurBackdrop(image: ImageBitmap?, modifier: Modifier = Modifier) {
+fun FullArtworkBlurBackdrop(image: ImageBitmap?, modifier: Modifier = Modifier, scrim: Float = 1f) {
     val a by animateFloatAsState(if (image != null) 1f else 0f, tween(320), label = "blurImg")
     Box(modifier.fillMaxSize().background(PlayerFallbackBackdrop)) {
         image?.let {
@@ -222,7 +222,9 @@ fun FullArtworkBlurBackdrop(image: ImageBitmap?, modifier: Modifier = Modifier) 
             Image(painter, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize().graphicsLayer { alpha = a; scaleX = 1.15f; scaleY = 1.15f })
         }
         Canvas(Modifier.fillMaxSize()) {
-            drawRect(Brush.verticalGradient(0f to Color.Black.copy(alpha = 0.34f), 0.55f to Color.Black.copy(alpha = 0.48f), 1f to Color.Black.copy(alpha = 0.64f)))
+            drawRect(Brush.verticalGradient(
+                0f to Color.Black.copy(alpha = 0.34f * scrim), 0.55f to Color.Black.copy(alpha = 0.48f * scrim), 1f to Color.Black.copy(alpha = (0.64f * scrim).coerceAtMost(0.9f)),
+            ))
         }
     }
 }

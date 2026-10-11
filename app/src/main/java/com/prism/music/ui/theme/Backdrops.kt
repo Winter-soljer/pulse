@@ -53,11 +53,13 @@ enum class BackdropKind {
     /** The theme's accent, softly, over the theme's background (follows the accent colour). */
     TINT,
     /** Simple line patterns in the accent colour over the theme's background. */
-    DOTS, PAPER, PINSTRIPE, WAVES, RIPPLES,
+    DOTS, PAPER, PINSTRIPE, WAVES, RIPPLES, DIAMONDS, ZIGZAG, HALFTONE, CROSSES, SCALES, CONFETTI,
+    /** Detailed illustrations in their own palettes ([Design]). */
+    CONSTELLATION, CONTOURS, MOSAIC, BOKEH, SILK, HORIZON,
 }
 
 /** Which row of the picker a background sits in. */
-enum class BackdropGroup(val label: String) { YOURS("Yours"), COLOUR("Colour"), SIMPLE("Simple") }
+enum class BackdropGroup(val label: String) { YOURS("Yours"), COLOUR("Colour"), SIMPLE("Simple"), DESIGNS("Designs") }
 
 /**
  * Ready-made backgrounds. Each has a dark and a light version (base colour first, then its light
@@ -109,6 +111,25 @@ enum class Backdrop(
     PINSTRIPE("Pinstripe", BackdropKind.PINSTRIPE, BackdropGroup.SIMPLE),
     WAVES("Waves", BackdropKind.WAVES, BackdropGroup.SIMPLE),
     RIPPLES("Ripples", BackdropKind.RIPPLES, BackdropGroup.SIMPLE),
+    DIAMONDS("Diamonds", BackdropKind.DIAMONDS, BackdropGroup.SIMPLE),
+    ZIGZAG("Zigzag", BackdropKind.ZIGZAG, BackdropGroup.SIMPLE),
+    HALFTONE("Halftone", BackdropKind.HALFTONE, BackdropGroup.SIMPLE),
+    CROSSES("Crosses", BackdropKind.CROSSES, BackdropGroup.SIMPLE),
+    SCALES("Scales", BackdropKind.SCALES, BackdropGroup.SIMPLE),
+    CONFETTI("Confetti", BackdropKind.CONFETTI, BackdropGroup.SIMPLE),
+
+    CONSTELLATION("Constellation", BackdropKind.CONSTELLATION, BackdropGroup.DESIGNS,
+        listOf(0xFF070B1A, 0xFFA9C6FF, 0xFF6B4CFF, 0xFF00C2D1), listOf(0xFFF3F5FC, 0xFF3D4F8A, 0xFFB8A8FF, 0xFF8EE3EA)),
+    CONTOURS("Contours", BackdropKind.CONTOURS, BackdropGroup.DESIGNS,
+        listOf(0xFF0B1414, 0xFF3FD0A0, 0xFF3F8FB0, 0xFFE0B354), listOf(0xFFF4F8F3, 0xFF2E8B6E, 0xFF4F8FA8, 0xFFD9A441)),
+    MOSAIC("Mosaic", BackdropKind.MOSAIC, BackdropGroup.DESIGNS,
+        listOf(0xFF120F1E, 0xFF5B3FD9, 0xFFE0457B, 0xFF1FA2C9), listOf(0xFFFAF7F2, 0xFFC4B5FF, 0xFFFFB3C7, 0xFFA8E0F0)),
+    BOKEH("Bokeh", BackdropKind.BOKEH, BackdropGroup.DESIGNS,
+        listOf(0xFF0E0A14, 0xFFFFB347, 0xFFFF5E8A, 0xFF7A6BFF), listOf(0xFFFFF8F1, 0xFFFFB866, 0xFFFF8FB0, 0xFF9C90FF)),
+    SILK("Silk", BackdropKind.SILK, BackdropGroup.DESIGNS,
+        listOf(0xFF0A0E18, 0xFF9C84FF, 0xFF27C4E8, 0xFFFF6B9D), listOf(0xFFF6F4FB, 0xFF7C5CFF, 0xFF1AA6CC, 0xFFE8558A)),
+    HORIZON("Horizon", BackdropKind.HORIZON, BackdropGroup.DESIGNS,
+        listOf(0xFF0D0420, 0xFFFFB03D, 0xFFFF2E88, 0xFFB08CFF), listOf(0xFFFFF3EA, 0xFFFFB27A, 0xFFFF86B8, 0xFF9B7BFF)),
     ;
 
     fun colors(dark: Boolean): List<Long> = if (dark) this.dark else light
@@ -178,7 +199,8 @@ fun BackdropLayer(style: Backdrop, photo: String?, dim: Float, motion: Boolean, 
                 BackdropKind.BLEND -> style.colors(dark).map { Color(it) }.let { (top, bottom) ->
                     Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(top, bottom))))
                 }
-                else -> Pattern(style.kind, dark, motion)
+                else -> if (style.group == BackdropGroup.DESIGNS) Design(style.kind, style.colors(dark).map { Color(it) }, dark, motion)
+                    else Pattern(style.kind, dark, motion)
             }
         }
         // Keeps text readable: a wash of the theme's background, stronger toward the bottom. The light
@@ -194,7 +216,7 @@ fun BackdropLayer(style: Backdrop, photo: String?, dim: Float, motion: Boolean, 
 }
 
 @Composable
-private fun drift(motion: Boolean, periodMs: Int, rest: Float): Float = if (motion) {
+internal fun drift(motion: Boolean, periodMs: Int, rest: Float): Float = if (motion) {
     rememberInfiniteTransition(label = "backdrop").animateFloat(0f, 1f, infiniteRepeatable(tween(periodMs, easing = LinearEasing)), label = "t").value
 } else rest
 
@@ -305,6 +327,93 @@ private fun Pattern(kind: BackdropKind, dark: Boolean, motion: Boolean) {
                 while (r < maxR) {
                     if (r > 0f) drawCircle(ink.copy(alpha = ink.alpha * (1f - r / maxR)), r, origin, style = androidx.compose.ui.graphics.drawscope.Stroke(stroke))
                     r += step
+                }
+            }
+            BackdropKind.DIAMONDS -> {
+                // A fine lattice of diagonals both ways.
+                val step = 22f * density
+                val brush = Brush.verticalGradient(listOf(ink, ink.copy(alpha = ink.alpha * 0.12f)))
+                var x = -h
+                while (x < w + h) {
+                    drawLine(brush, Offset(x, h), Offset(x + h, 0f), stroke * 0.8f)
+                    drawLine(brush, Offset(x, 0f), Offset(x + h, h), stroke * 0.8f)
+                    x += step
+                }
+            }
+            BackdropKind.ZIGZAG -> {
+                val rowStep = 24f * density
+                val run = 9f * density
+                val amp = 4.5f * density
+                var y = rowStep / 2
+                while (y < h) {
+                    val path = androidx.compose.ui.graphics.Path().apply { moveTo(0f, y) }
+                    var x = 0f
+                    var up = true
+                    while (x < w + run) { x += run; path.lineTo(x, y + if (up) -amp else amp); up = !up }
+                    drawPath(path, ink.copy(alpha = ink.alpha * fade(y)), style = androidx.compose.ui.graphics.drawscope.Stroke(stroke))
+                    y += rowStep
+                }
+            }
+            BackdropKind.HALFTONE -> {
+                // Dots that swell toward the top corner, like a print's halftone.
+                val step = 13f * density
+                val origin = Offset(w, 0f)
+                val reach = size.maxDimension * 0.9f
+                var y = step / 2
+                var row = 0
+                while (y < h) {
+                    var x = if (row % 2 == 0) step / 2 else step
+                    while (x < w) {
+                        val k = (1f - (Offset(x, y) - origin).getDistance() / reach).coerceIn(0f, 1f)
+                        if (k > 0.04f) drawCircle(ink.copy(alpha = ink.alpha * 1.1f), step * 0.42f * k, Offset(x, y))
+                        x += step
+                    }
+                    y += step * 0.87f; row++
+                }
+            }
+            BackdropKind.CROSSES -> {
+                val step = 30f * density
+                val arm = 3.5f * density
+                var y = step / 2
+                var row = 0
+                while (y < h) {
+                    var x = if (row % 2 == 0) step / 2 else step
+                    val c = ink.copy(alpha = ink.alpha * fade(y))
+                    while (x < w) {
+                        drawLine(c, Offset(x - arm, y), Offset(x + arm, y), stroke * 1.2f)
+                        drawLine(c, Offset(x, y - arm), Offset(x, y + arm), stroke * 1.2f)
+                        x += step
+                    }
+                    y += step / 2; row++
+                }
+            }
+            BackdropKind.SCALES -> {
+                // Overlapping arcs in offset rows, like fish scales or roof tiles.
+                val rad = 13f * density
+                var y = 0f
+                var row = 0
+                while (y < h + rad) {
+                    var x = if (row % 2 == 0) 0f else rad
+                    val c = ink.copy(alpha = ink.alpha * fade(y))
+                    while (x < w + rad) {
+                        drawArc(c, 0f, 180f, false, Offset(x - rad, y - rad), androidx.compose.ui.geometry.Size(rad * 2, rad * 2),
+                            style = androidx.compose.ui.graphics.drawscope.Stroke(stroke))
+                        x += rad * 2
+                    }
+                    y += rad * 0.9f; row++
+                }
+            }
+            BackdropKind.CONFETTI -> {
+                // Short dashes scattered at all angles, in the accent and its partner colour (same scatter every time).
+                val rnd = kotlin.random.Random(42)
+                val len = 7f * density
+                repeat((w * h / (34f * 34f * density * density)).toInt().coerceAtMost(900)) {
+                    val x = rnd.nextFloat() * w
+                    val y = rnd.nextFloat() * h
+                    val a = rnd.nextFloat() * PI.toFloat()
+                    val col = (if (rnd.nextBoolean()) accent else second).copy(alpha = ink.alpha * 1.15f * fade(y))
+                    drawLine(col, Offset(x - cos(a) * len / 2, y - sin(a) * len / 2), Offset(x + cos(a) * len / 2, y + sin(a) * len / 2),
+                        stroke * 1.6f, cap = androidx.compose.ui.graphics.StrokeCap.Round)
                 }
             }
             else -> {}

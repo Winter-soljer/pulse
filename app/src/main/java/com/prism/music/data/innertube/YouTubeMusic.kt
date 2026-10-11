@@ -94,7 +94,18 @@ class YouTubeMusic(private val api: InnerTube) {
         val kinds = listOf(SearchFilter.SONGS, SearchFilter.ALBUMS, SearchFilter.ARTISTS, SearchFilter.PLAYLISTS, SearchFilter.VIDEOS)
         val results = kinds.map { f -> async { f to runCatching { search(query, f).items }.getOrDefault(emptyList()) } }.awaitAll()
         if (results.all { it.second.isEmpty() }) throw java.io.IOException("Search failed")
-        SearchRank.rank(query, results, taste)
+        val ranked = SearchRank.rank(query, results, taste)
+        // A title track on top whose album YouTube's album search left out (it varies from one request to the next:
+        // "after hours" sometimes has no After Hours by The Weeknd): the song names its album, so look that up.
+        val song = (ranked.top as? SongItem)?.song
+        val ref = song?.album
+        if (song == null || ref?.id == null || !SearchRank.namesItsAlbum(query, song)) return@coroutineScope ranked
+        val page = runCatching { album(ref.id) }.getOrNull()
+        if (page?.releaseKind != "Album") return@coroutineScope ranked
+        SearchRank.withAlbumOnTop(ranked, com.prism.music.data.model.AlbumItem(
+            ref.id, page.title, listOfNotNull("Album", page.artists.firstOrNull()?.name ?: song.primaryArtist, page.year?.toString()).joinToString(" • "),
+            page.thumbnail, page.playlistId,
+        ))
     }
 
     suspend fun search(query: String, filter: SearchFilter, continuation: String? = null): SearchResult {

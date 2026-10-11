@@ -496,6 +496,13 @@ private fun PlayerSettings() {
         Group("Look") {
             Label("Background")
             Chips(PlayerBackground.entries, s.playerBackground, { it.label }) { prefs.setPlayerBackground(it) }
+            if (s.playerBackground == PlayerBackground.APPEARANCE) Note(
+                "The background picked for Home in Appearance → Backgrounds, in its dark version" +
+                    if (s.fullBleedArtwork) ". Turn off Full-bleed artwork below to see more of it" else ""
+            )
+            if (s.playerBackground == PlayerBackground.BLUR || s.playerBackground == PlayerBackground.APPEARANCE) SliderSetting(
+                "Show background", s.playerBackdropShow, 0f..1f, { if (it < 0.2f) "Subtle" else if (it < 0.7f) "Balanced" else "Vivid" },
+            ) { prefs.setPlayerBackdropShow(it) }
             Label("Controls")
             Chips(TransportStyle.entries, s.transportStyle, { it.label }) { prefs.setTransportStyle(it) }
             Label("Seek bar")

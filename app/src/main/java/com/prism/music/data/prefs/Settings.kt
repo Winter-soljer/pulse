@@ -85,7 +85,12 @@ enum class MiniPlayerStyle(val label: String) { CARD("Card"), SLIM("Slim"), PILL
 enum class MiniProgress(val label: String) { LINE("Line"), FILL("Fill"), NONE("None") }
 
 /** What's behind the full player. */
-enum class PlayerBackground(val label: String) { MESH("Colour mesh"), BLUR("Blurred cover"), THEME("Theme"), BLACK("Black") }
+enum class PlayerBackground(val label: String) {
+    MESH("Colour mesh"), BLUR("Blurred cover"),
+    /** The background picked for Home in Appearance → Backgrounds, in its dark version. */
+    APPEARANCE("Your background"),
+    THEME("Theme"), BLACK("Black"),
+}
 enum class TransportStyle(val label: String) { GLYPHS("Classic"), BUTTON("Play button"), OUTLINE("Rings") }
 enum class ScrubberStyle(val label: String) { HAIRLINE("Hairline"), BOLD("Bold"), THUMB("Thumb") }
 enum class LyricsAlign(val label: String) { START("Left"), CENTER("Centre") }
@@ -255,6 +260,8 @@ data class AppSettings(
     val miniProgress: MiniProgress = MiniProgress.LINE,
     // Player look
     val playerBackground: PlayerBackground = PlayerBackground.MESH,
+    /** 0..1: how much of the player's background shows through its darkening (blurred cover and your background). */
+    val playerBackdropShow: Float = 0.35f,
     val playerArtCorners: Int = 8,
     val transportStyle: TransportStyle = TransportStyle.BUTTON,
     val scrubberStyle: ScrubberStyle = ScrubberStyle.HAIRLINE,
@@ -352,6 +359,7 @@ class SettingsRepository(private val context: Context, scope: CoroutineScope) {
         val miniSkipButtons = booleanPreferencesKey("mini_skip_buttons")
         val miniProgress = stringPreferencesKey("mini_progress")
         val playerBackground = stringPreferencesKey("player_background")
+        val playerBackdropShow = floatPreferencesKey("player_backdrop_show")
         val playerArtCorners = intPreferencesKey("player_art_corners")
         val transportStyle = stringPreferencesKey("transport_style")
         val scrubberStyle = stringPreferencesKey("scrubber_style")
@@ -368,7 +376,7 @@ class SettingsRepository(private val context: Context, scope: CoroutineScope) {
         val look: List<Preferences.Key<*>> by lazy {
             listOf(
                 fontChoice, textScale, corners, uiDensity, titleSize, cardSize, reduceMotion, navStyle, navLabels, navHideOnScroll,
-                navTabs, startTab, miniPlayerStyle, miniSkipButtons, miniProgress, playerBackground, playerArtCorners, transportStyle,
+                navTabs, startTab, miniPlayerStyle, miniSkipButtons, miniProgress, playerBackground, playerBackdropShow, playerArtCorners, transportStyle,
                 scrubberStyle, artShrinkOnPause, showOutputDevice, lyricsAlign, libraryView, playlistHeroCover, frostedPages, replayThemeColors,
             )
         }
@@ -468,6 +476,7 @@ class SettingsRepository(private val context: Context, scope: CoroutineScope) {
             miniSkipButtons = p[K.miniSkipButtons] ?: d.miniSkipButtons,
             miniProgress = p.enum(K.miniProgress, d.miniProgress),
             playerBackground = p.enum(K.playerBackground, d.playerBackground),
+            playerBackdropShow = p[K.playerBackdropShow] ?: d.playerBackdropShow,
             playerArtCorners = p[K.playerArtCorners] ?: d.playerArtCorners,
             transportStyle = p.enum(K.transportStyle, d.transportStyle),
             scrubberStyle = p.enum(K.scrubberStyle, d.scrubberStyle),
@@ -589,6 +598,7 @@ class SettingsRepository(private val context: Context, scope: CoroutineScope) {
     fun setMiniSkipButtons(v: Boolean) = edit { it[K.miniSkipButtons] = v }
     fun setMiniProgress(v: MiniProgress) = edit { it[K.miniProgress] = v.name }
     fun setPlayerBackground(v: PlayerBackground) = edit { it[K.playerBackground] = v.name }
+    fun setPlayerBackdropShow(v: Float) = edit { it[K.playerBackdropShow] = v }
     fun setPlayerArtCorners(v: Int) = edit { it[K.playerArtCorners] = v }
     fun setTransportStyle(v: TransportStyle) = edit { it[K.transportStyle] = v.name }
     fun setScrubberStyle(v: ScrubberStyle) = edit { it[K.scrubberStyle] = v.name }

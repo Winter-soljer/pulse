@@ -476,8 +476,9 @@ class PlayerConnection(private val context: Context, private val c: AppContainer
         _videoLoading.value = false
         // A live stream carries its own picture (the same HLS stream), so there's nothing to look up.
         if (song.isLive) { _videoAvailable.value = true; return }
-        if (song.id in c.queue.noVideo) { _videoAvailable.value = false; return }
-        val known = if (song.isVideo) song.id else c.queue.counterparts[song.id]
+        val saved = c.downloads.downloadedVideoId(song.id)
+        if (saved == null && song.id in c.queue.noVideo) { _videoAvailable.value = false; return }
+        val known = if (song.isVideo) song.id else saved ?: c.queue.counterparts[song.id]
         _videoAvailable.value = known != null
         val s = service ?: return
         if (known != null) { s.prefetchVideo(song, known); return }

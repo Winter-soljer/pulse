@@ -1,6 +1,7 @@
 package com.prism.music.ui.components
 
 import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.SmartDisplay
 import androidx.compose.material.icons.automirrored.rounded.Sort
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -181,6 +182,7 @@ fun SongRow(
     val c = LocalContainer.current
     val liked by c.library.likedIds.collectAsState()
     val downloads by c.downloads.downloads.collectAsState()
+    val videos by c.downloads.videos.collectAsState()
     var menu by remember { mutableStateOf(false) }
     val scheme = MaterialTheme.colorScheme
     val ui = com.prism.music.ui.theme.LocalUi.current
@@ -221,6 +223,9 @@ fun SongRow(
                 if (song.explicit) Icon(Icons.Rounded.Explicit, null, Modifier.size(14.dp).padding(end = 2.dp), tint = scheme.onSurfaceVariant)
                 if (downloads[song.id]?.state == androidx.media3.exoplayer.offline.Download.STATE_COMPLETED) {
                     Icon(Icons.Rounded.DownloadDone, null, Modifier.size(14.dp).padding(end = 3.dp), tint = scheme.primary)
+                }
+                if (videos[song.id]?.state == androidx.media3.exoplayer.offline.Download.STATE_COMPLETED) {
+                    Icon(Icons.Rounded.SmartDisplay, "Video saved", Modifier.size(14.dp).padding(end = 3.dp), tint = scheme.primary)
                 }
                 Text(
                     listOfNotNull(song.artistText, trailingInfo ?: song.album?.title).joinToString(" • "),
@@ -449,6 +454,25 @@ fun PrismSheet(
 
 // ---------------------------------------------------------------- Song actions
 
+/** "Download video": saves the song's music video (and the song) for offline; tapped again, takes the video back. */
+@Composable
+fun videoDownloadAction(song: Song, video: com.prism.music.download.VideoDownload?): ActionItem? {
+    if (song.isLive) return null
+    val c = LocalContainer.current
+    val done = video?.state == androidx.media3.exoplayer.offline.Download.STATE_COMPLETED
+    val failed = video?.state == androidx.media3.exoplayer.offline.Download.STATE_FAILED
+    return ActionItem(
+        Icons.Rounded.SmartDisplay, if (done) "Remove downloaded video" else "Download video",
+        value = when {
+            done -> "Saved"
+            failed -> "Failed: tap to remove"
+            video != null -> "${video.percent.toInt().coerceAtLeast(0)}%"
+            else -> null
+        },
+        active = done, keepOpen = true,
+    ) { if (video != null) c.downloads.removeVideo(song.id) else c.downloads.downloadVideo(song) }
+}
+
 /**
  * A song's menu, wherever it's held or its ⋯ is tapped: like and share at hand, the queue
  * actions as tiles, then where to go. [extra] adds rows (e.g. "Remove from this playlist").
@@ -460,6 +484,7 @@ fun SongActionsSheet(song: Song, extra: List<SheetItem> = emptyList(), onDismiss
     val context = LocalContext.current
     val liked by c.library.likedIds.collectAsState()
     val downloads by c.downloads.downloads.collectAsState()
+    val videos by c.downloads.videos.collectAsState()
     val disliked by c.library.dislikedIds.collectAsState()
     var pickPlaylist by remember { mutableStateOf(false) }
     var sharing by remember { mutableStateOf(false) }
@@ -492,7 +517,8 @@ fun SongActionsSheet(song: Song, extra: List<SheetItem> = emptyList(), onDismiss
         song.album?.id?.let { id -> ActionItem(Icons.Rounded.Album, "Go to album", value = song.album?.title?.takeIf { it.length <= 22 }) { nav.go(Routes.album(id)) } },
         song.artists.firstOrNull { it.id != null }?.let { a -> ActionItem(Icons.Rounded.Person, "Go to ${a.name}") { nav.go(Routes.artist(a.id!!)) } },
     )
-    val more = extra.map { it.toAction() } + listOf(
+    val more = extra.map { it.toAction() } + listOfNotNull(
+        videoDownloadAction(song, videos[song.id]),
         if (song.id in disliked) ActionItem(Icons.Rounded.ThumbDown, "Not for me", active = true, keepOpen = true) { c.library.setDisliked(song, false) }
         else ActionItem(Icons.Rounded.ThumbDownOffAlt, "Not for me") { c.library.setDisliked(song, true); toast("Got it — Prism will steer clear of this song") },
     )

@@ -64,6 +64,7 @@ fun PlayerOptionsSheet(
     val context = LocalContext.current
     val liked by c.library.likedIds.collectAsState()
     val downloads by c.downloads.downloads.collectAsState()
+    val videos by c.downloads.videos.collectAsState()
     val hidden by c.canvas.hidden.collectAsState()
     val saved by c.canvas.saved.collectAsState()
     val sleepAt by c.player.sleepAt.collectAsState()
@@ -105,6 +106,7 @@ fun PlayerOptionsSheet(
     )
     val cover = com.prism.music.data.canvas.CanvasRepository.albumKey(song)
     val player = listOfNotNull(
+        com.prism.music.ui.components.videoDownloadAction(song, videos[song.id]),
         ActionItem(Icons.Rounded.Groups, "Listen together", value = if (inSession) "On" else null, active = inSession) { onCollapse(); nav.go(Routes.TOGETHER) },
         ActionItem(Icons.Rounded.DataUsage, "Stats for nerds", active = statsShown, onClick = onToggleStats),
         if (hasCanvas) ActionItem(Icons.Rounded.Animation, "Animated cover", active = song.id !in hidden, keepOpen = true) { c.canvas.setHidden(song.id, song.id !in hidden) } else null,

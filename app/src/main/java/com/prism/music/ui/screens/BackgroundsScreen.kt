@@ -139,8 +139,11 @@ fun BackgroundsScreen(bottomPadding: Dp) {
                 Column(Modifier.padding(start = 8.dp, top = 8.dp)) {
                     Text(group.label, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                     Text(
-                        if (group == com.prism.music.ui.theme.BackdropGroup.COLOUR) "Glowing in dark mode, soft pastels in light mode"
-                        else "Quiet designs in your accent colour",
+                        when (group) {
+                            com.prism.music.ui.theme.BackdropGroup.COLOUR -> "Glowing in dark mode, soft pastels in light mode"
+                            com.prism.music.ui.theme.BackdropGroup.DESIGNS -> "Detailed scenes that fade away behind the text"
+                            else -> "Quiet patterns in your accent colour"
+                        },
                         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }

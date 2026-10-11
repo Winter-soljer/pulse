@@ -45,4 +45,15 @@ class SearchRankTest {
         assertEquals("halo", r.top?.id)
         assertTrue(SearchRank.knownArtists("halo", taste).isEmpty())
     }
+
+    @Test fun aTitleTrackGivesWayToItsAlbum() {
+        val track = Song("ah", "After Hours", listOf(ArtistRef("The Weeknd")), album = com.prism.music.data.model.AlbumRef("After Hours", "MPREb_ah"))
+        assertTrue(SearchRank.namesItsAlbum("after hours", track))
+        assertTrue(!SearchRank.namesItsAlbum("blinding lights", track.copy(title = "Blinding Lights")))
+        val r = SearchRank.rank("after hours", listOf(SearchFilter.SONGS to listOf(SongItem(track))))
+        val album = AlbumItem("MPREb_ah", "After Hours", "Album • The Weeknd • 2020", null)
+        val moved = SearchRank.withAlbumOnTop(r, album)
+        assertEquals("MPREb_ah", moved.top?.id)
+        assertEquals("ah", moved.sections.first { it.first == SearchFilter.SONGS }.second.first().id)
+    }
 }

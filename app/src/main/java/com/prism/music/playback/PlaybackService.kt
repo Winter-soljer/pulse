@@ -387,6 +387,8 @@ class PlaybackService : MediaLibraryService(), Player.Listener {
      */
     suspend fun videoIdFor(song: Song): VideoLookup {
         if (song.isVideo) return VideoLookup(song.id)
+        // A saved video plays offline, so it's known without asking YouTube.
+        c.downloads.downloadedVideoId(song.id)?.let { return VideoLookup(it) }
         c.queue.counterparts[song.id]?.let { return VideoLookup(it) }
         if (song.id in c.queue.noVideo) return VideoLookup(null)
         val found = runCatching { withContext(Dispatchers.IO) { c.ytm.findMusicVideo(song) } }

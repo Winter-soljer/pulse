@@ -322,7 +322,12 @@ fun NowPlayingScreen(onCollapse: () -> Unit) {
                 if (fullBlur < 1f) ArtworkMeshBackdrop(mesh, Modifier.graphicsLayer { alpha = 1f - fullBlur }, seam = if (heroMode) heroHeight else 0.dp)
                 if (fullBlur > 0f) FullArtworkBlurBackdrop(blurImage, Modifier.graphicsLayer { alpha = fullBlur })
             }
-            com.prism.music.data.prefs.PlayerBackground.BLUR -> FullArtworkBlurBackdrop(blurImage)
+            // "Show background" lifts the darkening: about as before at its default, down to a light veil at full.
+            com.prism.music.data.prefs.PlayerBackground.BLUR -> FullArtworkBlurBackdrop(blurImage, scrim = 1.3f - 0.95f * settings.playerBackdropShow)
+            com.prism.music.data.prefs.PlayerBackground.APPEARANCE -> {
+                AppearanceBackdrop(settings.playerBackdropShow)
+                if (fullBlur > 0f) FullArtworkBlurBackdrop(blurImage, Modifier.graphicsLayer { alpha = fullBlur })
+            }
             com.prism.music.data.prefs.PlayerBackground.THEME -> ThemeBackdrop()
             com.prism.music.data.prefs.PlayerBackground.BLACK -> Box(Modifier.fillMaxSize().background(Color.Black))
         }
@@ -644,6 +649,35 @@ private fun ThemeBackdrop() {
             Brush.verticalGradient(listOf(scheme.primary.deep(0.55f), scheme.tertiary.deep(0.28f), Color.Black.copy(alpha = 0.92f).compositeOver(scheme.primary.deep(0.1f))))
         ),
     )
+}
+
+/**
+ * The background picked for Home in Appearance → Backgrounds. The player is always dark (white text and
+ * controls), so the background is drawn in its dark version whatever the app's theme, under a veil whose
+ * strength [show] sets, heavier toward the controls at the bottom.
+ */
+@Composable
+private fun AppearanceBackdrop(show: Float) {
+    val s = com.prism.music.ui.theme.LocalAppSettings.current
+    val (style, photo) = com.prism.music.ui.theme.Backdrop.parse(s.backdrops[com.prism.music.ui.theme.BackdropScreen.HOME.name])
+    val primary = MaterialTheme.colorScheme.primary
+    val darkScheme = remember(primary) { com.prism.music.ui.theme.schemeFromSeed(primary, dark = true, pureBlack = false) }
+    val veil = 1f - show
+    MaterialTheme(colorScheme = darkScheme) {
+        androidx.compose.runtime.CompositionLocalProvider(com.prism.music.ui.theme.LocalIsDark provides true) {
+            Box(Modifier.fillMaxSize().background(darkScheme.background)) {
+                com.prism.music.ui.theme.BackdropLayer(
+                    style, photo, dim = 0.7f * veil, motion = s.backdropMotion && !s.reduceMotion, modifier = Modifier.fillMaxSize(),
+                )
+                Box(
+                    Modifier.fillMaxSize().background(
+                        Brush.verticalGradient(0f to Color.Black.copy(alpha = 0.10f * veil), 0.55f to Color.Black.copy(alpha = 0.18f * veil + 0.04f),
+                            1f to Color.Black.copy(alpha = 0.45f * veil + 0.18f)),
+                    ),
+                )
+            }
+        }
+    }
 }
 
 @Composable

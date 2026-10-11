@@ -43,6 +43,19 @@ const val DOWNLOAD_CHANNEL = "downloads"
 /** [lossless]: a lossless file on the phone that lossless sync matched to this song (see [LosslessSync]). */
 data class DownloadInfo(val song: Song?, val state: Int, val percent: Float, val bytes: Long, val addedAt: Long = 0, val lossless: Boolean = false)
 
+/** A song's music video saved for offline: its picture, plus the video's own audio when that isn't the song's. */
+data class VideoDownload(val videoId: String, val state: Int, val percent: Float, val bytes: Long)
+
+/** What each part of a video download carries: the song it belongs to and the video's id. */
+@kotlinx.serialization.Serializable
+private data class VideoPart(val song: Song, val videoId: String)
+
+/** Request ids of a video download's parts (kept apart from song downloads, so they don't list as songs). */
+private const val VIDEO_PICTURE = "vpic:"
+private const val VIDEO_AUDIO = "vaud:"
+private fun isVideoPart(id: String) = id.startsWith(VIDEO_PICTURE) || id.startsWith(VIDEO_AUDIO)
+private fun partSongId(id: String) = id.substringAfter(':')
+
 @OptIn(UnstableApi::class)
 class DownloadRepository(private val context: Context, private val c: AppContainer, scope: CoroutineScope) {
 
@@ -64,6 +77,26 @@ class DownloadRepository(private val context: Context, private val c: AppContain
     val downloads: StateFlow<Map<String, DownloadInfo>> = _downloads
     private fun publish() { _downloads.value = _lossless.value + _media.value }
 
+    /** Video download parts by request id, and the videos they add up to, by song id. */
+    private val _videoParts = MutableStateFlow<Map<String, Download>>(emptyMap())
+    private val _videos = MutableStateFlow<Map<String, VideoDownload>>(emptyMap())
+    val videos: StateFlow<Map<String, VideoDownload>> = _videos
+
+    private fun publishVideos() {
+        _videos.value = _videoParts.value.values.groupBy { partSongId(it.request.id) }.mapNotNull { (songId, parts) ->
+            val videoId = parts.firstNotNullOfOrNull { it.part()?.videoId } ?: return@mapNotNull null
+            val state = when {
+                parts.all { it.state == Download.STATE_COMPLETED } -> Download.STATE_COMPLETED
+                parts.any { it.state == Download.STATE_FAILED } -> Download.STATE_FAILED
+                parts.any { it.state == Download.STATE_DOWNLOADING } -> Download.STATE_DOWNLOADING
+                else -> Download.STATE_QUEUED
+            }
+            songId to VideoDownload(videoId, state, parts.map { it.percentDownloaded.coerceAtLeast(0f) }.average().toFloat(), parts.sumOf { it.bytesDownloaded })
+        }.toMap()
+    }
+
+    private fun Download.part(): VideoPart? = runCatching { InnerTube.json.decodeFromString(VideoPart.serializer(), String(request.data)) }.getOrNull()
+
     private val lyricTries = context.getSharedPreferences("download_lyrics", Context.MODE_PRIVATE)
     private val lyricGate = kotlinx.coroutines.sync.Semaphore(2)
     private val _lyricsWorking = MutableStateFlow(0)
@@ -79,19 +112,27 @@ class DownloadRepository(private val context: Context, private val c: AppContain
         )
         scope.launch(Dispatchers.IO) {
             val map = mutableMapOf<String, DownloadInfo>()
+            val parts = mutableMapOf<String, Download>()
             manager.downloadIndex.getDownloads().use { cursor ->
                 while (cursor.moveToNext()) {
                     val d = cursor.download
-                    map[d.request.id] = d.info()
+                    if (isVideoPart(d.request.id)) parts[d.request.id] = d else map[d.request.id] = d.info()
                 }
             }
             _media.value = map
+            _videoParts.value = parts
             publish()
+            publishVideos()
             // Songs downloaded before lyrics came with them (or while offline) get theirs now.
             backfillLyrics()
         }
         manager.addListener(object : DownloadManager.Listener {
             override fun onDownloadChanged(manager: DownloadManager, download: Download, finalException: Exception?) {
+                if (isVideoPart(download.request.id)) {
+                    _videoParts.update { it + (download.request.id to download) }
+                    publishVideos()
+                    return
+                }
                 _media.update { it + (download.request.id to download.info()) }
                 publish()
                 if (download.state == Download.STATE_COMPLETED) download.info().song?.let { s ->
@@ -102,6 +143,11 @@ class DownloadRepository(private val context: Context, private val c: AppContain
             }
 
             override fun onDownloadRemoved(manager: DownloadManager, download: Download) {
+                if (isVideoPart(download.request.id)) {
+                    _videoParts.update { it - download.request.id }
+                    publishVideos()
+                    return
+                }
                 _media.update { it - download.request.id }
                 publish()
                 c.canvasStore.forgetDownloads(listOf(download.request.id))
@@ -161,16 +207,52 @@ class DownloadRepository(private val context: Context, private val c: AppContain
 
     fun downloadAll(songs: List<Song>) = songs.forEach(::download)
 
+    // ------------------------------------------------------------ Music videos
+
+    /** The video saved for [songId], once all of it is here (what video mode plays offline). */
+    fun downloadedVideoId(songId: String): String? = _videos.value[songId]?.takeIf { it.state == Download.STATE_COMPLETED }?.videoId
+
+    /**
+     * Saves the song's music video for offline: the song itself (so it's in Downloads), the video's picture
+     * and, when the video isn't the song, the video's own audio, which its picture is timed to. The player's
+     * video mode reads them from the download cache under the same keys it streams with.
+     */
+    fun downloadVideo(song: Song) {
+        if (song.isLive) return
+        download(song)
+        if (_videos.value[song.id]?.state.let { it == Download.STATE_COMPLETED || it == Download.STATE_DOWNLOADING || it == Download.STATE_QUEUED }) return
+        c.scope.launch {
+            val videoId = if (song.isVideo) song.id else c.queue.counterparts[song.id]
+                ?: runCatching { kotlinx.coroutines.withContext(Dispatchers.IO) { c.ytm.findMusicVideo(song) } }.getOrNull()?.also { c.queue.counterparts[song.id] = it }
+            if (videoId == null) { c.player.reportError("No music video to download for this song"); return@launch }
+            val data = InnerTube.json.encodeToString(VideoPart.serializer(), VideoPart(song, videoId)).toByteArray()
+            val picture = DownloadRequest.Builder(VIDEO_PICTURE + song.id, android.net.Uri.parse("prism://video/$videoId"))
+                .setCustomCacheKey("video:$videoId").setData(data).build()
+            DownloadService.sendAddDownload(context, PrismDownloadService::class.java, picture, false)
+            if (videoId != song.id) {
+                val audio = DownloadRequest.Builder(VIDEO_AUDIO + song.id, android.net.Uri.parse("prism://audio/$videoId"))
+                    .setCustomCacheKey(videoId).setData(data).build()
+                DownloadService.sendAddDownload(context, PrismDownloadService::class.java, audio, false)
+            }
+        }
+    }
+
+    /** Takes back a saved video (the song stays downloaded). */
+    fun removeVideo(songId: String) {
+        _videoParts.value.keys.filter { partSongId(it) == songId }.forEach { manager.removeDownload(it) }
+    }
+
     fun remove(id: String) {
         if (isLosslessOnly(id)) { c.losslessSync.hide(listOf(id)); return }
         DownloadService.sendRemoveDownload(context, PrismDownloadService::class.java, id, false)
+        removeVideo(id)
         c.scope.launch(Dispatchers.IO) { c.db.songs().setSmart(id, false) }
     }
 
     /** Deletes many downloads at once, straight through the manager (no intent per song). */
     fun removeMany(ids: Collection<String>) {
         c.losslessSync.hide(ids.filter(::isLosslessOnly))
-        ids.forEach { manager.removeDownload(it) }
+        ids.forEach { manager.removeDownload(it); removeVideo(it) }
         c.scope.launch(Dispatchers.IO) { ids.forEach { c.db.songs().setSmart(it, false) } }
     }
 
@@ -228,7 +310,7 @@ class DownloadRepository(private val context: Context, private val c: AppContain
     fun completedSongs(): List<Song> = _downloads.value.values
         .filter { it.state == Download.STATE_COMPLETED }.mapNotNull { it.song }
 
-    val totalBytes: Long get() = _downloads.value.values.sumOf { it.bytes }
+    val totalBytes: Long get() = _downloads.value.values.sumOf { it.bytes } + _videos.value.values.sumOf { it.bytes }
 }
 
 @OptIn(UnstableApi::class)

@@ -138,13 +138,27 @@ offline downloads, EQ/spatial audio, on-device "Replay" stats, and full Android 
   saturation, so white came out pink), so `isNeutralSeed` → `neutralScheme`: white accents in dark mode, near-black ink
   in light mode (so the Simple pattern backgrounds, inked in `primary`, stay visible). Swatch is now `0xFFFFFFFF`; the
   old `0xFFE0E0E0` still reads as selected. The Default background (frost from the playing cover) is intentional (1.5.1).
+- 1.5.7: Player background "Your background" (`PlayerBackground.APPEARANCE`: Home's Appearance background, drawn dark
+  under a forced dark scheme since the player is always white-on-dark) and "Show background" (`playerBackdropShow`, lifts
+  the veil on it and on Blurred cover). Backgrounds: six more Simple patterns (Diamonds, Zigzag, Halftone, Crosses, Scales,
+  Confetti) and a "Designs" group (`ui/theme/Designs.kt`: Constellation, Contours, Mosaic, Bokeh, Silk, Horizon; seeded
+  randoms, detail thinning down the page, animations whole-loop so they don't jump). Video downloads: song menu / player
+  ⋯ → "Download video" saves the song plus the video's picture (request `vpic:<songId>`, key `video:<videoId>`) and,
+  when the video isn't the song, its own audio (`vaud:<songId>`, key `<videoId>`); kept out of the song list
+  (`DownloadRepository.videos`), read back by `videoDataSourceFactory` / the audio leg's normal key, so video mode works
+  offline (`downloadedVideoId` short-cuts `videoIdFor`). Search fix: `InnerTube.ensureClientVersion` now holds parallel
+  requests behind a mutex (Top results' five searches went out without a visitor id), and a title track on top whose
+  album YouTube's album search omitted looks the album up from `song.album` (`SearchRank.namesItsAlbum`).
 - Not affiliated with Google/YouTube — keep the disclaimer in README.
 - `*.apk`, `local.properties`, keystores are gitignored.
 
 ## Current status / Next steps
+- v1.5.7 (versionCode 22, 2026-10-11): player "Your background" + "Show background", 12 new backgrounds, video
+  downloads, Top results fix (see "1.5.7" above). All 59 unit tests pass. Not checked on a device (no emulator here; the
+  owner tests on the phone): the new designs' look, video downloads end to end (offline video mode).
 - v1.5.6 (versionCode 21, 2026-10-11): keep playing videos, Live search, artist Livestreams, pure white accent (see
   "1.5.6" above). Built and unit-tested (live tests pass on Lofi Girl); not checked on the phone (the owner tests it).
-  `ArtistAlbumLiveTest.topResultsAreRelevant` still fails (YouTube's search, as at 1.5.5).
+  `ArtistAlbumLiveTest.topResultsAreRelevant` failed then; fixed in 1.5.7.
 - v1.5.5 (versionCode 20, 2026-10-11): live video (the Video button on live streams) and 128 kbps live audio (see
   "Live streams" above). Was GitHub "Latest" until 1.5.6. Checked on the Pixel test copy; PiP for live
   not tried. `ArtistAlbumLiveTest.topResultsAreRelevant` ("after hours" top result) failed at release time: YouTube's search
