@@ -153,16 +153,20 @@ offline downloads, EQ/spatial audio, on-device "Replay" stats, and full Android 
 - `*.apk`, `local.properties`, keystores are gitignored.
 
 ## Current status / Next steps
-- v1.5.7 (versionCode 22, 2026-10-11): player "Your background" + "Show background", 12 new backgrounds, video
-  downloads, Top results fix (see "1.5.7" above). All 59 unit tests pass. Not checked on a device (no emulator here; the
-  owner tests on the phone): the new designs' look, video downloads end to end (offline video mode).
-- v1.5.6 (versionCode 21, 2026-10-11): keep playing videos, Live search, artist Livestreams, pure white accent (see
-  "1.5.6" above). Built and unit-tested (live tests pass on Lofi Girl); not checked on the phone (the owner tests it).
+- **v1.5.7 (versionCode 22, commit `a1c331c`) is GitHub "Latest"** (2026-10-11, `Prism.apk` release-key signed): player
+  "Your background" + "Show background", 12 new backgrounds, video downloads, Top results fix (see "1.5.7" above). All 59
+  unit tests pass. Not checked on a device: the new designs' look (Horizon is the busiest), video downloads end to end
+  (download, airplane mode, Video button), Your background in the player with a photo and with a Design.
+- Testing on the phone: as of 1.5.6 the owner said not to test on their phone; they install the GitHub release and test
+  it themselves. So: build, unit-test, release, and list what to try. There's no emulator on this PC (`adb devices` shows
+  only the owner's phone), so UI changes can't be looked at here; review drawing code carefully instead.
+- v1.5.6 (versionCode 21, commit `1c942ac`, 2026-10-11): keep playing videos, Live search, artist Livestreams, pure white
+  accent (see "1.5.6" above). Was GitHub "Latest" until 1.5.7. Built and unit-tested (live tests pass on Lofi Girl);
+  not checked on the phone (the owner tests it).
   `ArtistAlbumLiveTest.topResultsAreRelevant` failed then; fixed in 1.5.7.
 - v1.5.5 (versionCode 20, 2026-10-11): live video (the Video button on live streams) and 128 kbps live audio (see
-  "Live streams" above). Was GitHub "Latest" until 1.5.6. Checked on the Pixel test copy; PiP for live
-  not tried. `ArtistAlbumLiveTest.topResultsAreRelevant` ("after hours" top result) failed at release time: YouTube's search
-  results, unrelated to this release.
+  "Live streams" above). Checked on the Pixel test copy; PiP for live not tried.
+  `ArtistAlbumLiveTest.topResultsAreRelevant` ("after hours" top result) failed from here until 1.5.7 fixed it.
 - v1.5.4 (versionCode 19, 2026-10-11): live streams play from HLS, so "Listen together" stations work (see "Live streams"
   above). Live playback checked on the Pixel test copy (a 24/7 lofi
   radio); not yet checked: the station itself on the owner's signed-in Home.
@@ -226,15 +230,18 @@ offline downloads, EQ/spatial audio, on-device "Replay" stats, and full Android 
 - Donations: Ko-fi at https://ko-fi.com/yigder — linked from a README header badge, a "Support Prism"
   section (before "Building from source"), and `.github/FUNDING.yml` (`ko_fi: yigder`, GitHub Sponsor button).
   Keep it optional/no-pressure; no in-app donation prompts unless the user asks.
-- On the user's Wi-Fi, `gh` API calls fail (`invalid character '<'`); git push works. Ask them to switch to hotspot.
+- On the user's Wi-Fi, `gh` API calls have failed (`invalid character '<'`) while git push works; if so, ask them to
+  switch to hotspot. (`gh release create` worked for 1.5.6 and 1.5.7.)
 - An untracked `Prism/` subfolder duplicates the project (with build output and logs) — decide whether to delete it.
-- **v1.5.0 (versionCode 15, commit `75c5c7f`) is GitHub "Latest"** (2026-10-10, with `Prism.apk`, release-key signed): the QOL update — frosted artist/album/playlist pages, artist
+- v1.5.0 (versionCode 15, commit `75c5c7f`, 2026-10-10): the QOL update — frosted artist/album/playlist pages, artist
   signatures and favourites, share sheet + "Play in Prism", Listen Together, playlist edit/remove/save-to-library/new playlist,
   add-to-playlist sheet, queue save/clear, sleep "end of song". Built and unit-tested; checked on the Pixel with the
   side-by-side test copy (signed out): artist page dark + light, signatures, album/playlist pages, share sheet + image
   export, Listen Together hosting (a PC guest joined over Wi-Fi; wrong code refused; NSD advert seen). Not yet tried:
   two phones following each other, signed-in actions (save to library, edit/remove, favourite → subscribe).
   Haze blur doesn't draw for elements inside the NavHost's own hazeSource, hence `ScrollEdge` instead of a blurred bar.
-- Next steps: try 1.5.0's untested paths on the phone (two phones in a Listen Together session; signed-in save to library,
-  playlist edit/remove/delete, favourite → subscribe). Possible later: remote (internet) Listen Together, which needs a
+- Next steps: hear back from the owner's own testing of 1.5.6 and 1.5.7 (keep playing videos, Live search and artist
+  Livestreams, the white accent in light and dark, the new backgrounds, Your background in the player, video downloads
+  offline). Still untried from 1.5.0: two phones in a Listen Together session, and signed-in save to library, playlist
+  edit/remove/delete and favourite → subscribe. Possible later: remote (internet) Listen Together, which needs a
   relay server and so an owner decision given the no-server rule; real artist logos, which need a third-party API key.
