@@ -114,6 +114,13 @@ offline downloads, EQ/spatial audio, on-device "Replay" stats, and full Android 
   Tabs keep their own back stacks (`saveState`/`restoreState`), so Settings reopens on its last page. Backgrounds have light and
   dark palettes plus a "Simple" group (accent-coloured patterns). System bar icons follow Prism's theme, not the phone's.
   Checked on the Pixel test copy signed out; stations themselves need a signed-in account to see.
+- Live streams (unreleased, after 1.5.3): "Listen together" stations open on a **live stream** (logcat showed a ~220-day
+  position and a stalled buffer). NewPipe still lists "progressive" audio for live videos, which is only the newest few
+  seconds, so Prism played ~5 s and skipped. Now `StreamResolver` marks live formats (`StreamType.LIVE_STREAM` / player
+  `videoDetails.isLive`, `hlsManifestUrl`), `resolve()` throws `LiveStreamException`, and the item becomes `Song.isLive`
+  → `prism://live/<id>` → `HlsMediaSource` via `AppContainer.liveDataSourceFactory()` (plain GETs on `http`, no stream
+  interceptor, no cache). Detected up front for stations (`playMix`) and the next item (`prefetchNext`), else on the first
+  error. Live items skip the "song version" lookup and video mode; the player shows ● LIVE. `LiveStreamLiveTest` checks HLS.
 - Not affiliated with Google/YouTube — keep the disclaimer in README.
 - `*.apk`, `local.properties`, keystores are gitignored.
 

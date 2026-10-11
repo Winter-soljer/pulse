@@ -18,6 +18,8 @@ data class Song(
     val thumbnail: String? = null,
     val isVideo: Boolean = false,
     val explicit: Boolean = false,
+    /** A live stream (e.g. a "Listen together" station): played from its HLS manifest, with no end or cache. */
+    val isLive: Boolean = false,
 ) {
     val artistText: String get() = artists.joinToString(", ") { it.name }.ifBlank { "Unknown artist" }
     val primaryArtist: String get() = artists.firstOrNull()?.name ?: ""

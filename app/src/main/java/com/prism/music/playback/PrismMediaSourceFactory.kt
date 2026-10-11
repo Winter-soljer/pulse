@@ -4,6 +4,8 @@ import android.net.Uri
 import androidx.annotation.OptIn
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
+import androidx.media3.common.MimeTypes
+import androidx.media3.exoplayer.hls.HlsMediaSource
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DataSource
 import androidx.media3.exoplayer.drm.DrmSessionManagerProvider
@@ -25,16 +27,20 @@ class PrismMediaSourceFactory(
     localDsf: DataSource.Factory? = null,
     /** A lossless file on the phone to play instead of the stream (the lossless add-on). */
     private val localAudio: ((MediaItem) -> Uri?)? = null,
+    /** Live streams: prism://live/<id> resolved to the stream's HLS manifest. */
+    liveDsf: DataSource.Factory? = null,
 ) : MediaSource.Factory {
     private val extractors = DefaultExtractorsFactory().setConstantBitrateSeekingEnabled(true)
     private val audio = ProgressiveMediaSource.Factory(audioDsf, extractors)
     private val video = ProgressiveMediaSource.Factory(videoDsf, extractors)
     private val local = localDsf?.let { ProgressiveMediaSource.Factory(it, extractors) }
+    private val live = liveDsf?.let { HlsMediaSource.Factory(it) }
 
     override fun setDrmSessionManagerProvider(drmSessionManagerProvider: DrmSessionManagerProvider): MediaSource.Factory {
         audio.setDrmSessionManagerProvider(drmSessionManagerProvider)
         local?.setDrmSessionManagerProvider(drmSessionManagerProvider)
         video.setDrmSessionManagerProvider(drmSessionManagerProvider)
+        live?.setDrmSessionManagerProvider(drmSessionManagerProvider)
         return this
     }
 
@@ -42,12 +48,16 @@ class PrismMediaSourceFactory(
         audio.setLoadErrorHandlingPolicy(loadErrorHandlingPolicy)
         local?.setLoadErrorHandlingPolicy(loadErrorHandlingPolicy)
         video.setLoadErrorHandlingPolicy(loadErrorHandlingPolicy)
+        live?.setLoadErrorHandlingPolicy(loadErrorHandlingPolicy)
         return this
     }
 
-    override fun getSupportedTypes(): IntArray = intArrayOf(C.CONTENT_TYPE_OTHER)
+    override fun getSupportedTypes(): IntArray = intArrayOf(C.CONTENT_TYPE_OTHER, C.CONTENT_TYPE_HLS)
 
     override fun createMediaSource(mediaItem: MediaItem): MediaSource {
+        if (live != null && mediaItem.localConfiguration?.uri?.authority == "live") {
+            return live.createMediaSource(mediaItem.buildUpon().setMimeType(MimeTypes.APPLICATION_M3U8).setCustomCacheKey(null).build())
+        }
         val videoId = mediaItem.localConfiguration?.uri?.getQueryParameter("video")
         if (videoId == null) {
             if (local != null) localAudio?.invoke(mediaItem)?.let { uri ->

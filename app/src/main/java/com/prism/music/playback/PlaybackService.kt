@@ -120,6 +120,7 @@ class PlaybackService : MediaLibraryService(), Player.Listener {
                     c.playbackDataSourceFactory(), c.videoDataSourceFactory(),
                     androidx.media3.datasource.DefaultDataSource.Factory(this),
                     localAudio = { item -> losslessFileFor(item) },
+                    liveDsf = c.liveDataSourceFactory(),
                 )
             )
             .setAudioAttributes(
@@ -260,6 +261,19 @@ class PlaybackService : MediaLibraryService(), Player.Listener {
 
     override fun onPlayerError(error: PlaybackException) {
         val id = player.currentMediaItem?.mediaId ?: return
+        // It turned out to be a live stream (a "Listen together" station): play it again as one, from its HLS manifest.
+        val live = generateSequence(error as Throwable) { it.cause }.filterIsInstance<com.prism.music.data.stream.LiveStreamException>().firstOrNull()
+        if (live != null) {
+            val idx = player.currentMediaItemIndex
+            val song = player.currentMediaItem?.toSong()
+            if (song != null && !song.isLive) {
+                player.replaceMediaItem(idx, song.copy(isLive = true).toMediaItem())
+                player.seekToDefaultPosition(idx)
+                player.prepare()
+                player.play()
+                return
+            }
+        }
         // A music video that won't load falls back to the song itself — never skip ahead.
         if (player.currentMediaItem?.videoModeId != null) {
             scope.launch { revertVideo(id) }
@@ -402,7 +416,15 @@ class PlaybackService : MediaLibraryService(), Player.Listener {
         if (i == C.INDEX_UNSET) return
         val next = player.getMediaItemAt(i).mediaId.takeIf { it.isNotBlank() } ?: return
         if (c.downloads.isDownloaded(next)) return
-        scope.launch(Dispatchers.IO) { c.streams.prefetch(next) }
+        scope.launch(Dispatchers.IO) {
+            c.streams.prefetch(next)
+            // A live stream coming up is lined up as one, so it starts without a failed attempt first.
+            if (runCatching { c.streams.isLive(next) }.getOrDefault(false)) withContext(Dispatchers.Main) {
+                val at = (0 until player.mediaItemCount).firstOrNull { player.getMediaItemAt(it).mediaId == next && it != player.currentMediaItemIndex }
+                val song = at?.let { player.getMediaItemAt(it).toSong() }
+                if (at != null && song != null && !song.isLive) player.replaceMediaItem(at, song.copy(isLive = true).toMediaItem())
+            }
+        }
     }
 
     private val prefetched = java.util.Collections.newSetFromMap(java.util.concurrent.ConcurrentHashMap<String, Boolean>())
@@ -414,6 +436,7 @@ class PlaybackService : MediaLibraryService(), Player.Listener {
         val idx = player.currentMediaItemIndex
         val item = player.currentMediaItem ?: return null
         val song = item.toSong() ?: return null
+        if (song.isLive) return if (enabled) "Live streams play as audio" else null
         if (enabled == (item.videoModeId != null)) return null
         val vid = if (enabled) {
             val found = videoIdFor(song)

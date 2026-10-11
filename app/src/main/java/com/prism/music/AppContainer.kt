@@ -199,6 +199,21 @@ class AppContainer(val app: Application) {
             }
         }
 
+    /**
+     * Live streams: prism://live/<id> becomes the stream's HLS manifest; its playlists and segments are plain GETs
+     * (not the POST-and-range dance [YouTubeStreamInterceptor] does for files), and nothing is cached.
+     */
+    fun liveDataSourceFactory(): DataSource.Factory =
+        ResolvingDataSource.Factory(OkHttpDataSource.Factory(http).setUserAgent(com.prism.music.data.stream.DESKTOP_UA)) { spec ->
+            val id = spec.uri.lastPathSegment
+            if (spec.uri.scheme != "prism" || id == null) spec else {
+                val url = try { streams.liveManifest(id) } catch (e: Exception) { throw IOException(e.message ?: "Couldn't load the live stream", e) }
+                streamDetails[id] = "Live" to streamDetails[id]?.second
+                onStreamResolved?.invoke(id)
+                spec.buildUpon().setUri(url).build()
+            }
+        }
+
     fun downloadDataSourceFactory(): DataSource.Factory =
         ResolvingDataSource.Factory(OkHttpDataSource.Factory(streamHttp)) { spec -> resolveAudio(spec, false) }
 

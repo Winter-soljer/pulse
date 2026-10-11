@@ -184,6 +184,22 @@ fun ThinSlider(
 @Composable
 fun PlayerScrubber(positionMs: Long, durationMs: Long, centerLabel: @Composable BoxScope.() -> Unit = {}) {
     val pc = LocalContainer.current.player
+    val current by pc.currentSong.collectAsState()
+    // A live stream has no start or end: a full bar marked LIVE, not a clock of its rolling window.
+    if (current?.isLive == true) {
+        Column(Modifier.fillMaxWidth()) {
+            ThinSlider(value = 1f, onValueChange = {}, idleHeight = 7.dp, activeHeight = 7.dp)
+            Box(Modifier.fillMaxWidth().offset(y = (-9).dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(7.dp).background(Color(0xFFFF4D4D), androidx.compose.foundation.shape.CircleShape))
+                    Spacer(Modifier.width(6.dp))
+                    Text("LIVE", style = MaterialTheme.typography.labelMedium, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, color = Color.White.copy(alpha = 0.8f))
+                }
+                centerLabel()
+            }
+        }
+        return
+    }
     var scrub by remember { mutableStateOf<Float?>(null) }
     val duration = durationMs.coerceAtLeast(1)
     val shown = scrub ?: (positionMs.toFloat() / duration).coerceIn(0f, 1f)

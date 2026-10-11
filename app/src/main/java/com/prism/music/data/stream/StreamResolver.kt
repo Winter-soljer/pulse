@@ -41,6 +41,7 @@ import org.schabi.newpipe.extractor.localization.Localization
 import org.schabi.newpipe.extractor.services.youtube.YoutubeParsingHelper
 import org.schabi.newpipe.extractor.stream.DeliveryMethod
 import org.schabi.newpipe.extractor.stream.StreamInfo
+import org.schabi.newpipe.extractor.stream.StreamType
 import org.schabi.newpipe.extractor.stream.VideoStream
 import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
@@ -265,6 +266,9 @@ data class ResolvedStream(
 
 class StreamException(message: String, cause: Throwable? = null) : Exception(message, cause)
 
+/** [videoId] turned out to be live: it plays from its HLS manifest (`prism://live/…`), not as a file. */
+class LiveStreamException(val videoId: String) : IOException("$videoId is a live stream")
+
 /**
  * Resolves playable googlevideo URLs for a video id. NewPipeExtractor does this anonymously; songs
  * YouTube won't play anonymously (age-restricted, Music Premium-only) are asked for again as the
@@ -300,6 +304,9 @@ class StreamResolver(
         val muxed: List<Fmt>,
         val durationSec: Long,
         val expiresAtMs: Long,
+        /** A live stream (a YouTube Music "Listen together" station, a 24/7 radio): only playable from [hlsUrl]. */
+        val live: Boolean = false,
+        val hlsUrl: String? = null,
     )
 
     private val solver = PlayerJsSolver(context, http)
@@ -365,7 +372,7 @@ class StreamResolver(
         val signedIn = settings.current.isLoggedIn
         if (signedIn && videoId in needsAccount) return signedInFormats(videoId)
         return try {
-            anonymousFormats(videoId).also { if (it.audio.isEmpty()) throw StreamException("No playable audio stream was found") }
+            anonymousFormats(videoId).also { if (it.audio.isEmpty() && it.hlsUrl == null) throw StreamException("No playable audio stream was found") }
         } catch (e: Exception) {
             val restricted = e is ContentNotAvailableException
             when {
@@ -402,7 +409,11 @@ class StreamResolver(
         val progressive = { v: VideoStream -> v.isUrl && v.deliveryMethod == DeliveryMethod.PROGRESSIVE_HTTP }
         val expire = info.audioStreams.firstOrNull()?.content?.let { Uri.parse(it).getQueryParameter("expire")?.toLongOrNull() }
             ?.let { it * 1000 - 10 * 60_000 } ?: (System.currentTimeMillis() + 60 * 60_000)
-        return Formats(audio, info.videoOnlyStreams.filter(progressive).map(::video), info.videoStreams.filter(progressive).map(::video), info.duration, expire)
+        val live = info.streamType == StreamType.LIVE_STREAM || info.streamType == StreamType.AUDIO_LIVE_STREAM
+        return Formats(
+            audio, info.videoOnlyStreams.filter(progressive).map(::video), info.videoStreams.filter(progressive).map(::video), info.duration, expire,
+            live = live, hlsUrl = info.hlsUrl?.takeIf { it.isNotBlank() },
+        )
     }
 
     /** The player response as the signed-in user: the TV client first (no PO token needed), then the web app. */
@@ -426,7 +437,7 @@ class StreamResolver(
                 continue
             }
             val f = parsePlayer(res, player?.first)
-            if (f.audio.isNotEmpty()) return f
+            if (f.audio.isNotEmpty() || (f.live && f.hlsUrl != null)) return f
         }
         throw StreamException(reason ?: "Couldn't load this track")
     }
@@ -460,7 +471,18 @@ class StreamResolver(
             muxed = muxed,
             durationSec = res.str("videoDetails", "lengthSeconds")?.toLongOrNull() ?: 0,
             expiresAtMs = System.currentTimeMillis() + expiresIn * 1000 - 10 * 60_000,
+            live = res.str("videoDetails", "isLive") == "true" || res.str("videoDetails", "isLiveContent") == "true" && data.str("hlsManifestUrl") != null,
+            hlsUrl = data.str("hlsManifestUrl"),
         )
+    }
+
+    /** Whether [videoId] is a live stream (resolving it if it hasn't been). Blocking. */
+    fun isLive(videoId: String): Boolean = formats(videoId).live
+
+    /** A live stream's HLS manifest, fresh enough to play. Blocking; called from ExoPlayer loader threads. */
+    fun liveManifest(videoId: String): String {
+        val f = formats(videoId)
+        return f.hlsUrl ?: throw StreamException("This live stream can't be played")
     }
 
     /**
@@ -531,6 +553,8 @@ class StreamResolver(
     /** Blocking; called from ExoPlayer loader threads. */
     fun resolve(videoId: String, withVideo: Boolean = false): ResolvedStream {
         val f = formats(videoId)
+        // A live stream's "file" is only its newest few seconds: the player has to take it as HLS instead.
+        if (f.live) throw LiveStreamException(videoId)
         val audio = pickAudio(f.audio, currentQuality())
             ?: throw StreamException("No playable audio stream was found")
         val video = if (withVideo) {

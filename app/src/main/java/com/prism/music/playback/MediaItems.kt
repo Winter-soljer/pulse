@@ -11,14 +11,18 @@ import com.prism.music.data.model.hiRes
 const val EXTRA_SONG = "prism.song"
 const val EXTRA_VIDEO = "prism.video"
 
-/** prism://audio/<id>[?video=<videoId>] – resolved to a real stream URL at load time. */
+/**
+ * prism://audio/<id>[?video=<videoId>] – resolved to a real stream URL at load time.
+ * Live streams are prism://live/<id>, resolved to their HLS manifest (no video mode: the stream carries its own picture).
+ */
 fun Song.toMediaItem(videoId: String? = null): MediaItem {
-    val uri = Uri.Builder().scheme("prism").authority("audio").appendPath(id).apply {
+    val uri = if (isLive) Uri.Builder().scheme("prism").authority("live").appendPath(id).build()
+    else Uri.Builder().scheme("prism").authority("audio").appendPath(id).apply {
         if (videoId != null) appendQueryParameter("video", videoId)
     }.build()
     val extras = Bundle().apply {
         putString(EXTRA_SONG, InnerTube.json.encodeToString(Song.serializer(), this@toMediaItem))
-        if (videoId != null) putString(EXTRA_VIDEO, videoId)
+        if (videoId != null && !isLive) putString(EXTRA_VIDEO, videoId)
     }
     return MediaItem.Builder()
         .setMediaId(id)

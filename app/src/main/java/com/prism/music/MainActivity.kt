@@ -289,8 +289,14 @@ private fun PrismRoot(deepLink: MutableStateFlow<Uri?>) {
                         Toast.makeText(context, "Couldn't start ${mix.title}", Toast.LENGTH_SHORT).show()
                         return@launch
                     }
+                    // Stations like "Listen together" open on a live stream: found out now (the stream is resolved anyway), it starts as one.
+                    val first = r.songs.first()
+                    val live = first.isLive || kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        kotlinx.coroutines.withTimeoutOrNull(8_000) { runCatching { c.streams.isLive(first.id) }.getOrDefault(false) } ?: false
+                    }
+                    val songs = if (live && !first.isLive) listOf(first.copy(isLive = true)) + r.songs.drop(1) else r.songs
                     c.queue.counterparts.putAll(r.counterparts)
-                    c.player.playQueue(r.songs, 0, com.prism.music.playback.QueueSource(com.prism.music.playback.QueueKind.RADIO, mix.title))
+                    c.player.playQueue(songs, 0, com.prism.music.playback.QueueSource(com.prism.music.playback.QueueKind.RADIO, mix.title))
                 }
             })
         }
