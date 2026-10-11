@@ -45,6 +45,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -91,14 +92,33 @@ fun ScreenHeader(
     }
 }
 
-/** A round, quiet action for headers: tonal by default, or glass when it floats over content. */
+/**
+ * The disc behind a button that floats over a page (photos, artwork, scrolling content). Haze can't
+ * blur inside the NavHost, so it carries its own near-solid fill: dark glass with white ink in dark
+ * mode, milky white with near-black ink in light mode, legible over anything.
+ */
+@Composable
+fun FloatingDisc(modifier: Modifier = Modifier, content: @Composable androidx.compose.foundation.layout.BoxScope.(ink: Color) -> Unit) {
+    val dark = LocalIsDark.current
+    val fill = if (dark) Color(0xFF1B1B1F).copy(alpha = 0.78f) else Color.White.copy(alpha = 0.90f)
+    val ink = if (dark) Color.White else Color(0xFF111114)
+    Box(
+        modifier.size(42.dp)
+            .shadow(6.dp, CircleShape, ambientColor = Color.Black.copy(alpha = 0.3f), spotColor = Color.Black.copy(alpha = 0.3f))
+            .clip(CircleShape).background(fill)
+            .border(0.7.dp, if (dark) Color.White.copy(alpha = 0.16f) else Color.Black.copy(alpha = 0.08f), CircleShape),
+        contentAlignment = Alignment.Center,
+    ) { content(ink) }
+}
+
+/** A round, quiet action for headers: tonal by default, or a floating disc ([FloatingDisc]) when it floats over content. */
 @Composable
 fun RoundAction(icon: ImageVector, description: String, modifier: Modifier = Modifier, glass: Boolean = false, enabled: Boolean = true, onClick: () -> Unit) {
     val tint = MaterialTheme.colorScheme.onSurface.copy(alpha = if (enabled) 1f else 0.38f)
     if (glass) {
-        GlassSurface(modifier.size(42.dp), shape = RoundedCornerShape(50), elevation = 6.dp) {
+        FloatingDisc(modifier) { ink ->
             Box(Modifier.fillMaxSize().clickable(enabled = enabled, onClickLabel = description, onClick = onClick), contentAlignment = Alignment.Center) {
-                Icon(icon, description, Modifier.size(22.dp), tint = tint)
+                Icon(icon, description, Modifier.size(22.dp), tint = ink.copy(alpha = if (enabled) 1f else 0.38f))
             }
         }
     } else {

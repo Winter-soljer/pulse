@@ -52,6 +52,9 @@ data class PlaylistItem(
     override val thumbnail: String?,
     /** Radio/mix style lists are played via the watch endpoint rather than browsed. */
     val isMix: Boolean = false,
+    /** A station's seed song and watch params, which YouTube needs to start it (artist/"Listen together" stations). */
+    val seedVideoId: String? = null,
+    val params: String? = null,
 ) : BrowseItem
 
 data class ArtistItem(
@@ -78,7 +81,25 @@ data class Shelf(
     val items: List<BrowseItem>,
     val moreBrowseId: String? = null,
     val moreParams: String? = null,
+    /** YouTube's own grid (an artist's "See all" discography, for one), rather than a carousel. */
+    val grid: Boolean = false,
 )
+
+/** Album/single/EP ordering, by the year in a card's subtitle ("Album • 2024", or just "2024"). */
+object Releases {
+    private val yearRegex = Regex("\\b(19|20)\\d{2}\\b")
+    fun yearOf(item: BrowseItem): Int = yearRegex.find(item.subtitle)?.value?.toIntOrNull() ?: 0
+
+    /**
+     * Newest first. YouTube's discography lists are mostly newest first but tack live albums, radio
+     * specials and remixes on at the end in their own runs; a stable sort keeps its order within a year.
+     */
+    fun newestFirst(items: List<BrowseItem>): List<BrowseItem> =
+        if (items.none { it is AlbumItem }) items else items.sortedByDescending { yearOf(it) }
+
+    fun oldestFirst(items: List<BrowseItem>): List<BrowseItem> =
+        items.sortedWith(compareBy<BrowseItem> { yearOf(it).takeIf { y -> y > 0 } ?: Int.MAX_VALUE })
+}
 
 data class HomeFeed(val shelves: List<Shelf>, val continuation: String?)
 

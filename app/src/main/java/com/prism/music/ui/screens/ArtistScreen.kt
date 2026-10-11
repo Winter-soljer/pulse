@@ -88,6 +88,7 @@ import com.prism.music.data.model.ArtistItem
 import com.prism.music.data.model.ArtistPage
 import com.prism.music.data.model.BrowseItem
 import com.prism.music.data.model.PlaylistItem
+import com.prism.music.data.model.Releases
 import com.prism.music.data.model.Shelf
 import com.prism.music.data.model.Song
 import com.prism.music.data.model.SongItem
@@ -146,8 +147,8 @@ private class ArtistSections(page: ArtistPage) {
     private fun Shelf.t() = title.lowercase()
 
     val topSongs = take { s -> s.items.isNotEmpty() && s.items.all { it is SongItem && !it.song.isVideo } && s.t().contains("song") }
-    val albums = take { it.t() == "albums" }
-    val singles = take { it.t().contains("single") || it.t() == "eps" }
+    val albums = take { it.t() == "albums" }?.newestFirst()
+    val singles = take { it.t().contains("single") || it.t() == "eps" }?.newestFirst()
     val videos = take { it.t() == "videos" || it.t().contains("music video") }
     val live = take { it.t().contains("live") }
     val featured = take { it.t().contains("featured on") || it.t().contains("appears on") }
@@ -159,8 +160,8 @@ private class ArtistSections(page: ArtistPage) {
 /** How many top songs the artist page lists (in columns of four). */
 private const val TOP_SONGS = 20
 
-private val yearRegex = Regex("\\b(19|20)\\d{2}\\b")
-private fun yearOf(item: BrowseItem): Int = yearRegex.find(item.subtitle)?.value?.toIntOrNull() ?: 0
+private fun yearOf(item: BrowseItem): Int = Releases.yearOf(item)
+private fun Shelf.newestFirst() = copy(items = Releases.newestFirst(items))
 
 /**
  * An artist's page after Apple Music's (iOS 27): their photo fills the top and frosts over into
@@ -712,11 +713,79 @@ fun BrowseScreen(id: String, params: String?, title: String, bottomPadding: Dp) 
         }.filter { it.items.isNotEmpty() }
     }
     val onSong: (SongItem) -> Unit = { c.player.playSingle(it.song) }
+    var sort by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(ReleaseSort.NEWEST) }
     com.prism.music.ui.components.SubPage(title.ifBlank { "Browse" }, bottomPadding) {
         when (val s = load.state) {
             Load.Loading -> item { LoadingState() }
             is Load.Err -> item { ErrorState(s.message) { load.reload(false) } }
-            is Load.Ok -> s.value.forEach { shelf -> shelfItems(shelf) { nav.open(it, onSong) } }
+            is Load.Ok -> s.value.forEach { shelf ->
+                // An artist's "See all" albums or singles: big covers, two to a row, like YouTube Music's own grid.
+                if (shelf.grid && shelf.items.count { it is AlbumItem } * 2 > shelf.items.size) {
+                    releaseGrid(shelf, sort, { sort = it }) { nav.open(it, onSong) }
+                } else shelfItems(shelf) { nav.open(it, onSong) }
+            }
         }
+    }
+}
+
+private enum class ReleaseSort(val label: String) { NEWEST("Newest"), OLDEST("Oldest"), TITLE("A–Z") }
+
+/** A discography as a vertical grid of large covers, with Newest / Oldest / A–Z. */
+private fun androidx.compose.foundation.lazy.LazyListScope.releaseGrid(
+    shelf: Shelf, sort: ReleaseSort, onSort: (ReleaseSort) -> Unit, open: (BrowseItem) -> Unit,
+) {
+    val items = when (sort) {
+        ReleaseSort.NEWEST -> Releases.newestFirst(shelf.items)
+        ReleaseSort.OLDEST -> Releases.oldestFirst(shelf.items)
+        ReleaseSort.TITLE -> shelf.items.sortedBy { it.title.lowercase() }
+    }
+    item(key = "sort:" + shelf.title) {
+        Row(
+            Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically,
+        ) {
+            ReleaseSort.entries.forEach { s -> com.prism.music.ui.components.PrismChip(sort == s, { onSort(s) }, s.label) }
+            Spacer(Modifier.weight(1f))
+            Text(
+                if (items.size == 1) "1 release" else "${items.size} releases",
+                style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+    items.chunked(2).forEachIndexed { r, pair ->
+        item(key = "g:${shelf.title}:${sort.name}:$r") {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                pair.forEach { ReleaseCard(it, Modifier.weight(1f), open) }
+                if (pair.size == 1) Spacer(Modifier.weight(1f))
+            }
+        }
+    }
+}
+
+@Composable
+private fun ReleaseCard(item: BrowseItem, modifier: Modifier, open: (BrowseItem) -> Unit) {
+    val ui = LocalUi.current
+    val menu = rememberPlayMenu()
+    Column(
+        modifier.clip(ui.shape(10.dp))
+            .combinedClickable(onClick = { open(item) }, onLongClick = item.playable()?.let { p -> { menu(p) } }),
+    ) {
+        Artwork(
+            LocalContainer.current.covers.art(item), Modifier.fillMaxWidth().aspectRatio(1f), ui.art,
+            size = 720, placeholderIcon = Icons.Rounded.PlayArrow,
+        )
+        Spacer(Modifier.height(8.dp))
+        Text(
+            item.title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold,
+            maxLines = 2, overflow = TextOverflow.Ellipsis,
+        )
+        // "Single • 2024" reads as "2024 · Single"; plain albums just show the year.
+        val kind = item.subtitle.split(" • ").firstOrNull { it in setOf("Album", "Single", "EP") }
+        val year = yearOf(item).takeIf { it > 0 }?.toString()
+        Text(
+            listOfNotNull(year, kind).joinToString(" · ").ifBlank { item.subtitle },
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(bottom = 4.dp),
+        )
     }
 }

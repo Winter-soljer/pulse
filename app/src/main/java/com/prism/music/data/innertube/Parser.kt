@@ -131,7 +131,19 @@ object Parser {
         val thumb = r.obj("thumbnailRenderer").bestThumbnail()
         val nav = r.obj("navigationEndpoint")
         nav.obj("watchEndpoint")?.let { w ->
-            val id = w.str("videoId") ?: return null
+            val id = w.str("videoId")
+            val pid = w.str("playlistId")
+            // A station ("Station • Bring Me The Horizon, Oasis…"): a radio seeded by a song, not the song itself.
+            // Song cards carry their own radio ("RDAMVM" + the song) or album; anything else that's a radio is the station.
+            val kind = subtitle.substringBefore(" • ").trim()
+            val station = pid != null && (
+                id == null || kind.equals("Station", true) || kind.equals("Mix", true) ||
+                    (pid.startsWith("RD") && !pid.startsWith("RDAMVM"))
+                )
+            if (pid != null && station) {
+                return PlaylistItem(pid, title, subtitle, thumb, isMix = true, seedVideoId = id, params = w.str("params"))
+            }
+            id ?: return null
             val vt = videoType(w)
             return SongItem(
                 Song(
@@ -143,7 +155,7 @@ object Parser {
         }
         nav.obj("watchPlaylistEndpoint")?.let { w ->
             val pid = w.str("playlistId") ?: return null
-            return PlaylistItem(pid, title, subtitle, thumb, isMix = true)
+            return PlaylistItem(pid, title, subtitle, thumb, isMix = true, params = w.str("params"))
         }
         val browseId = nav.str("browseEndpoint", "browseId") ?: return null
         return when (pageType(nav)) {
@@ -209,6 +221,7 @@ object Parser {
                 if (items.isNotEmpty()) out += Shelf(
                     title = g.obj("header", "gridHeaderRenderer", "title").text() ?: "",
                     items = items,
+                    grid = true,
                 )
             }
         }

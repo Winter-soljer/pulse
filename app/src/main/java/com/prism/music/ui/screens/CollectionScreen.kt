@@ -640,9 +640,9 @@ private fun CollectionTopBar(
             )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 if (downloadIcon != null) {
-                    if (downloading) GlassSurface(Modifier.size(42.dp), shape = RoundedCornerShape(50), elevation = 6.dp) {
+                    if (downloading) com.prism.music.ui.components.FloatingDisc { ink ->
                         Box(Modifier.fillMaxSize().clickable(onClickLabel = "Downloading", onClick = onDownload), contentAlignment = Alignment.Center) {
-                            CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                            CircularProgressIndicator(Modifier.size(20.dp), color = ink, strokeWidth = 2.dp)
                         }
                     } else com.prism.music.ui.components.RoundAction(downloadIcon, if (downloadIcon == Icons.Rounded.DownloadDone) "Downloaded" else "Download all", glass = true, onClick = onDownload)
                 }

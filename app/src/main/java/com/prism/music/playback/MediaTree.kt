@@ -88,7 +88,7 @@ class MediaTree(private val c: AppContainer) {
                 when (item) {
                     is SongItem -> playable(item.song)
                     is AlbumItem -> folder("al:${item.id}", item.title, item.subtitle, item.thumbnail, MediaMetadata.MEDIA_TYPE_ALBUM)
-                    is PlaylistItem -> folder(if (item.isMix) "mix:${item.id}" else "pl:${item.id}", item.title, item.subtitle, c.covers.art(item), MediaMetadata.MEDIA_TYPE_PLAYLIST)
+                    is PlaylistItem -> folder(mixOrPlaylistId(item), item.title, item.subtitle, c.covers.art(item), MediaMetadata.MEDIA_TYPE_PLAYLIST)
                     is ArtistItem -> folder("ar:${item.id}", item.title, item.subtitle, item.thumbnail, MediaMetadata.MEDIA_TYPE_ARTIST)
                     else -> null
                 }
@@ -102,14 +102,18 @@ class MediaTree(private val c: AppContainer) {
             if (playlists.isEmpty() && c.settings.current.isLoggedIn) playlists = runCatching { c.ytm.libraryPlaylists() }.getOrDefault(emptyList())
             listOf(folder(DOWNLOADS, "Downloads", type = MediaMetadata.MEDIA_TYPE_PLAYLIST)) +
                 playlists.filterIsInstance<PlaylistItem>().filter { it.id != "LM" }.map {
-                    folder(if (it.isMix) "mix:${it.id}" else "pl:${it.id}", it.title, it.subtitle, c.covers.art(it), MediaMetadata.MEDIA_TYPE_PLAYLIST)
+                    folder(mixOrPlaylistId(it), it.title, it.subtitle, c.covers.art(it), MediaMetadata.MEDIA_TYPE_PLAYLIST)
                 }
         }
         parentId.startsWith("pl:") -> runCatching { c.ytm.playlistAll(parentId.removePrefix("pl:"), 200) }.getOrNull()
             ?.let { songList(parentId, it.title, it.songs) } ?: emptyList()
         parentId.startsWith("al:") -> runCatching { c.ytm.album(parentId.removePrefix("al:")) }.getOrNull()
             ?.let { songList(parentId, it.title, it.songs) } ?: emptyList()
-        parentId.startsWith("mix:") -> runCatching { c.ytm.next(null, parentId.removePrefix("mix:")) }.getOrNull()
+        parentId.startsWith("mix:") -> runCatching {
+            // "mix:playlistId|seedVideoId|params" (stations need their seed song and params to start).
+            val parts = parentId.removePrefix("mix:").split('|')
+            c.ytm.next(parts.getOrNull(1)?.ifBlank { null }, parts[0], parts.getOrNull(2)?.ifBlank { null })
+        }.getOrNull()
             ?.let { r -> c.queue.counterparts.putAll(r.counterparts); songList(parentId, "Mix", r.songs) } ?: emptyList()
         parentId.startsWith("ar:") -> runCatching { c.ytm.artist(parentId.removePrefix("ar:")) }.getOrNull()
             ?.let { a -> songList(parentId, a.name, a.shelves.flatMap { s -> s.items.filterIsInstance<SongItem>().map { it.song } }.distinctBy { it.id }) }
@@ -226,3 +230,9 @@ class ArtworkProvider : ContentProvider() {
     override fun delete(uri: Uri, s: String?, a: Array<out String>?) = 0
     override fun update(uri: Uri, v: ContentValues?, s: String?, a: Array<out String>?) = 0
 }
+
+/** A playlist's browse folder id; mixes and stations keep their seed song and params for [MediaTree]'s "mix:" folders. */
+private fun mixOrPlaylistId(item: PlaylistItem): String =
+    if (!item.isMix) "pl:${item.id}"
+    else if (item.seedVideoId == null && item.params == null) "mix:${item.id}"
+    else "mix:${item.id}|${item.seedVideoId.orEmpty()}|${item.params.orEmpty()}"

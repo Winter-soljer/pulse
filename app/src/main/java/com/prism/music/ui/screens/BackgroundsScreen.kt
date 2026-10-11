@@ -134,7 +134,18 @@ fun BackgroundsScreen(bottomPadding: Dp) {
                     Modifier.padding(start = 8.dp, top = 10.dp),
                 )
             }
-            Backdrop.entries.chunked(3).forEachIndexed { r, row -> item(key = "bg:$r") {
+            com.prism.music.ui.theme.BackdropGroup.entries.forEach { group ->
+            if (group != com.prism.music.ui.theme.BackdropGroup.YOURS) item(key = "g:${group.name}") {
+                Column(Modifier.padding(start = 8.dp, top = 8.dp)) {
+                    Text(group.label, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text(
+                        if (group == com.prism.music.ui.theme.BackdropGroup.COLOUR) "Glowing in dark mode, soft pastels in light mode"
+                        else "Quiet designs in your accent colour",
+                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            Backdrop.entries.filter { it.group == group }.chunked(3).forEachIndexed { r, row -> item(key = "bg:${group.name}:$r") {
               Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
               row.forEach { style ->
                 val selected = style == currentStyle
@@ -171,6 +182,7 @@ fun BackgroundsScreen(bottomPadding: Dp) {
               repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
               }
             } }
+            }
             item {
                 Column(Modifier.padding(top = 8.dp).pane(ui.card, MaterialTheme.colorScheme.surfaceContainer).padding(16.dp)) {
                     Text("Softness", style = MaterialTheme.typography.bodyLarge)
@@ -179,7 +191,7 @@ fun BackgroundsScreen(bottomPadding: Dp) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
                             Text("Gentle motion", style = MaterialTheme.typography.bodyLarge)
-                            Text("Colour fields drift slowly", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("Colour fields drift, waves roll and ripples spread, slowly", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         Switch(s.backdropMotion, { c.settings.setBackdropMotion(it) })
                     }

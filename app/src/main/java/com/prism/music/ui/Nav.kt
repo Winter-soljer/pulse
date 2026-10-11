@@ -44,7 +44,7 @@ object Routes {
 }
 
 /** Everything a screen needs to move around the app. */
-class Navigator(val nav: NavController, val openPlayer: () -> Unit) {
+class Navigator(val nav: NavController, val openPlayer: () -> Unit, private val playMix: (PlaylistItem) -> Unit = {}) {
     fun go(route: String) = nav.navigate(route) { launchSingleTop = true }
     fun back() = nav.popBackStack()
 
@@ -52,7 +52,8 @@ class Navigator(val nav: NavController, val openPlayer: () -> Unit) {
         when (item) {
             is SongItem -> onSong(item)
             is AlbumItem -> go(Routes.album(item.id))
-            is PlaylistItem -> go(Routes.playlist(item.id))
+            // Stations and mixes only exist as a watch queue: tapping one starts it, as on YouTube Music.
+            is PlaylistItem -> if (item.isMix) playMix(item) else go(Routes.playlist(item.id))
             is ArtistItem -> go(Routes.artist(item.id))
             is MoodItem -> go(Routes.browse(item.id, item.params, item.title))
         }

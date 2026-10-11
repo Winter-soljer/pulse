@@ -42,22 +42,76 @@ import kotlin.math.sin
 /** The screens whose background can be changed. */
 enum class BackdropScreen(val label: String) { HOME("Home"), SEARCH("Search"), LIBRARY("Library"), REPLAY("Replay"), SETTINGS("Settings") }
 
-/** Ready-made backgrounds: a base colour with three slow-drifting light fields, or a picture. */
-enum class Backdrop(val label: String, val colors: List<Long>) {
-    DEFAULT("Default", emptyList()),
-    AURORA("Aurora", listOf(0xFF07122A, 0xFF2EE59D, 0xFF7C5CFF, 0xFF00C2FF)),
-    PRISM("Prism", listOf(0xFF0E0E12, 0xFFFF7A9C, 0xFFFFD36B, 0xFF6BE3FF)),
-    SUNSET("Sunset", listOf(0xFF2A0E1A, 0xFFFF6B3D, 0xFFFF3B7F, 0xFFFFC145)),
-    OCEAN("Ocean", listOf(0xFF031827, 0xFF0077B6, 0xFF00B4D8, 0xFF48CAE4)),
-    FOREST("Forest", listOf(0xFF07150E, 0xFF2D6A4F, 0xFF52B788, 0xFFB7E4C7)),
-    NEON("Neon", listOf(0xFF0A0014, 0xFFFF00E5, 0xFF00F0FF, 0xFF7B2FFF)),
-    ROSE("Rosé", listOf(0xFF1C0B12, 0xFFF4A3B4, 0xFFE76F8A, 0xFFFFD6A5)),
-    MIDNIGHT("Midnight", listOf(0xFF04040A, 0xFF1B1F3B, 0xFF3A2E6E, 0xFF0F3460)),
-    EMBER("Ember", listOf(0xFF140604, 0xFFB5361B, 0xFFFF7B00, 0xFF5A0F0F)),
-    GRAPHITE("Graphite", listOf(0xFF111113, 0xFF2C2C31, 0xFF44444C, 0xFF1C1C20)),
-    ARTWORK("Now playing", emptyList()),
-    PHOTO("Your photo", emptyList()),
+/** How a ready-made background is drawn. */
+enum class BackdropKind {
+    /** Default, Now playing and Your photo: drawn specially. */
+    SPECIAL,
+    /** A base colour with three slow-drifting light fields. */
+    FIELDS,
+    /** A quiet top-to-bottom blend of two colours. */
+    BLEND,
+    /** The theme's accent, softly, over the theme's background (follows the accent colour). */
+    TINT,
+    /** Simple line patterns in the accent colour over the theme's background. */
+    DOTS, PAPER, PINSTRIPE, WAVES, RIPPLES,
+}
+
+/** Which row of the picker a background sits in. */
+enum class BackdropGroup(val label: String) { YOURS("Yours"), COLOUR("Colour"), SIMPLE("Simple") }
+
+/**
+ * Ready-made backgrounds. Each has a dark and a light version (base colour first, then its light
+ * fields), so the same pick looks at home in either theme: deep and glowing in dark mode, airy
+ * pastels in light mode. Pattern designs take their ink from the theme's accent instead.
+ * Names are stored in settings, so keep them stable.
+ */
+enum class Backdrop(
+    val label: String,
+    val kind: BackdropKind,
+    val group: BackdropGroup,
+    val dark: List<Long> = emptyList(),
+    val light: List<Long> = emptyList(),
+) {
+    DEFAULT("Default", BackdropKind.SPECIAL, BackdropGroup.YOURS),
+    ARTWORK("Now playing", BackdropKind.SPECIAL, BackdropGroup.YOURS),
+    PHOTO("Your photo", BackdropKind.SPECIAL, BackdropGroup.YOURS),
+
+    AURORA("Aurora", BackdropKind.FIELDS, BackdropGroup.COLOUR,
+        listOf(0xFF07122A, 0xFF2EE59D, 0xFF7C5CFF, 0xFF00C2FF), listOf(0xFFEEF6F5, 0xFF7FE6BE, 0xFFB3A3FF, 0xFF8ADDFF)),
+    PRISM("Prism", BackdropKind.FIELDS, BackdropGroup.COLOUR,
+        listOf(0xFF0E0E12, 0xFFFF7A9C, 0xFFFFD36B, 0xFF6BE3FF), listOf(0xFFFBF8F4, 0xFFFFA9BE, 0xFFFFDE94, 0xFF9AE8FF)),
+    SUNSET("Sunset", BackdropKind.FIELDS, BackdropGroup.COLOUR,
+        listOf(0xFF2A0E1A, 0xFFFF6B3D, 0xFFFF3B7F, 0xFFFFC145), listOf(0xFFFFF4EE, 0xFFFFA57D, 0xFFFF8FB3, 0xFFFFD685)),
+    OCEAN("Ocean", BackdropKind.FIELDS, BackdropGroup.COLOUR,
+        listOf(0xFF031827, 0xFF0077B6, 0xFF00B4D8, 0xFF48CAE4), listOf(0xFFEEF7FC, 0xFF6DBDEA, 0xFF7ADBEE, 0xFFAAE7F3)),
+    FOREST("Forest", BackdropKind.FIELDS, BackdropGroup.COLOUR,
+        listOf(0xFF07150E, 0xFF2D6A4F, 0xFF52B788, 0xFFB7E4C7), listOf(0xFFF2F7F1, 0xFF8EC3A4, 0xFFA8D9B9, 0xFFDDF0DA)),
+    NEON("Neon", BackdropKind.FIELDS, BackdropGroup.COLOUR,
+        listOf(0xFF0A0014, 0xFFFF00E5, 0xFF00F0FF, 0xFF7B2FFF), listOf(0xFFF8F3FF, 0xFFFF8CF2, 0xFF7FF3FF, 0xFFB394FF)),
+    ROSE("Rosé", BackdropKind.FIELDS, BackdropGroup.COLOUR,
+        listOf(0xFF1C0B12, 0xFFF4A3B4, 0xFFE76F8A, 0xFFFFD6A5), listOf(0xFFFFF5F6, 0xFFF8BECB, 0xFFF0A3B6, 0xFFFFE1C0)),
+    MIDNIGHT("Midnight", BackdropKind.FIELDS, BackdropGroup.COLOUR,
+        listOf(0xFF04040A, 0xFF1B1F3B, 0xFF3A2E6E, 0xFF0F3460), listOf(0xFFEFF1F8, 0xFFB4BDE6, 0xFFC2B5EC, 0xFFA8C2E0)),
+    EMBER("Ember", BackdropKind.FIELDS, BackdropGroup.COLOUR,
+        listOf(0xFF140604, 0xFFB5361B, 0xFFFF7B00, 0xFF5A0F0F), listOf(0xFFFFF5EF, 0xFFEE9A80, 0xFFFFBC7A, 0xFFE3A0A0)),
+    GRAPHITE("Graphite", BackdropKind.FIELDS, BackdropGroup.COLOUR,
+        listOf(0xFF111113, 0xFF2C2C31, 0xFF44444C, 0xFF1C1C20), listOf(0xFFF5F5F7, 0xFFDDDDE3, 0xFFD2D2D9, 0xFFE8E8EC)),
+
+    TINT("Soft tint", BackdropKind.TINT, BackdropGroup.SIMPLE),
+    DUSK("Dusk", BackdropKind.BLEND, BackdropGroup.SIMPLE,
+        listOf(0xFF221338, 0xFF0B1B2E), listOf(0xFFFCE8F1, 0xFFE2ECFF)),
+    SAND("Sand", BackdropKind.BLEND, BackdropGroup.SIMPLE,
+        listOf(0xFF221D18, 0xFF141210), listOf(0xFFF7F0E6, 0xFFEDE3D3)),
+    MIST("Mist", BackdropKind.BLEND, BackdropGroup.SIMPLE,
+        listOf(0xFF0F1E22, 0xFF0D1218), listOf(0xFFEAF5F3, 0xFFE6ECF4)),
+    DOTS("Dots", BackdropKind.DOTS, BackdropGroup.SIMPLE),
+    PAPER("Paper", BackdropKind.PAPER, BackdropGroup.SIMPLE),
+    PINSTRIPE("Pinstripe", BackdropKind.PINSTRIPE, BackdropGroup.SIMPLE),
+    WAVES("Waves", BackdropKind.WAVES, BackdropGroup.SIMPLE),
+    RIPPLES("Ripples", BackdropKind.RIPPLES, BackdropGroup.SIMPLE),
     ;
+
+    fun colors(dark: Boolean): List<Long> = if (dark) this.dark else light
 
     companion object {
         /** Stored as "NAME" or "PHOTO|/path/to/image". */
@@ -102,7 +156,7 @@ fun ScreenBackdrop(screen: BackdropScreen, content: @Composable BoxScope.() -> U
 @Composable
 fun BackdropLayer(style: Backdrop, photo: String?, dim: Float, motion: Boolean, modifier: Modifier) {
     val bg = MaterialTheme.colorScheme.background
-    val dark = bg.red + bg.green + bg.blue < 1.5f
+    val dark = LocalIsDark.current
     Box(modifier) {
         when (style) {
             // With frosted pages on, the default is the frost from what's playing (the previews show it so).
@@ -119,10 +173,18 @@ fun BackdropLayer(style: Backdrop, photo: String?, dim: Float, motion: Boolean, 
                 Box(Modifier.fillMaxSize().background(bg))
                 if (photo != null) AsyncImage(File(photo), null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
             }
-            else -> Fields(style.colors.map { Color(it) }, motion)
+            else -> when (style.kind) {
+                BackdropKind.FIELDS -> Fields(style.colors(dark).map { Color(it) }, dark, motion)
+                BackdropKind.BLEND -> style.colors(dark).map { Color(it) }.let { (top, bottom) ->
+                    Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(top, bottom))))
+                }
+                else -> Pattern(style.kind, dark, motion)
+            }
         }
-        // Keeps text readable: a wash of the theme's background, stronger toward the bottom.
-        val wash = if (dark) dim else (dim + 0.3f).coerceAtMost(0.9f)
+        // Keeps text readable: a wash of the theme's background, stronger toward the bottom. The light
+        // palettes are pale already, so they take a lighter wash; the patterns are quiet and take less still.
+        val base = if (dark) dim else dim * 0.85f
+        val wash = if (style.group == BackdropGroup.SIMPLE) base * 0.5f else base
         Box(
             Modifier.fillMaxSize().background(
                 Brush.verticalGradient(listOf(bg.copy(alpha = wash * 0.7f), bg.copy(alpha = wash), bg.copy(alpha = (wash + 0.25f).coerceAtMost(0.95f))))
@@ -132,17 +194,120 @@ fun BackdropLayer(style: Backdrop, photo: String?, dim: Float, motion: Boolean, 
 }
 
 @Composable
-private fun Fields(colors: List<Color>, motion: Boolean) {
-    val t = if (motion) {
-        rememberInfiniteTransition(label = "backdrop").animateFloat(0f, 1f, infiniteRepeatable(tween(28_000, easing = LinearEasing)), label = "t").value
-    } else 0.15f
+private fun drift(motion: Boolean, periodMs: Int, rest: Float): Float = if (motion) {
+    rememberInfiniteTransition(label = "backdrop").animateFloat(0f, 1f, infiniteRepeatable(tween(periodMs, easing = LinearEasing)), label = "t").value
+} else rest
+
+@Composable
+private fun Fields(colors: List<Color>, dark: Boolean, motion: Boolean) {
+    val t = drift(motion, 28_000, 0.15f)
+    // Pastels need a touch less strength to stay airy; the dark palettes glow at full.
+    val strength = if (dark) 0.7f else 0.62f
     Canvas(Modifier.fillMaxSize().background(colors[0])) {
         val a = t * 2 * PI.toFloat()
         val r = size.maxDimension * 0.6f
         fun field(color: Color, cx: Float, cy: Float) =
-            drawCircle(Brush.radialGradient(listOf(color.copy(alpha = 0.7f), color.copy(alpha = 0f)), Offset(cx, cy), r), r, Offset(cx, cy))
+            drawCircle(Brush.radialGradient(listOf(color.copy(alpha = strength), color.copy(alpha = 0f)), Offset(cx, cy), r), r, Offset(cx, cy))
         field(colors[1], size.width * (0.15f + 0.25f * sin(a)), size.height * (0.12f + 0.08f * cos(a)))
         field(colors[2], size.width * (0.9f + 0.12f * cos(a * 2)), size.height * (0.45f + 0.12f * sin(a)))
         field(colors[3], size.width * (0.35f + 0.2f * cos(a)), size.height * (0.92f + 0.06f * sin(a * 2)))
+    }
+}
+
+/**
+ * The simple designs: the theme's background, a soft glow of the accent from the top, and (except
+ * Soft tint) a fine pattern in the accent that fades out down the page. Inks are stronger in light
+ * mode, where pale lines on a pale page would otherwise vanish.
+ */
+@Composable
+private fun Pattern(kind: BackdropKind, dark: Boolean, motion: Boolean) {
+    val scheme = MaterialTheme.colorScheme
+    val bg = scheme.background
+    val accent = scheme.primary
+    val second = scheme.tertiary
+    val t = drift(motion && (kind == BackdropKind.WAVES || kind == BackdropKind.RIPPLES), 24_000, 0.2f)
+    val density = LocalDensity.current.density
+    Canvas(Modifier.fillMaxSize().background(bg)) {
+        val w = size.width
+        val h = size.height
+        // The glow every simple design shares: the accent, faintly, from the top.
+        drawRect(Brush.verticalGradient(
+            0f to accent.copy(alpha = if (dark) 0.22f else 0.16f), 0.55f to accent.copy(alpha = if (dark) 0.06f else 0.04f), 1f to Color.Transparent,
+        ))
+        if (kind == BackdropKind.TINT) {
+            drawCircle(
+                Brush.radialGradient(listOf(second.copy(alpha = if (dark) 0.16f else 0.12f), Color.Transparent), Offset(w, h * 0.85f), w * 0.9f),
+                w * 0.9f, Offset(w, h * 0.85f),
+            )
+            return@Canvas
+        }
+        val ink = accent.copy(alpha = if (dark) 0.20f else 0.26f)
+        // Patterns fade out toward the bottom, where lists sit thickest.
+        val fade = { y: Float -> (1f - (y / h) * 0.85f).coerceIn(0.15f, 1f) }
+        val stroke = 1f * density
+        when (kind) {
+            BackdropKind.DOTS -> {
+                val step = 18f * density
+                val r = 1.4f * density
+                var y = step / 2
+                while (y < h) {
+                    var x = step / 2
+                    while (x < w) { drawCircle(ink.copy(alpha = ink.alpha * fade(y)), r, Offset(x, y)); x += step }
+                    y += step
+                }
+            }
+            BackdropKind.PAPER -> {
+                val step = 24f * density
+                var x = step
+                while (x < w) { drawLine(Brush.verticalGradient(listOf(ink, ink.copy(alpha = ink.alpha * 0.15f))), Offset(x, 0f), Offset(x, h), stroke * 0.8f); x += step }
+                var y = step
+                while (y < h) { drawLine(ink.copy(alpha = ink.alpha * fade(y)), Offset(0f, y), Offset(w, y), stroke * 0.8f); y += step }
+            }
+            BackdropKind.PINSTRIPE -> {
+                val step = 14f * density
+                var x = -h
+                while (x < w) {
+                    drawLine(Brush.verticalGradient(listOf(ink, ink.copy(alpha = ink.alpha * 0.15f))), Offset(x, h), Offset(x + h, 0f), stroke)
+                    x += step
+                }
+            }
+            BackdropKind.WAVES -> {
+                // Three soft bands rolling along the foot of the page, plus thin echoes at the top.
+                val phase = t * 2 * PI.toFloat()
+                listOf(Triple(accent, 0.70f, 0f), Triple(second, 0.78f, 1.7f), Triple(accent, 0.86f, 3.4f)).forEachIndexed { i, (color, at, shift) ->
+                    val path = androidx.compose.ui.graphics.Path().apply {
+                        moveTo(0f, h)
+                        var x = 0f
+                        while (x <= w + 4f) {
+                            lineTo(x, h * at + sin(x / w * 2 * PI.toFloat() * 1.2f + phase + shift) * h * 0.03f)
+                            x += 4f
+                        }
+                        lineTo(w, h)
+                        close()
+                    }
+                    drawPath(path, color.copy(alpha = (if (dark) 0.14f else 0.12f) + i * 0.03f))
+                }
+                for (k in 0 until 4) {
+                    val path = androidx.compose.ui.graphics.Path()
+                    var x = 0f
+                    val y0 = h * (0.08f + k * 0.035f)
+                    path.moveTo(0f, y0)
+                    while (x <= w + 4f) { path.lineTo(x, y0 + sin(x / w * 2 * PI.toFloat() + phase + k * 0.6f) * h * 0.012f); x += 4f }
+                    drawPath(path, ink.copy(alpha = ink.alpha * (1f - k * 0.2f)), style = androidx.compose.ui.graphics.drawscope.Stroke(stroke))
+                }
+            }
+            BackdropKind.RIPPLES -> {
+                // Rings spreading from the top corner; with motion on they slowly travel outward.
+                val origin = Offset(w * 0.92f, h * 0.06f)
+                val step = 26f * density
+                val maxR = size.maxDimension * 1.2f
+                var r = step * t
+                while (r < maxR) {
+                    if (r > 0f) drawCircle(ink.copy(alpha = ink.alpha * (1f - r / maxR)), r, origin, style = androidx.compose.ui.graphics.drawscope.Stroke(stroke))
+                    r += step
+                }
+            }
+            else -> {}
+        }
     }
 }

@@ -157,7 +157,7 @@ private suspend fun songsFor(c: AppContainer, target: Playable, shuffle: Boolean
         is AlbumItem -> c.ytm.album(item.id).songs to QueueSource(QueueKind.ALBUM, item.title)
         is PlaylistItem ->
             // Mixes and radios only exist as a watch queue.
-            if (item.isMix || item.id.startsWith("RD")) radio(c, null, item.id, null, item.title)
+            if (item.isMix || item.id.startsWith("RD")) radio(c, item.seedVideoId, item.id, item.params, item.title)
             else c.ytm.playlistAll(item.id, 1000).songs to QueueSource(QueueKind.PLAYLIST, item.title)
         is ArtistItem -> {
             val a = c.ytm.artist(item.id)

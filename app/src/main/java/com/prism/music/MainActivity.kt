@@ -268,9 +268,32 @@ private fun PrismRoot(deepLink: MutableStateFlow<Uri?>) {
     val context = LocalContext.current
 
     PrismTheme(settings, artColor) {
+        // System bar icons follow Prism's theme, not the phone's (they differ when Appearance isn't "System").
+        val dark = com.prism.music.ui.theme.LocalIsDark.current
+        val rootView = androidx.compose.ui.platform.LocalView.current
+        LaunchedEffect(dark) {
+            (rootView.context as? android.app.Activity)?.window?.let { w ->
+                androidx.core.view.WindowCompat.getInsetsController(w, rootView).apply {
+                    isAppearanceLightStatusBars = !dark
+                    isAppearanceLightNavigationBars = !dark
+                }
+            }
+        }
         val navController = rememberNavController()
         var playerOpen by rememberSaveable { mutableStateOf(false) }
-        val navigator = remember(navController) { Navigator(navController) { playerOpen = true } }
+        val navigator = remember(navController) {
+            Navigator(navController, openPlayer = { playerOpen = true }, playMix = { mix ->
+                c.scope.launch(kotlinx.coroutines.Dispatchers.Main) {
+                    val r = runCatching { kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { c.ytm.next(mix.seedVideoId, mix.id, mix.params) } }.getOrNull()
+                    if (r == null || r.songs.isEmpty()) {
+                        Toast.makeText(context, "Couldn't start ${mix.title}", Toast.LENGTH_SHORT).show()
+                        return@launch
+                    }
+                    c.queue.counterparts.putAll(r.counterparts)
+                    c.player.playQueue(r.songs, 0, com.prism.music.playback.QueueSource(com.prism.music.playback.QueueKind.RADIO, mix.title))
+                }
+            })
+        }
         // Playback that should be watched (a music video picked from a list) brings the player up.
         LaunchedEffect(Unit) { c.player.showPlayer.collect { playerOpen = true } }
         val haze = rememberHazeState()
@@ -330,13 +353,20 @@ private fun PrismRoot(deepLink: MutableStateFlow<Uri?>) {
         }
 
         val selectTab: (String) -> Unit = { r ->
-            if (r == root) {
-                // The root tab always means its top, from anywhere (Settings included).
-                if (!navController.popBackStack(root, inclusive = false)) goRoot()
-            } else {
-                navController.navigate(r) {
-                    popUpTo(root)
+            // The tab whose pages are showing: the first tab page above the root, else the root's own.
+            val tabRoutes = tabs.map { it.route }.toSet()
+            val stack = navController.currentBackStack.value.mapNotNull { it.destination.route }
+            val currentTab = stack.drop(1).firstOrNull { it in tabRoutes } ?: root
+            when {
+                // The root tab always means its top, from anywhere.
+                r == root -> if (!navController.popBackStack(root, inclusive = false, saveState = true)) goRoot()
+                // Tapping the tab you're in takes you back to its top.
+                r == currentTab -> navController.popBackStack(r, inclusive = false)
+                // Every other tab keeps its own pages: leaving Settings on Appearance comes back to Appearance.
+                else -> navController.navigate(r) {
+                    popUpTo(root) { saveState = true }
                     launchSingleTop = true
+                    restoreState = true
                 }
             }
         }

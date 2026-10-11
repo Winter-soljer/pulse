@@ -107,12 +107,22 @@ offline downloads, EQ/spatial audio, on-device "Replay" stats, and full Android 
   `ui/components/Reorder.kt`. Artist pages list up to 20 top songs (from the "See all" playlist).
 - Picture-in-picture: `MainActivity.setPipEligible`/`enterPip` (auto-enter on 12+, `onUserLeaveHint` below), `LocalPip` makes
   `NowPlayingScreen` show only the video (`FullscreenVideo(pip = true)`); PiP controls come from the media session.
+- 1.5.3: Home "Station" cards (e.g. "Listen together": `watchEndpoint` with an `RD…` playlist + seed video +
+  params) parse as `PlaylistItem(isMix, seedVideoId, params)` and start a radio on tap (`Navigator.playMix`); they used to parse as
+  the seed song. Artist "See all" discographies (`Shelf.grid`) show as a 2-column grid sorted by `Releases` (YouTube appends
+  live/remix runs out of order). Floating top-bar buttons use `FloatingDisc` (near-solid, haze can't blur in the NavHost).
+  Tabs keep their own back stacks (`saveState`/`restoreState`), so Settings reopens on its last page. Backgrounds have light and
+  dark palettes plus a "Simple" group (accent-coloured patterns). System bar icons follow Prism's theme, not the phone's.
+  Checked on the Pixel test copy signed out; stations themselves need a signed-in account to see.
 - Not affiliated with Google/YouTube — keep the disclaimer in README.
 - `*.apk`, `local.properties`, keystores are gitignored.
 
 ## Current status / Next steps
+- v1.5.3 (versionCode 18, 2026-10-11): stations start a radio, artist discography grid + sorting, legible floating buttons,
+  light/dark backgrounds + Simple designs, tabs keep their pages, system bars follow Prism's theme (see "1.5.3" above).
+  **GitHub "Latest"** (`Prism.apk` release-key signed). Not yet checked: a station on a signed-in Home.
 - v1.5.2 (versionCode 17, 2026-10-10): frosted menus, uncensored lyrics, taste-aware search, Liked songs playlist, playlist
-  rearranging, 20 top songs, PiP (features in `a9a8fd8`, see the notes above). **GitHub "Latest"** (`Prism.apk` release-key signed).
+  rearranging, 20 top songs, PiP (features in `a9a8fd8`, see the notes above). Was GitHub "Latest" until 1.5.3.
   Built and unit-tested (plus a live uncensor test); not yet checked on the phone: PiP and its media-session controls, the Liked songs
   playlist against a real account, the new menus in light/dark.
 - `.claude/settings.local.json` no longer denies reading `build/` or `*.apk` (the owner lifted it for releases).
