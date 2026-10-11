@@ -107,6 +107,7 @@ import com.prism.music.ui.components.PrismChip
 import com.prism.music.ui.components.SubPage
 import com.prism.music.ui.components.featurePane
 import com.prism.music.ui.theme.AccentSwatches
+import com.prism.music.ui.theme.isNeutralSeed
 import com.prism.music.ui.theme.AppFonts
 import com.prism.music.ui.theme.LocalAppSettings
 import com.prism.music.ui.theme.LocalContainer
@@ -577,6 +578,7 @@ private fun SoundPage() {
     Column(verticalArrangement = Arrangement.spacedBy(22.dp)) {
         Group("Playback") {
             Toggle("Autoplay", "When a song, album or playlist ends, keep going with similar music", s.autoplay) { prefs.setAutoplay(it) }
+            Toggle("Keep playing videos", "While a music video is showing, the next song plays as its video too, until you switch back to Song", s.videoContinues) { prefs.setVideoContinues(it) }
             Toggle("Skip silence", "Trims silent gaps at the start and end of songs", s.skipSilence) { prefs.setSkipSilence(it) }
         }
         Group("Quality") {
@@ -756,13 +758,18 @@ private fun AccentPicker(current: Int, onPick: (Int) -> Unit) {
     Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
         FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             AccentSwatches.forEach { col ->
-                val sel = col.toArgb() == current
+                val neutral = isNeutralSeed(col.toArgb())
+                // The old white (light grey) counts as the white swatch.
+                val sel = col.toArgb() == current || (neutral && isNeutralSeed(current))
                 Box(
                     Modifier.size(38.dp).clip(CircleShape).background(col)
-                        .border(if (sel) 3.dp else 0.dp, MaterialTheme.colorScheme.onSurface, CircleShape)
+                        .border(
+                            if (sel) 3.dp else if (neutral) 1.dp else 0.dp,
+                            if (sel) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outlineVariant, CircleShape,
+                        )
                         .clickable { onPick(col.toArgb()) },
                     contentAlignment = Alignment.Center,
-                ) { if (sel) Icon(Icons.Rounded.Check, null, tint = Color.White, modifier = Modifier.size(18.dp)) }
+                ) { if (sel) Icon(Icons.Rounded.Check, null, tint = if (neutral) Color.Black else Color.White, modifier = Modifier.size(18.dp)) }
             }
         }
         Spacer(Modifier.height(12.dp))

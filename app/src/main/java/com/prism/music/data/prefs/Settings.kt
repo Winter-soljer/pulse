@@ -201,6 +201,8 @@ data class AppSettings(
     val audioQuality: AudioQuality = AudioQuality.HIGH,
     val cellularQuality: AudioQuality = AudioQuality.HIGH,
     val autoplay: Boolean = true,
+    /** With a music video showing, the next song plays as its video too (until switched back to the song). */
+    val videoContinues: Boolean = true,
     /** Lossless playback: always the best stream, hi-res output, and the lossless add-on when it's on. */
     val lossless: Boolean = true,
     /** The lossless add-on: play matching FLAC/WAV/AIFF files on the phone instead of the stream. */
@@ -313,6 +315,7 @@ class SettingsRepository(private val context: Context, scope: CoroutineScope) {
         val audioQuality = stringPreferencesKey("audio_quality")
         val cellularQuality = stringPreferencesKey("cellular_quality")
         val autoplay = booleanPreferencesKey("autoplay")
+        val videoContinues = booleanPreferencesKey("video_continues")
         val lossless = booleanPreferencesKey("lossless")
         val losslessLocal = booleanPreferencesKey("lossless_local")
         val normalize = booleanPreferencesKey("normalize")
@@ -422,6 +425,7 @@ class SettingsRepository(private val context: Context, scope: CoroutineScope) {
             audioQuality = p.enum(K.audioQuality, d.audioQuality),
             cellularQuality = p.enum(K.cellularQuality, d.cellularQuality),
             autoplay = p[K.autoplay] ?: d.autoplay,
+            videoContinues = p[K.videoContinues] ?: d.videoContinues,
             lossless = p[K.lossless] ?: d.lossless,
             losslessLocal = p[K.losslessLocal] ?: d.losslessLocal,
             normalize = p[K.normalize] ?: d.normalize,
@@ -546,6 +550,7 @@ class SettingsRepository(private val context: Context, scope: CoroutineScope) {
     fun setAudioQuality(v: AudioQuality) = edit { it[K.audioQuality] = v.name }
     fun setCellularQuality(v: AudioQuality) = edit { it[K.cellularQuality] = v.name }
     fun setAutoplay(v: Boolean) = edit { it[K.autoplay] = v }
+    fun setVideoContinues(v: Boolean) = edit { it[K.videoContinues] = v }
     fun setLossless(v: Boolean) = edit { it[K.lossless] = v }
     fun setLosslessLocal(v: Boolean) = edit { it[K.losslessLocal] = v }
     fun setNormalize(v: Boolean) = edit { it[K.normalize] = v }

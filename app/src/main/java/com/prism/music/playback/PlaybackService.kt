@@ -226,11 +226,6 @@ class PlaybackService : MediaLibraryService(), Player.Listener {
         c.streamDetails[song.id]?.let { applyStreamStats(song.id) }
         scope.launch(Dispatchers.IO) { c.library.recordPlayed(song) }
         loadExtras(song)
-        maybeAutoplay()
-        prefetchNext()
-        updateButtons()
-        carLyrics.refresh()
-        scheduleSave()
         // Every new song starts as the song; the track that just finished goes back to audio too,
         // so returning to it doesn't land in its video.
         if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO || reason == Player.MEDIA_ITEM_TRANSITION_REASON_SEEK) {
@@ -240,6 +235,12 @@ class PlaybackService : MediaLibraryService(), Player.Listener {
                 if (other.videoModeId != null) other.toSong()?.let { player.replaceMediaItem(i, it.toMediaItem(null)) }
             }
         }
+        continueVideo()
+        maybeAutoplay()
+        prefetchNext()
+        updateButtons()
+        carLyrics.refresh()
+        scheduleSave()
     }
 
     override fun onIsPlayingChanged(isPlaying: Boolean) {
@@ -417,15 +418,72 @@ class PlaybackService : MediaLibraryService(), Player.Listener {
         val i = player.nextMediaItemIndex
         if (i == C.INDEX_UNSET) return
         val next = player.getMediaItemAt(i).mediaId.takeIf { it.isNotBlank() } ?: return
-        if (c.downloads.isDownloaded(next)) return
+        if (c.downloads.isDownloaded(next)) { armNextVideo(); return }
         scope.launch(Dispatchers.IO) {
             c.streams.prefetch(next)
             // A live stream coming up is lined up as one, so it starts without a failed attempt first.
             if (runCatching { c.streams.isLive(next) }.getOrDefault(false)) withContext(Dispatchers.Main) {
                 val at = (0 until player.mediaItemCount).firstOrNull { player.getMediaItemAt(it).mediaId == next && it != player.currentMediaItemIndex }
                 val song = at?.let { player.getMediaItemAt(it).toSong() }
-                if (at != null && song != null && !song.isLive) player.replaceMediaItem(at, song.copy(isLive = true).toMediaItem())
+                if (at != null && song != null && !song.isLive) {
+                    player.replaceMediaItem(at, song.copy(isLive = true).toMediaItem(player.getMediaItemAt(at).videoModeId?.let { song.id }))
+                }
             }
+        }
+        armNextVideo()
+    }
+
+    /**
+     * The listener picked the video (and hasn't gone back to the song since). With "Keep playing videos"
+     * on, each new song then plays as its video too.
+     */
+    var videoWanted = false
+        set(v) {
+            field = v
+            if (v) armNextVideo() else disarmVideos()
+        }
+
+    private fun keepVideos() = videoWanted && c.settings.current.videoContinues
+
+    /**
+     * A new song started while videos are wanted. The next song is usually lined up as its video
+     * already ([armNextVideo]); if it wasn't ready (a quick skip), it switches here. Songs without a
+     * video just play as songs, quietly.
+     */
+    private fun continueVideo() {
+        if (!keepVideos()) return
+        val item = player.currentMediaItem ?: return
+        val song = item.toSong() ?: return
+        if (item.videoModeId != null) { watchVideo(song.id); return }
+        scope.launch { setVideoMode(true) }
+    }
+
+    /** Lines the next song up as its video, so moving on to it is seamless. */
+    private fun armNextVideo() {
+        if (!keepVideos()) return
+        val i = player.nextMediaItemIndex
+        if (i == C.INDEX_UNSET) return
+        val item = player.getMediaItemAt(i)
+        if (item.videoModeId != null) return
+        val song = item.toSong() ?: return
+        scope.launch {
+            val vid = if (song.isLive) song.id else videoIdFor(song).id ?: return@launch
+            val at = player.nextMediaItemIndex.takeIf { it != C.INDEX_UNSET } ?: return@launch
+            val next = player.getMediaItemAt(at)
+            if (!keepVideos() || next.mediaId != song.id || next.videoModeId != null) return@launch
+            val nextSong = next.toSong() ?: return@launch
+            if (failedVideos.remove(vid)) c.streams.invalidate(vid)
+            player.replaceMediaItem(at, nextSong.toMediaItem(if (nextSong.isLive) nextSong.id else vid))
+            if (!nextSong.isLive) prefetchVideo(nextSong, vid)
+        }
+    }
+
+    /** Back to songs: anything lined up as a video (other than what's playing) goes back to audio. */
+    private fun disarmVideos() {
+        for (i in 0 until player.mediaItemCount) {
+            if (i == player.currentMediaItemIndex) continue
+            val other = player.getMediaItemAt(i)
+            if (other.videoModeId != null) other.toSong()?.let { player.replaceMediaItem(i, it.toMediaItem(null)) }
         }
     }
 
@@ -445,11 +503,7 @@ class PlaybackService : MediaLibraryService(), Player.Listener {
             applyLiveVideo()
             if (player.playbackState == Player.STATE_IDLE) player.prepare()
             videoWatchdog?.cancel()
-            if (enabled) videoWatchdog = scope.launch {
-                delay(20_000)
-                val cur = player.currentMediaItem
-                if (cur?.mediaId == song.id && cur.videoModeId != null && player.videoSize.width <= 0) revertVideo(song.id)
-            }
+            if (enabled) watchVideo(song.id)
             return null
         }
         val vid = if (enabled) {
@@ -482,17 +536,22 @@ class PlaybackService : MediaLibraryService(), Player.Listener {
                     kotlin.math.abs(player.currentPosition - pos) < 20_000
                 ) player.seekTo(player.currentPosition + lag)
             }
-            videoWatchdog = scope.launch {
-                // No picture after a fair wait: fall back to the song (the button stays usable).
-                delay(20_000)
-                val cur = player.currentMediaItem
-                if (cur?.mediaId == song.id && cur.videoModeId != null && player.videoSize.width <= 0) revertVideo(song.id)
-            }
+            watchVideo(song.id)
         }
         return null
     }
 
     private var videoWatchdog: Job? = null
+
+    /** No picture after a fair wait: fall back to the song (the button stays usable). */
+    private fun watchVideo(songId: String) {
+        videoWatchdog?.cancel()
+        videoWatchdog = scope.launch {
+            delay(20_000)
+            val cur = player.currentMediaItem
+            if (cur?.mediaId == songId && cur.videoModeId != null && player.videoSize.width <= 0) revertVideo(songId)
+        }
+    }
 
     /**
      * A live stream's HLS variants carry video and audio together, so in audio mode its video track is turned off

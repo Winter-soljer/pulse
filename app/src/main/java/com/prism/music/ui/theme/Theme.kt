@@ -41,14 +41,68 @@ val PrismViolet = Color(0xFF7C5CFF)
 
 val AccentSwatches = listOf(
     0xFF7C5CFF, 0xFFFF3B5C, 0xFFFF6B35, 0xFFFFB627, 0xFF2EC27E, 0xFF00B4D8,
-    0xFF3A86FF, 0xFFE056FD, 0xFFFF5D8F, 0xFF9BE15D, 0xFFB08968, 0xFFE0E0E0,
+    0xFF3A86FF, 0xFFE056FD, 0xFFFF5D8F, 0xFF9BE15D, 0xFFB08968, 0xFFFFFFFF,
 ).map { Color(it) }
+
+/** Greys have no hue to build a scheme around (theirs reads as 0°, red), so they get a neutral one. */
+fun isNeutralSeed(argb: Int): Boolean {
+    val out = FloatArray(3)
+    ColorUtils.colorToHSL(argb, out)
+    return out[1] < 0.08f || out[2] > 0.97f || out[2] < 0.03f
+}
 
 private fun hsl(h: Float, s: Float, l: Float): Color =
     Color(ColorUtils.HSLToColor(floatArrayOf(((h % 360) + 360) % 360, s.coerceIn(0f, 1f), l.coerceIn(0f, 1f))))
 
+/**
+ * White (or any grey): pure white accents in dark mode; in light mode, where white on white would
+ * vanish, the same monochrome look in near-black ink. No tint anywhere.
+ */
+private fun neutralScheme(dark: Boolean, pureBlack: Boolean): ColorScheme {
+    fun g(l: Float) = hsl(0f, 0f, l)
+    return if (dark) {
+        val bg = if (pureBlack) Color.Black else g(0.055f)
+        darkColorScheme(
+            primary = Color.White, onPrimary = g(0.08f),
+            primaryContainer = g(0.26f), onPrimaryContainer = Color.White, inversePrimary = g(0.20f),
+            secondary = g(0.82f), onSecondary = g(0.10f),
+            secondaryContainer = g(0.22f), onSecondaryContainer = g(0.95f),
+            tertiary = g(0.70f), onTertiary = g(0.10f),
+            tertiaryContainer = g(0.24f), onTertiaryContainer = g(0.95f),
+            background = bg, onBackground = g(0.95f), surface = bg, onSurface = g(0.95f),
+            surfaceVariant = g(0.20f), onSurfaceVariant = g(0.74f), surfaceTint = Color.White,
+            inverseSurface = g(0.93f), inverseOnSurface = g(0.12f),
+            outline = g(0.45f), outlineVariant = g(0.26f),
+            surfaceBright = g(if (pureBlack) 0.16f else 0.20f), surfaceDim = bg,
+            surfaceContainerLowest = if (pureBlack) Color.Black else g(0.04f),
+            surfaceContainerLow = g(if (pureBlack) 0.05f else 0.085f),
+            surfaceContainer = g(if (pureBlack) 0.07f else 0.105f),
+            surfaceContainerHigh = g(if (pureBlack) 0.10f else 0.135f),
+            surfaceContainerHighest = g(if (pureBlack) 0.13f else 0.165f),
+        )
+    } else {
+        val bg = g(0.985f)
+        lightColorScheme(
+            primary = g(0.12f), onPrimary = Color.White,
+            primaryContainer = g(0.88f), onPrimaryContainer = g(0.08f), inversePrimary = Color.White,
+            secondary = g(0.34f), onSecondary = Color.White,
+            secondaryContainer = g(0.90f), onSecondaryContainer = g(0.10f),
+            tertiary = g(0.45f), onTertiary = Color.White,
+            tertiaryContainer = g(0.90f), onTertiaryContainer = g(0.10f),
+            background = bg, onBackground = g(0.08f), surface = bg, onSurface = g(0.08f),
+            surfaceVariant = g(0.91f), onSurfaceVariant = g(0.34f), surfaceTint = g(0.12f),
+            inverseSurface = g(0.16f), inverseOnSurface = g(0.95f),
+            outline = g(0.52f), outlineVariant = g(0.82f),
+            surfaceBright = bg, surfaceDim = g(0.88f),
+            surfaceContainerLowest = Color.White, surfaceContainerLow = g(0.965f),
+            surfaceContainer = g(0.95f), surfaceContainerHigh = g(0.93f), surfaceContainerHighest = g(0.905f),
+        )
+    }
+}
+
 /** Builds a full Material 3 scheme from a single seed colour (tonal approximation). */
 fun schemeFromSeed(seed: Color, dark: Boolean, pureBlack: Boolean): ColorScheme {
+    if (isNeutralSeed(seed.toArgb())) return neutralScheme(dark, pureBlack)
     val out = FloatArray(3)
     ColorUtils.colorToHSL(seed.toArgb(), out)
     val h = out[0]

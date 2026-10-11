@@ -44,6 +44,8 @@ class InnerTube(
         val json = Json { ignoreUnknownKeys = true; isLenient = true }
         /** The TV client's version (YouTube on smart TVs); bump it if TV playback starts being refused. */
         const val TV_CLIENT_VERSION = "7.20250923.13.00"
+        /** youtube.com's web client, for [webPost] (live stream search). */
+        const val WEB_CLIENT_VERSION = "2.20250925.01.00"
     }
 
     @Volatile
@@ -149,6 +151,40 @@ class InnerTube(
                 json.parseToJsonElement(text).jsonObject
             }
         }
+
+    /**
+     * Asks youtube.com itself (the WEB client, anonymously) rather than YouTube Music. Used for what
+     * YouTube Music has no filter for, like live streams.
+     */
+    suspend fun webPost(endpoint: String, body: JsonObject): JsonObject = withContext(Dispatchers.IO) {
+        val payload = buildJsonObject {
+            putJsonObject("context") {
+                putJsonObject("client") {
+                    put("clientName", "WEB")
+                    put("clientVersion", WEB_CLIENT_VERSION)
+                    put("hl", locale.language.ifBlank { "en" })
+                    put("gl", locale.country.ifBlank { "US" })
+                    put("platform", "DESKTOP")
+                    put("userAgent", USER_AGENT)
+                }
+            }
+            body.forEach { (k, v) -> put(k, v) }
+        }
+        val req = Request.Builder()
+            .url("https://www.youtube.com/youtubei/v1/$endpoint?prettyPrint=false")
+            .post(payload.toString().toRequestBody(JSON_TYPE))
+            .header("User-Agent", USER_AGENT)
+            .header("Origin", "https://www.youtube.com")
+            .header("Referer", "https://www.youtube.com/")
+            .header("X-YouTube-Client-Name", "1")
+            .header("X-YouTube-Client-Version", WEB_CLIENT_VERSION)
+            .build()
+        http.newCall(req).execute().use { resp ->
+            val text = resp.body.string()
+            if (!resp.isSuccessful) throw InnerTubeException("YouTube returned HTTP ${resp.code}", resp.code)
+            json.parseToJsonElement(text).jsonObject
+        }
+    }
 
     /** A client the player endpoint can be asked as, for streams anonymous playback can't get. */
     enum class PlayerClient(val clientName: String, val nameId: Int, val userAgent: String, val origin: String) {

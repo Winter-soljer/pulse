@@ -128,12 +128,25 @@ offline downloads, EQ/spatial audio, on-device "Replay" stats, and full Android 
   Live audio quality: YouTube live manifests only offer two audio renditions, HE-AAC ~48 kbps (itag 233, `mp4a.40.5`) and
   AAC-LC 128 kbps (itag 234, `mp4a.40.2`), no Opus. `BestLiveAudioParserFactory` (`playback/LiveAudio.kt`) drops the HE-AAC one
   from the parsed manifest, so live always plays 128 kbps (logcat tag `PrismLive`). 128 kbps is the ceiling for live.
+- 1.5.6: "Keep playing videos" (`videoContinues`, Settings → Playback, on by default): once the listener picks Video
+  (`PlaybackService.videoWanted`, set by `PlayerConnection.setVideoMode`), the next song is lined up as its video ahead
+  (`armNextVideo`, from `prefetchNext`), or switched on arrival (`continueVideo`); picking Song turns it off and un-arms
+  the queue. Live streams come from youtube.com (WEB client, anonymous, `InnerTube.webPost`): Search's "Live" chip
+  (`SearchFilter.LIVE`, search param `EgJAAQ==`) and an artist page's "Livestreams" row (the channel's Live tab,
+  `YouTubeMusic.liveStreams` on `ArtistPage.channelId`), parsed by `LiveStreams` (on-air only). `LiveStreamsLiveTest`
+  checks both on Lofi Girl. White accent: greys have no hue (HSL reads 0° = red, and the scheme builder forced 30%
+  saturation, so white came out pink), so `isNeutralSeed` → `neutralScheme`: white accents in dark mode, near-black ink
+  in light mode (so the Simple pattern backgrounds, inked in `primary`, stay visible). Swatch is now `0xFFFFFFFF`; the
+  old `0xFFE0E0E0` still reads as selected. The Default background (frost from the playing cover) is intentional (1.5.1).
 - Not affiliated with Google/YouTube — keep the disclaimer in README.
 - `*.apk`, `local.properties`, keystores are gitignored.
 
 ## Current status / Next steps
+- v1.5.6 (versionCode 21, 2026-10-11): keep playing videos, Live search, artist Livestreams, pure white accent (see
+  "1.5.6" above). Built and unit-tested (live tests pass on Lofi Girl); not checked on the phone (the owner tests it).
+  `ArtistAlbumLiveTest.topResultsAreRelevant` still fails (YouTube's search, as at 1.5.5).
 - v1.5.5 (versionCode 20, 2026-10-11): live video (the Video button on live streams) and 128 kbps live audio (see
-  "Live streams" above). **GitHub "Latest"** (`Prism.apk` release-key signed). Checked on the Pixel test copy; PiP for live
+  "Live streams" above). Was GitHub "Latest" until 1.5.6. Checked on the Pixel test copy; PiP for live
   not tried. `ArtistAlbumLiveTest.topResultsAreRelevant` ("after hours" top result) failed at release time: YouTube's search
   results, unrelated to this release.
 - v1.5.4 (versionCode 19, 2026-10-11): live streams play from HLS, so "Listen together" stations work (see "Live streams"

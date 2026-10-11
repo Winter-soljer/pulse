@@ -400,7 +400,7 @@ private fun SuggestionRow(
 @Composable
 fun ResultRow(item: BrowseItem, onLongClick: (() -> Unit)? = null, onClick: () -> Unit) {
     if (item is SongItem) {
-        SongRow(item.song, trailingInfo = if (item.song.isVideo) "Video" else null, onClick = onClick)
+        SongRow(item.song, trailingInfo = if (item.song.isLive) "● LIVE" else if (item.song.isVideo) "Video" else null, onClick = onClick)
         return
     }
     val ui = com.prism.music.ui.theme.LocalUi.current

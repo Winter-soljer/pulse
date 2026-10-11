@@ -224,6 +224,12 @@ private fun ArtistContent(page: ArtistPage, bottomPadding: Dp) {
         value = runCatching { c.ytm.playlist(id).songs }.getOrNull()?.filter { !it.isVideo }
     }
     val topSongs = fullTop?.takeIf { it.size > quickTop.size }?.take(TOP_SONGS) ?: quickTop
+    // Streams on air on the artist's channel (YouTube Music doesn't show them; youtube.com's Live tab does).
+    val streams by produceState(emptyList<SongItem>(), page.id) {
+        value = runCatching {
+            c.ytm.liveStreams(page.channelId ?: page.id, com.prism.music.data.model.ArtistRef(page.name, page.id))
+        }.getOrDefault(emptyList()).map { SongItem(it) }
+    }
     // Play: their top songs in order (the whole list behind "See all" when it loads quickly).
     val playTop: () -> Unit = {
         val shelf = sections.topSongs
@@ -278,6 +284,10 @@ private fun ArtistContent(page: ArtistPage, bottomPadding: Dp) {
                         AppleHeader("Top Songs", more(shelf))
                         TopSongsGrid(topSongs, "${page.name}: Top songs")
                     }
+                }
+                if (streams.isNotEmpty()) item("streams") {
+                    AppleHeader("Livestreams", null)
+                    CardRow(streams, 260.dp, aspect = 16f / 9f, open = open)
                 }
                 sections.albums?.let { s -> item("albums") { AppleHeader("Albums", more(s)); CardRow(s.items, 168.dp, open = open) } }
                 sections.singles?.let { s -> item("singles") { AppleHeader("Singles & EPs", more(s)); CardRow(s.items, 140.dp, open = open) } }
@@ -566,6 +576,7 @@ private fun CardRow(items: List<BrowseItem>, width: Dp, aspect: Float = 1f, roun
                     is AlbumItem -> yearOf(item).takeIf { it > 0 }?.toString() ?: item.subtitle
                     is ArtistItem -> ""
                     is PlaylistItem -> item.subtitle.removePrefix("Playlist • ")
+                    is SongItem -> if (item.song.isLive) "● Live now" else item.subtitle
                     else -> item.subtitle
                 }
                 if (second.isNotBlank()) Text(

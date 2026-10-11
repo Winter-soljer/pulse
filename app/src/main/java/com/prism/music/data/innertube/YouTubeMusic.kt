@@ -31,6 +31,8 @@ enum class SearchFilter(val label: String, val params: String?) {
     ALBUMS("Albums", "EgWKAQIYAWoMEA4QChADEAQQCRAF"),
     ARTISTS("Artists", "EgWKAQIgAWoMEA4QChADEAQQCRAF"),
     PLAYLISTS("Playlists", "EgeKAQQoAEABagwQDhAKEAMQBBAJEAU%3D"),
+    /** Streams on air now (lofi radios and the like), from youtube.com's search: YouTube Music has no such filter. */
+    LIVE("Live", null),
 }
 
 /** High-level YouTube Music operations built on [InnerTube]. */
@@ -96,6 +98,7 @@ class YouTubeMusic(private val api: InnerTube) {
     }
 
     suspend fun search(query: String, filter: SearchFilter, continuation: String? = null): SearchResult {
+        if (filter == SearchFilter.LIVE) return searchLive(query, continuation)
         val res = if (continuation != null) {
             api.post("search", buildJsonObject { put("continuation", continuation) }, "&ctoken=$continuation&continuation=$continuation&type=next")
         } else {
@@ -106,6 +109,26 @@ class YouTubeMusic(private val api: InnerTube) {
         }
         val items = res.findAll("musicResponsiveListItemRenderer").mapNotNull { Parser.responsive(it) }
         return SearchResult(items, Parser.continuation(res.obj("contents") ?: res.obj("continuationContents")))
+    }
+
+    private suspend fun searchLive(query: String, continuation: String?): SearchResult {
+        val res = api.webPost("search", buildJsonObject {
+            if (continuation != null) put("continuation", continuation)
+            else { put("query", query); put("params", LiveStreams.SEARCH_PARAMS) }
+        })
+        val items = LiveStreams.parse(res).map { SongItem(it) }
+        // A page with nothing on air ends the list, rather than paging through past broadcasts.
+        return SearchResult(items, LiveStreams.continuation(res)?.takeIf { items.isNotEmpty() })
+    }
+
+    /** What an artist's channel is streaming right now (Lofi Girl's radios, say), from its Live tab. */
+    suspend fun liveStreams(channelId: String, owner: com.prism.music.data.model.ArtistRef): List<Song> {
+        if (!channelId.startsWith("UC")) return emptyList()
+        val res = api.webPost("browse", buildJsonObject {
+            put("browseId", channelId)
+            put("params", LiveStreams.CHANNEL_TAB_PARAMS)
+        })
+        return LiveStreams.parse(res, owner)
     }
 
     // ---------------------------------------------------------------- Collections
