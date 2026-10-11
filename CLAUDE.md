@@ -114,7 +114,7 @@ offline downloads, EQ/spatial audio, on-device "Replay" stats, and full Android 
   Tabs keep their own back stacks (`saveState`/`restoreState`), so Settings reopens on its last page. Backgrounds have light and
   dark palettes plus a "Simple" group (accent-coloured patterns). System bar icons follow Prism's theme, not the phone's.
   Checked on the Pixel test copy signed out; stations themselves need a signed-in account to see.
-- Live streams (unreleased, after 1.5.3): "Listen together" stations open on a **live stream** (logcat showed a ~220-day
+- Live streams (1.5.4): "Listen together" stations open on a **live stream** (logcat showed a ~220-day
   position and a stalled buffer). NewPipe still lists "progressive" audio for live videos, which is only the newest few
   seconds, so Prism played ~5 s and skipped. Now `StreamResolver` marks live formats (`StreamType.LIVE_STREAM` / player
   `videoDetails.isLive`, `hlsManifestUrl`), `resolve()` throws `LiveStreamException`, and the item becomes `Song.isLive`
@@ -125,9 +125,12 @@ offline downloads, EQ/spatial audio, on-device "Replay" stats, and full Android 
 - `*.apk`, `local.properties`, keystores are gitignored.
 
 ## Current status / Next steps
+- v1.5.4 (versionCode 19, 2026-10-11): live streams play from HLS, so "Listen together" stations work (see "Live streams"
+  above). **GitHub "Latest"** (`Prism.apk` release-key signed). Live playback checked on the Pixel test copy (a 24/7 lofi
+  radio); not yet checked: the station itself on the owner's signed-in Home.
 - v1.5.3 (versionCode 18, 2026-10-11): stations start a radio, artist discography grid + sorting, legible floating buttons,
   light/dark backgrounds + Simple designs, tabs keep their pages, system bars follow Prism's theme (see "1.5.3" above).
-  **GitHub "Latest"** (`Prism.apk` release-key signed). Not yet checked: a station on a signed-in Home.
+  Its station fix wasn't enough (the station opens on a live stream); fixed in 1.5.4.
 - v1.5.2 (versionCode 17, 2026-10-10): frosted menus, uncensored lyrics, taste-aware search, Liked songs playlist, playlist
   rearranging, 20 top songs, PiP (features in `a9a8fd8`, see the notes above). Was GitHub "Latest" until 1.5.3.
   Built and unit-tested (plus a live uncensor test); not yet checked on the phone: PiP and its media-session controls, the Liked songs
