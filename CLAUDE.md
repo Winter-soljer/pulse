@@ -149,11 +149,27 @@ offline downloads, EQ/spatial audio, on-device "Replay" stats, and full Android 
   offline (`downloadedVideoId` short-cuts `videoIdFor`). Search fix: `InnerTube.ensureClientVersion` now holds parallel
   requests behind a mutex (Top results' five searches went out without a visitor id), and a title track on top whose
   album YouTube's album search omitted looks the album up from `song.album` (`SearchRank.namesItsAlbum`).
+- 1.5.8: Top results always carry a "Live" row (`searchTop` also runs `SearchFilter.LIVE`; `SearchRank.rank` puts it
+  second and never lets a stream take the top card unless nothing else matched). Contours and Silk stuttered on the
+  Pixel: they rebuilt ~50k path points every frame, and a page draws its background twice (page + `TopScrollEdge`).
+  Now their paths are built once per size (`pathCache` in `Designs.kt`) and slid with `translate` (whole waves per
+  screen width, so the loop is seamless; the summit rings rotate a third of a turn, matching their 3/6-fold wobble).
+  Light mode: Constellation draws a star chart (`starChart`) instead of grey specks, Horizon's horizon is at 30% height
+  (sun behind the title, not the list) with a dawn sky in light mode, Silk is stronger, Halftone stays in its corner.
+  Downloads' header shows music videos' count and size (and a "Delete music videos" menu entry).
+- Backgrounds can be looked at without a phone: `BackdropRenderTest` (Robolectric native graphics, test-only dependency)
+  draws every Simple and Designs background in dark, light and light-with-white-accent onto contact sheets in
+  `app/build/backdrop-previews/`, with the screens' wash and mock rows. Run it and look at the PNGs after changing any
+  background. The drawing lives in plain `DrawScope.drawDesign` / `drawPattern` functions for that reason.
 - Not affiliated with Google/YouTube — keep the disclaimer in README.
 - `*.apk`, `local.properties`, keystores are gitignored.
 
 ## Current status / Next steps
-- **v1.5.7 (versionCode 22, commit `a1c331c`) is GitHub "Latest"** (2026-10-11, `Prism.apk` release-key signed): player
+- **v1.5.8 (versionCode 23) is GitHub "Latest"** (2026-10-11, `Prism.apk` release-key signed): Live row in Top results,
+  smooth Contours/Silk, light-mode background fixes, video storage in Downloads (see "1.5.8" above). 62 unit tests;
+  all pass except `LiveApiTest.downloadThroughput`, which failed once in the full run (YouTube throttled its raw
+  download to 30 KB/s) and passed when re-run alone. Backgrounds checked on rendered contact sheets; not on a device.
+- v1.5.7 (versionCode 22, commit `a1c331c`, 2026-10-11; GitHub "Latest" until 1.5.8): player
   "Your background" + "Show background", 12 new backgrounds, video downloads, Top results fix (see "1.5.7" above). All 59
   unit tests pass. Not checked on a device: the new designs' look (Horizon is the busiest), video downloads end to end
   (download, airplane mode, Video button), Your background in the player with a photo and with a Design.
@@ -203,6 +219,8 @@ offline downloads, EQ/spatial audio, on-device "Replay" stats, and full Android 
   v1.2.1 (versionCode 4, 2026-10-07): in-app update install. v1.2.0 (`f3656fa`) added music videos as songs,
   cleaner playlists/Customize Home and the update banner. v1.1.0 (2026-10-06, `70b6251`) was the first official release;
   v1.0.0 (2026-10-04) is marked pre-release.
+- After every build that's released (or handed over), update this file in the same commit: the version's notes, which
+  release is "Latest", what was and wasn't checked (the owner asked for this).
 - Release flow: build `assembleRelease`, upload the APK as `Prism.apk` (README links to
   `releases/latest/download/Prism.apk`), notes include the Android Auto "parked/passengers only" warning.
   Check the signer before uploading (`apksigner verify --print-certs` → SHA-256 `cbc462bc…`). Commit with
@@ -240,8 +258,8 @@ offline downloads, EQ/spatial audio, on-device "Replay" stats, and full Android 
   export, Listen Together hosting (a PC guest joined over Wi-Fi; wrong code refused; NSD advert seen). Not yet tried:
   two phones following each other, signed-in actions (save to library, edit/remove, favourite → subscribe).
   Haze blur doesn't draw for elements inside the NavHost's own hazeSource, hence `ScrollEdge` instead of a blurred bar.
-- Next steps: hear back from the owner's own testing of 1.5.6 and 1.5.7 (keep playing videos, Live search and artist
-  Livestreams, the white accent in light and dark, the new backgrounds, Your background in the player, video downloads
-  offline). Still untried from 1.5.0: two phones in a Listen Together session, and signed-in save to library, playlist
+- Next steps: hear back from the owner's own testing of 1.5.6 to 1.5.8 (keep playing videos, Live search, the Live row
+  in Top results and artist Livestreams, the white accent in light and dark, the backgrounds and whether Contours/Silk
+  are smooth now, Your background in the player, video downloads offline and their size in Downloads). Still untried from 1.5.0: two phones in a Listen Together session, and signed-in save to library, playlist
   edit/remove/delete and favourite → subscribe. Possible later: remote (internet) Listen Together, which needs a
   relay server and so an owner decision given the no-server rule; real artist logos, which need a third-party API key.

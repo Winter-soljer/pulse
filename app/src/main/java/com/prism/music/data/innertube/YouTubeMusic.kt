@@ -91,7 +91,7 @@ class YouTubeMusic(private val api: InnerTube) {
      * well they fit the listener's [taste] ([SearchRank]).
      */
     suspend fun searchTop(query: String, taste: SearchRank.Taste = SearchRank.Taste.NONE): TopSearch = kotlinx.coroutines.coroutineScope {
-        val kinds = listOf(SearchFilter.SONGS, SearchFilter.ALBUMS, SearchFilter.ARTISTS, SearchFilter.PLAYLISTS, SearchFilter.VIDEOS)
+        val kinds = listOf(SearchFilter.SONGS, SearchFilter.ALBUMS, SearchFilter.ARTISTS, SearchFilter.PLAYLISTS, SearchFilter.VIDEOS, SearchFilter.LIVE)
         val results = kinds.map { f -> async { f to runCatching { search(query, f).items }.getOrDefault(emptyList()) } }.awaitAll()
         if (results.all { it.second.isEmpty() }) throw java.io.IOException("Search failed")
         val ranked = SearchRank.rank(query, results, taste)

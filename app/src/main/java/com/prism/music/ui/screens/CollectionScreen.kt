@@ -909,11 +909,21 @@ private fun DownloadsInfo(songs: List<Song>, ask: (String, () -> Unit) -> Unit) 
     val all by c.downloads.downloads.collectAsState()
     val levels by c.downloads.lyricLevels.collectAsState()
     val working by c.downloads.lyricsWorking.collectAsState()
+    val videos by c.downloads.videos.collectAsState()
     val active = remember(all) { all.filter { it.value.state != Download.STATE_COMPLETED && it.value.state != Download.STATE_FAILED } }
     val bytes = remember(all) { all.values.filter { it.state == Download.STATE_COMPLETED }.sumOf { it.bytes } }
     Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 6.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
-            "${songs.size} song${if (songs.size == 1) "" else "s"} · ${sizeText(bytes)} on this phone",
+            "${songs.size} song${if (songs.size == 1) "" else "s"} · ${sizeText(bytes)} on this phone" +
+                if (videos.isNotEmpty()) " (${sizeText(bytes + videos.values.sumOf { it.bytes })} with videos)" else "",
+            style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant, textAlign = TextAlign.Center,
+        )
+        // Saved music videos take far more room than songs, so they get their own line.
+        val savedVideos = remember(videos) { videos.values.filter { it.state == Download.STATE_COMPLETED } }
+        val videosLoading = remember(videos) { videos.values.count { it.state == Download.STATE_QUEUED || it.state == Download.STATE_DOWNLOADING } }
+        if (videos.isNotEmpty()) Text(
+            "${savedVideos.size} music video${if (savedVideos.size == 1) "" else "s"} · ${sizeText(videos.values.sumOf { it.bytes })}" +
+                if (videosLoading > 0) " · $videosLoading downloading" else "",
             style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant, textAlign = TextAlign.Center,
         )
         val lossless = remember(all) { all.count { it.value.lossless } }
@@ -951,6 +961,11 @@ private fun DownloadsMenuItems(close: () -> Unit, ask: (String, () -> Unit) -> U
     if (smart.isNotEmpty()) DropdownMenuItem({ Text("Delete smart downloads (${smart.size})") }, {
         close()
         ask("Delete the ${smart.size} songs smart downloads added? They may come back later if smart downloads stays on.") { c.downloads.removeMany(smart) }
+    }, leadingIcon = { Icon(Icons.Rounded.DeleteSweep, null) })
+    val videos by c.downloads.videos.collectAsState()
+    if (videos.isNotEmpty()) DropdownMenuItem({ Text("Delete music videos (${sizeText(videos.values.sumOf { it.bytes })})") }, {
+        close()
+        ask("Delete the ${videos.size} saved music videos? The songs stay downloaded.") { videos.keys.forEach(c.downloads::removeVideo) }
     }, leadingIcon = { Icon(Icons.Rounded.DeleteSweep, null) })
     DropdownMenuItem({ Text("Delete all downloads") }, {
         close()

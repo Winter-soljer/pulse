@@ -334,7 +334,7 @@ private fun TopResults(
                     }
                 }
                 else -> item("c:${f.name}") {
-                    ItemCarousel(items, open, cardWidth = if (f == SearchFilter.VIDEOS) 150.dp else 140.dp)
+                    ItemCarousel(items, open, cardWidth = if (f == SearchFilter.VIDEOS || f == SearchFilter.LIVE) 150.dp else 140.dp)
                 }
             }
         }
@@ -348,7 +348,7 @@ private fun TopCard(item: BrowseItem, onClick: () -> Unit, onPlay: () -> Unit) {
         is ArtistItem -> "Artist"
         is AlbumItem -> item.subtitle.substringBefore(" • ").takeIf { it in setOf("Album", "Single", "EP") } ?: "Album"
         is PlaylistItem -> "Playlist"
-        is SongItem -> if (item.song.isVideo) "Video" else "Song"
+        is SongItem -> if (item.song.isLive) "● Live" else if (item.song.isVideo) "Video" else "Song"
         else -> ""
     }
     val detail = when (item) {

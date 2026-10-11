@@ -46,6 +46,15 @@ class SearchRankTest {
         assertTrue(SearchRank.knownArtists("halo", taste).isEmpty())
     }
 
+    @Test fun liveStreamsAlwaysGetARowButNotTheTop() {
+        val stream = SongItem(Song("lofi", "lofi hip hop radio", listOf(ArtistRef("Lofi Girl")), isVideo = true, isLive = true))
+        val r = SearchRank.rank("A Day", results + (SearchFilter.LIVE to listOf(stream)))
+        assertEquals("MPREb_ep", r.top?.id)
+        assertEquals(SearchFilter.LIVE, r.sections[1].first)
+        // With nothing else found, a stream can lead.
+        assertEquals("lofi", SearchRank.rank("lofi", listOf(SearchFilter.LIVE to listOf(stream))).top?.id)
+    }
+
     @Test fun aTitleTrackGivesWayToItsAlbum() {
         val track = Song("ah", "After Hours", listOf(ArtistRef("The Weeknd")), album = com.prism.music.data.model.AlbumRef("After Hours", "MPREb_ah"))
         assertTrue(SearchRank.namesItsAlbum("after hours", track))

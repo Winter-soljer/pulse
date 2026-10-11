@@ -249,7 +249,14 @@ private fun Pattern(kind: BackdropKind, dark: Boolean, motion: Boolean) {
     val second = scheme.tertiary
     val t = drift(motion && (kind == BackdropKind.WAVES || kind == BackdropKind.RIPPLES), 24_000, 0.2f)
     val density = LocalDensity.current.density
-    Canvas(Modifier.fillMaxSize().background(bg)) {
+    Canvas(Modifier.fillMaxSize().background(bg)) { drawPattern(kind, bg, accent, second, dark, t, density) }
+}
+
+/** One simple design, drawn plainly (tests render it to an image). */
+internal fun androidx.compose.ui.graphics.drawscope.DrawScope.drawPattern(
+    kind: BackdropKind, bg: Color, accent: Color, second: Color, dark: Boolean, t: Float, density: Float,
+) {
+        drawRect(bg)
         val w = size.width
         val h = size.height
         // The glow every simple design shares: the accent, faintly, from the top.
@@ -261,7 +268,7 @@ private fun Pattern(kind: BackdropKind, dark: Boolean, motion: Boolean) {
                 Brush.radialGradient(listOf(second.copy(alpha = if (dark) 0.16f else 0.12f), Color.Transparent), Offset(w, h * 0.85f), w * 0.9f),
                 w * 0.9f, Offset(w, h * 0.85f),
             )
-            return@Canvas
+            return
         }
         val ink = accent.copy(alpha = if (dark) 0.20f else 0.26f)
         // Patterns fade out toward the bottom, where lists sit thickest.
@@ -356,16 +363,17 @@ private fun Pattern(kind: BackdropKind, dark: Boolean, motion: Boolean) {
             }
             BackdropKind.HALFTONE -> {
                 // Dots that swell toward the top corner, like a print's halftone.
-                val step = 13f * density
+                // Kept to the corner and fine, so the title and first rows stay clear.
+                val step = 11f * density
                 val origin = Offset(w, 0f)
-                val reach = size.maxDimension * 0.9f
+                val reach = size.minDimension * 0.95f
                 var y = step / 2
                 var row = 0
                 while (y < h) {
                     var x = if (row % 2 == 0) step / 2 else step
                     while (x < w) {
                         val k = (1f - (Offset(x, y) - origin).getDistance() / reach).coerceIn(0f, 1f)
-                        if (k > 0.04f) drawCircle(ink.copy(alpha = ink.alpha * 1.1f), step * 0.42f * k, Offset(x, y))
+                        if (k > 0.06f) drawCircle(ink.copy(alpha = ink.alpha * 0.9f), step * 0.36f * k, Offset(x, y))
                         x += step
                     }
                     y += step * 0.87f; row++
@@ -418,5 +426,4 @@ private fun Pattern(kind: BackdropKind, dark: Boolean, motion: Boolean) {
             }
             else -> {}
         }
-    }
 }

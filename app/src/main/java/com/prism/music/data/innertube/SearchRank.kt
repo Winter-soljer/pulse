@@ -150,7 +150,22 @@ object SearchRank {
         return TopSearch(album, withSong)
     }
 
+    /**
+     * Ranks [results]; live streams ([SearchFilter.LIVE]) always get a row of their own, second (after the
+     * best-matching kind), but don't compete for the top spot unless there's nothing else.
+     */
     fun rank(query: String, results: List<Pair<SearchFilter, List<BrowseItem>>>, taste: Taste = Taste.NONE): TopSearch {
+        val live = results.firstOrNull { it.first == SearchFilter.LIVE }?.second.orEmpty().distinctBy { it.id }.take(10)
+        val ranked = rankMusic(query, results.filter { it.first != SearchFilter.LIVE }, taste)
+        if (live.isEmpty()) return ranked
+        val top = ranked.top ?: live.first()
+        val sections = ranked.sections.toMutableList()
+        val row = live.filter { it != top }
+        if (row.isNotEmpty()) sections.add(minOf(1, sections.size), SearchFilter.LIVE to row)
+        return TopSearch(top, sections)
+    }
+
+    private fun rankMusic(query: String, results: List<Pair<SearchFilter, List<BrowseItem>>>, taste: Taste): TopSearch {
         // The listener's own artists lead YouTube's artist results when they fit and are missing from them.
         val known = knownArtists(query, taste)
         val withKnown = results.map { (f, items) ->

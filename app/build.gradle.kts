@@ -15,8 +15,8 @@ android {
         applicationId = "com.prism.music"
         minSdk = 26
         targetSdk = 36
-        versionCode = 22
-        versionName = "1.5.7"
+        versionCode = 23
+        versionName = "1.5.8"
         vectorDrawables { useSupportLibrary = true }
         // Optional: `lastfm.apiKey=…` in local.properties lets genre detection ask Last.fm too.
         val localProps = Properties().apply {
@@ -135,6 +135,8 @@ dependencies {
     implementation("dev.chrisbanes.haze:haze-glass:2.0.1")
 
     testImplementation("junit:junit:4.13.2")
+    // Renders the backgrounds to PNGs on the PC (BackdropRenderTest), with Robolectric's real graphics.
+    testImplementation("org.robolectric:robolectric:4.14.1")
 }
 
 tasks.withType<Test>().configureEach {
