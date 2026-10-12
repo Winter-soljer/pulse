@@ -245,14 +245,14 @@ offline downloads, EQ/spatial audio, on-device "Replay" stats, and full Android 
   so a read-replace-write mangles `·`, `—`, `…`, `•` (e.g. `" • "` → `" â€¢ "`). It hit `CollectionScreen.kt` and
   `build.gradle.kts` during 1.5.0 (both repaired). Use the Edit tool, or `[IO.File]::ReadAllText/WriteAllText` with
   `UTF8Encoding($false)`; afterwards grep for `â€|Â·` to be sure.
-- Phone checks: the Pixel 10 Pro XL is the owner's personal phone (wireless adb). Ask before touching it; use the
+- Phone checks: ask before touching the owner's phone; use the
   side-by-side test copy (`-PsideBySide`, `com.prism.music.dev`) rather than replacing the real install. Find tap targets with
   `adb shell uiautomator dump` (match `text` or `content-desc`), decline the test copy's notification prompt, never act in
-  the system share chooser (it shows personal contacts), and afterwards `rm` temp files from /sdcard, `am force-stop` the
+  the system share chooser, and afterwards `rm` temp files from /sdcard, `am force-stop` the
   test copy and press Home. A PC on the same Wi-Fi can join a Listen Together session as a test guest with a raw TCP
   client sending `{"t":"hello","name":"Test PC","code":"NNNN","version":1}` (don't send `add`: it starts playback).
   The `com.prism.music.dev` copy from the 1.5.0 checks may still be on the phone (`adb uninstall com.prism.music.dev`).
-- README screenshots (`docs/screenshots/`) were retaken for 1.1 on a Pixel 10 Pro XL with personal info
+- README screenshots (`docs/screenshots/`) were retaken for 1.1 with account details
   and the mini player blurred (no way to hide the mini player in release builds). Keep blurring on retakes.
   `video.jpg` (music video playing, Kid Cudi) was added 2026-10-06 with the README "Music videos" feature notes.
   The player title is a looping marquee: take a burst of screencaps and pick the frame where it rests at the start.
@@ -262,8 +262,6 @@ offline downloads, EQ/spatial audio, on-device "Replay" stats, and full Android 
 - Donations: Ko-fi at https://ko-fi.com/yigder — linked from a README header badge, a "Support Prism"
   section (before "Building from source"), and `.github/FUNDING.yml` (`ko_fi: yigder`, GitHub Sponsor button).
   Keep it optional/no-pressure; no in-app donation prompts unless the user asks.
-- On the user's Wi-Fi, `gh` API calls have failed (`invalid character '<'`) while git push works; if so, ask them to
-  switch to hotspot. (`gh release create` worked for 1.5.6 and 1.5.7.)
 - An untracked `Prism/` subfolder duplicates the project (with build output and logs) — decide whether to delete it.
 - v1.5.0 (versionCode 15, commit `75c5c7f`, 2026-10-10): the QOL update — frosted artist/album/playlist pages, artist
   signatures and favourites, share sheet + "Play in Prism", Listen Together, playlist edit/remove/save-to-library/new playlist,
