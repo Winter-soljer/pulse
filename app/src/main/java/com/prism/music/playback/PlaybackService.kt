@@ -155,6 +155,14 @@ class PlaybackService : MediaLibraryService(), Player.Listener {
                 )
             )
             .build()
+        // Wear OS (the Pixel Watch's media controls) has its own keys for keeping the skip
+        // buttons: without them it puts the first custom buttons (like, shuffle) where
+        // previous/next go. Media3 only sets the phone/Auto equivalents. Set after build():
+        // only a change of session extras reaches the platform session's extras.
+        session.setSessionExtras(Bundle().apply {
+            putBoolean("android.support.wearable.media.extra.RESERVE_SLOT_SKIP_TO_PREVIOUS", true)
+            putBoolean("android.support.wearable.media.extra.RESERVE_SLOT_SKIP_TO_NEXT", true)
+        })
         setMediaNotificationProvider(DefaultMediaNotificationProvider.Builder(this).build().apply {
             setSmallIcon(R.drawable.ic_notification)
         })
@@ -609,7 +617,7 @@ class PlaybackService : MediaLibraryService(), Player.Listener {
 
     /**
      * Buttons beside play/pause/skip. The phone's media controls show the first two (like, shuffle);
-     * Android Auto shows them all: like, shuffle, repeat, lyrics, start radio and "not for me".
+     * the watch keeps previous/next beside play (see the session extras); Android Auto shows them all: like, shuffle, repeat, lyrics, start radio and "not for me".
      */
     private fun updateButtons() {
         if (!::session.isInitialized) return

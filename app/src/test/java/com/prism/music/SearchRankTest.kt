@@ -46,11 +46,12 @@ class SearchRankTest {
         assertTrue(SearchRank.knownArtists("halo", taste).isEmpty())
     }
 
-    @Test fun liveStreamsAlwaysGetARowButNotTheTop() {
+    @Test fun liveStreamsAlwaysGetTheLastRowButNotTheTop() {
         val stream = SongItem(Song("lofi", "lofi hip hop radio", listOf(ArtistRef("Lofi Girl")), isVideo = true, isLive = true))
         val r = SearchRank.rank("A Day", results + (SearchFilter.LIVE to listOf(stream)))
         assertEquals("MPREb_ep", r.top?.id)
-        assertEquals(SearchFilter.LIVE, r.sections[1].first)
+        assertEquals(SearchFilter.LIVE, r.sections.last().first)
+        assertTrue(r.sections.size > 1)
         // With nothing else found, a stream can lead.
         assertEquals("lofi", SearchRank.rank("lofi", listOf(SearchFilter.LIVE to listOf(stream))).top?.id)
     }

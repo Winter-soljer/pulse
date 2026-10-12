@@ -55,6 +55,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -86,6 +87,8 @@ private data class ReplayData(
     val totalMs: Long,
     val plays: Int,
     val activeDays: Int,
+    /** Every different song played in the period (the lists below are capped). */
+    val songCount: Int,
     val songs: List<SongPlays>,
     val artists: List<ArtistPlays>,
     val months: List<MonthTotal>,
@@ -137,7 +140,7 @@ fun ReplayScreen(bottomPadding: Dp) {
             .filterKeys { it != "Unknown" }.toList().sortedByDescending { it.second }.take(6)
         value = ReplayData(
             totalMs = dao.totalMs(from, to), plays = dao.count(from, to), activeDays = dao.activeDays(from, to),
-            songs = songs, artists = dao.topArtists(from, to, 12), months = dao.monthly(from, to), genres = genres,
+            songCount = dao.songCount(from, to), songs = songs, artists = dao.topArtists(from, to, 12), months = dao.monthly(from, to), genres = genres,
             top250 = top,
         )
         // Fill in genres for the top tracks in the background so the next visit is richer.
@@ -221,7 +224,7 @@ fun ReplayScreen(bottomPadding: Dp) {
                                 placeholderIcon = Icons.Rounded.Person,
                             )
                             Text(
-                                "${i + 1}", color = Color.White, fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleMedium,
+                                "${i + 1}", color = inkOn(MaterialTheme.colorScheme.primary), fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleMedium,
                                 modifier = Modifier.align(Alignment.BottomStart).clip(CircleShape).background(MaterialTheme.colorScheme.primary).padding(horizontal = 9.dp, vertical = 2.dp),
                             )
                         }
@@ -235,14 +238,19 @@ fun ReplayScreen(bottomPadding: Dp) {
         if (d.genres.isNotEmpty()) item {
             SectionHeader("Top genres")
             val max = d.genres.maxOf { it.second }.coerceAtLeast(1)
+            // The bar runs primary → tertiary; with a pale accent (white) its labels go dark.
+            val barInk = inkOn(MaterialTheme.colorScheme.primary)
+            val endInk = inkOn(MaterialTheme.colorScheme.tertiary)
             Column(Modifier.padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 d.genres.forEachIndexed { i, (g, ms) ->
                     val anim = remember(g, period) { Animatable(0f) }
                     LaunchedEffect(g, period) { anim.animateTo(ms / max.toFloat(), tween(900, delayMillis = i * 90)) }
                     Box(Modifier.fillMaxWidth().height(40.dp).clip(com.prism.music.ui.theme.LocalUi.current.shape(12.dp)).background(com.prism.music.ui.components.quietFill())) {
                         Box(Modifier.fillMaxWidth(anim.value).height(40.dp).background(Brush.horizontalGradient(listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.tertiary))))
-                        Text(g, style = MaterialTheme.typography.labelLarge, color = Color.White, modifier = Modifier.align(Alignment.CenterStart).padding(start = 12.dp))
-                        Text(listenTime(ms), style = MaterialTheme.typography.labelMedium, modifier = Modifier.align(Alignment.CenterEnd).padding(end = 12.dp))
+                        // On the bar's colour unless the bar is too short to sit under the name.
+                        Text(g, style = MaterialTheme.typography.labelLarge, color = if (anim.value > 0.3f) barInk else Color.Unspecified, modifier = Modifier.align(Alignment.CenterStart).padding(start = 12.dp))
+                        // Over the bar once it reaches the time (the top genre's fills the row).
+                        Text(listenTime(ms), style = MaterialTheme.typography.labelMedium, color = if (anim.value > 0.8f) endInk else Color.Unspecified, modifier = Modifier.align(Alignment.CenterEnd).padding(end = 12.dp))
                     }
                 }
             }
@@ -308,7 +316,7 @@ private fun HeroCard(d: ReplayData, period: Period, year: Int, loading: Boolean,
             Spacer(Modifier.height(18.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(22.dp)) {
                 Stat("${d.plays}", if (d.plays == 1) "play" else "plays")
-                Stat("${d.songs.size}", if (d.songs.size == 1) "song" else "songs")
+                Stat("${d.songCount}", if (d.songCount == 1) "song" else "songs")
                 Stat("${d.activeDays}", if (d.activeDays == 1) "day" else "days")
             }
             if (top != null) {
@@ -399,6 +407,9 @@ fun replayGradient(): List<Color> {
     return if (LocalAppSettings.current.replayThemeColors) listOf(scheme.primary.compositeDark(0.6f), scheme.tertiary.compositeDark(0.5f), scheme.secondary.compositeDark(0.6f))
     else listOf(Color(0xFFFF3B5C), Color(0xFF7C5CFF), Color(0xFF00B4D8))
 }
+
+/** White text on [bg], or near-black when [bg] is pale (the white accent). */
+private fun inkOn(bg: Color): Color = if (bg.luminance() > 0.5f) Color(0xFF111111) else Color.White
 
 /** Darkens a colour towards black by [amount] (0 = as is), so white sits on it comfortably. */
 private fun Color.compositeDark(amount: Float = 0.7f): Color = Color(red * (1 - amount), green * (1 - amount), blue * (1 - amount), 1f)

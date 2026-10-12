@@ -151,8 +151,8 @@ object SearchRank {
     }
 
     /**
-     * Ranks [results]; live streams ([SearchFilter.LIVE]) always get a row of their own, second (after the
-     * best-matching kind), but don't compete for the top spot unless there's nothing else.
+     * Ranks [results]; live streams ([SearchFilter.LIVE]) always get a row of their own, last, and don't
+     * compete for the top spot unless there's nothing else.
      */
     fun rank(query: String, results: List<Pair<SearchFilter, List<BrowseItem>>>, taste: Taste = Taste.NONE): TopSearch {
         val live = results.firstOrNull { it.first == SearchFilter.LIVE }?.second.orEmpty().distinctBy { it.id }.take(10)
@@ -161,7 +161,7 @@ object SearchRank {
         val top = ranked.top ?: live.first()
         val sections = ranked.sections.toMutableList()
         val row = live.filter { it != top }
-        if (row.isNotEmpty()) sections.add(minOf(1, sections.size), SearchFilter.LIVE to row)
+        if (row.isNotEmpty()) sections.add(SearchFilter.LIVE to row)
         return TopSearch(top, sections)
     }
 

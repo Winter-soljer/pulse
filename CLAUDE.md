@@ -157,6 +157,14 @@ offline downloads, EQ/spatial audio, on-device "Replay" stats, and full Android 
   Light mode: Constellation draws a star chart (`starChart`) instead of grey specks, Horizon's horizon is at 30% height
   (sun behind the title, not the list) with a dawn sky in light mode, Silk is stronger, Halftone stays in its corner.
   Downloads' header shows music videos' count and size (and a "Delete music videos" menu entry).
+- 1.5.9: Pixel Watch controls: Wear OS only keeps previous/next beside play when the platform session's extras carry
+  its own keys (`android.support.wearable.media.extra.RESERVE_SLOT_SKIP_TO_PREVIOUS` / `_NEXT`); Media3 only sets the
+  `ALWAYS_RESERVE_SPACE_FOR…` ones, so the watch showed like/shuffle there. `PlaybackService` sets them with
+  `session.setSessionExtras` after `build()` (Builder extras don't reach `MediaSessionCompat.setExtras`; only a change
+  does). Replay's "songs" stat uses `songCount` (it was the top-songs list, capped at 100). Replay rank badges and genre
+  bars use `inkOn()` (dark text on a pale accent like white). Top results: the Live row is always last. New logo
+  (rounded prism + waveform, traced from the owner's image) in `ic_launcher_foreground` (scaled 0.86 in a group) and
+  `ic_notification` (thinner wave so the peaks don't merge at 24 dp).
 - Backgrounds can be looked at without a phone: `BackdropRenderTest` (Robolectric native graphics, test-only dependency)
   draws every Simple and Designs background in dark, light and light-with-white-accent onto contact sheets in
   `app/build/backdrop-previews/`, with the screens' wash and mock rows. Run it and look at the PNGs after changing any
@@ -165,7 +173,13 @@ offline downloads, EQ/spatial audio, on-device "Replay" stats, and full Android 
 - `*.apk`, `local.properties`, keystores are gitignored.
 
 ## Current status / Next steps
-- **v1.5.8 (versionCode 23) is GitHub "Latest"** (2026-10-11, `Prism.apk` release-key signed): Live row in Top results,
+- **v1.5.9 (versionCode 24) is GitHub "Latest"** (2026-10-12, `Prism.apk` release-key signed): watch keeps
+  previous/next, Replay song count past 100, Replay legible with a white accent, Live row last in Top results, new logo
+  (see "1.5.9" above). 61 of 62 unit tests pass; `ArtistAlbumLiveTest.topResultsAreRelevant` flaked on live YouTube
+  results ("blinding lights" once, then "after hours" → "After Hours (Instrumental)" by a cover artist; it passed once on
+  the 1.5.8 code). The top pick doesn't depend on the Live row, but a cover beating the album is a real ranking weakness.
+  Not checked on a device: the watch buttons (no watch here), Replay, the new icon on the launcher (checked on a render).
+- v1.5.8 (versionCode 23, 2026-10-11; GitHub "Latest" until 1.5.9): Live row in Top results,
   smooth Contours/Silk, light-mode background fixes, video storage in Downloads (see "1.5.8" above). 62 unit tests;
   all pass except `LiveApiTest.downloadThroughput`, which failed once in the full run (YouTube throttled its raw
   download to 30 KB/s) and passed when re-run alone. Backgrounds checked on rendered contact sheets; not on a device.
@@ -258,7 +272,8 @@ offline downloads, EQ/spatial audio, on-device "Replay" stats, and full Android 
   export, Listen Together hosting (a PC guest joined over Wi-Fi; wrong code refused; NSD advert seen). Not yet tried:
   two phones following each other, signed-in actions (save to library, edit/remove, favourite → subscribe).
   Haze blur doesn't draw for elements inside the NavHost's own hazeSource, hence `ScrollEdge` instead of a blurred bar.
-- Next steps: hear back from the owner's own testing of 1.5.6 to 1.5.8 (keep playing videos, Live search, the Live row
+- Next steps: hear back from the owner's own testing of 1.5.9 (watch buttons, Replay count/white accent, logo, Live row last)
+  and 1.5.6 to 1.5.8 (keep playing videos, Live search, the Live row
   in Top results and artist Livestreams, the white accent in light and dark, the backgrounds and whether Contours/Silk
   are smooth now, Your background in the player, video downloads offline and their size in Downloads). Still untried from 1.5.0: two phones in a Listen Together session, and signed-in save to library, playlist
   edit/remove/delete and favourite → subscribe. Possible later: remote (internet) Listen Together, which needs a
