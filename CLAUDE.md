@@ -252,11 +252,18 @@ offline downloads, EQ/spatial audio, on-device "Replay" stats, and full Android 
   test copy and press Home. A PC on the same Wi-Fi can join a Listen Together session as a test guest with a raw TCP
   client sending `{"t":"hello","name":"Test PC","code":"NNNN","version":1}` (don't send `add`: it starts playback).
   The `com.prism.music.dev` copy from the 1.5.0 checks may still be on the phone (`adb uninstall com.prism.music.dev`).
-- README screenshots (`docs/screenshots/`) were retaken for 1.1 with account details
-  and the mini player blurred (no way to hide the mini player in release builds). Keep blurring on retakes.
-  `video.jpg` (music video playing, Kid Cudi) was added 2026-10-06 with the README "Music videos" feature notes.
-  The player title is a looping marquee: take a burst of screencaps and pick the frame where it rests at the start.
-  Use `adb shell screencap` + `adb pull` (PowerShell `exec-out >` redirection corrupts PNGs).
+- README screenshots (`docs/screenshots/`) were retaken 2026-10-12 (1.5.9) on an emulator, not the owner's phone:
+  AVD `PrismShots` (Pixel 8, `system-images;android-35;google_apis;x86_64`, start with
+  `emulator -avd PrismShots`), release APK built with `-PdebugSign`, signed out, popular songs only. History came from
+  ~35 real autoplay plays plus backdated `play_events` and `songs.liked` rows written with `adb root` + `sqlite3` on the
+  emulator (google_apis images allow root; force-stop Prism before editing the DB). Light/dark via
+  `adb shell cmd uimode night yes|no` (theme = System). Each shot: screencap, crop the 132 px status bar, 720 px wide JPEG.
+  Files are `<screen>-dark.jpg` / `<screen>-light.jpg`; the player, lyrics, video, queue, song menu and welcome screens
+  are always dark so they have one file. `android-auto-lyrics.jpg` is the owner's own DHU capture (Title-only style);
+  there's no Android Auto shot without lyrics yet (needs the DHU + Android Auto's head unit server on a phone).
+  The welcome screen needs `pm clear` on the emulator. The player title is a looping marquee and lyrics light word by
+  word: take a burst and pick the best frame. Use `adb shell screencap` + `adb pull` (PowerShell `exec-out >`
+  redirection corrupts PNGs).
 - README has a "Credits and inspiration" section (Apple Music, BitChord, Spotify Wrapped, lyric/canvas
   sources, libraries) — update it when borrowing new ideas or sources.
 - Donations: Ko-fi at https://ko-fi.com/yigder — linked from a README header badge, a "Support Prism"

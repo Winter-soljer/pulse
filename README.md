@@ -12,10 +12,10 @@
 
 **[⬇ Download Prism.apk](../../releases/latest/download/Prism.apk)** · [Release notes](../../releases/latest)
 
-<img src="docs/screenshots/artist.jpg" width="22%" alt="Artist page">
+<img src="docs/screenshots/home-dark.jpg" width="22%" alt="Home">
 <img src="docs/screenshots/player.jpg" width="22%" alt="Now playing">
-<img src="docs/screenshots/lyrics.jpg" width="22%" alt="Lyrics">
-<img src="docs/screenshots/search.jpg" width="22%" alt="Search">
+<img src="docs/screenshots/lyrics.jpg" width="22%" alt="Word-by-word lyrics">
+<img src="docs/screenshots/artist-dark.jpg" width="22%" alt="Artist page">
 
 </div>
 
@@ -84,15 +84,49 @@ Updating works the same way: install the new APK over the old one, and your down
 
 ## Screenshots
 
-| | | |
-|:-:|:-:|:-:|
-| <img src="docs/screenshots/home.jpg" width="240" alt="Home"><br>Home with Replay and shortcuts | <img src="docs/screenshots/library.jpg" width="240" alt="Library"><br>Library | <img src="docs/screenshots/replay.jpg" width="240" alt="Replay"><br>Replay, your on-device recap |
-| <img src="docs/screenshots/album.jpg" width="240" alt="Album"><br>Albums with starred hits | <img src="docs/screenshots/playlist.jpg" width="240" alt="Playlist"><br>Playlists with your own picture and genre filters | <img src="docs/screenshots/downloads.jpg" width="240" alt="Downloads"><br>Downloads, with lyrics saved |
-| <img src="docs/screenshots/video.jpg" width="240" alt="Music video playing in the player"><br>Music videos, one tap from the song | <img src="docs/screenshots/player.jpg" width="240" alt="Now playing"><br>Now playing | <img src="docs/screenshots/lyrics.jpg" width="240" alt="Lyrics"><br>Word-by-word lyrics |
-| <img src="docs/screenshots/settings.jpg" width="240" alt="Settings"><br>Settings | <img src="docs/screenshots/appearance.jpg" width="240" alt="Appearance"><br>Theme, accent colour and fonts | <img src="docs/screenshots/backgrounds.jpg" width="240" alt="Backgrounds"><br>Screen backgrounds |
-| <img src="docs/screenshots/sound.jpg" width="240" alt="Playback and sound"><br>Lossless, normalization, video quality | <img src="docs/screenshots/equalizer.jpg" width="240" alt="Equalizer"><br>10-band equalizer | <img src="docs/screenshots/car-lyrics.jpg" width="240" alt="Android Auto lyrics settings"><br>Android Auto lyrics, with preview |
+### The player
 
-<sub>Personal details and the mini player are blurred in these screenshots.</sub>
+| | | | |
+|:-:|:-:|:-:|:-:|
+| <img src="docs/screenshots/player.jpg" width="190" alt="Now playing"><br>Now playing | <img src="docs/screenshots/lyrics.jpg" width="190" alt="Lyrics"><br>Word-by-word lyrics | <img src="docs/screenshots/video.jpg" width="190" alt="Music video playing in the player"><br>Music videos, one tap from the song | <img src="docs/screenshots/queue.jpg" width="190" alt="Queue"><br>Queue, shuffle and autoplay |
+
+### Light and dark
+
+Every screen follows the phone's theme, or pick Light or Dark in Appearance.
+
+| | | | |
+|:-:|:-:|:-:|:-:|
+| <img src="docs/screenshots/home-dark.jpg" width="190" alt="Home, dark"> | <img src="docs/screenshots/home-light.jpg" width="190" alt="Home, light"> | <img src="docs/screenshots/search-dark.jpg" width="190" alt="Search, dark"> | <img src="docs/screenshots/search-light.jpg" width="190" alt="Search, light"> |
+| Home with Replay and shortcuts || Search with top results ||
+| <img src="docs/screenshots/artist-dark.jpg" width="190" alt="Artist page, dark"> | <img src="docs/screenshots/artist-light.jpg" width="190" alt="Artist page, light"> | <img src="docs/screenshots/album-dark.jpg" width="190" alt="Album, dark"> | <img src="docs/screenshots/album-light.jpg" width="190" alt="Album, light"> |
+| Artist pages with signatures || Albums ||
+| <img src="docs/screenshots/playlist-dark.jpg" width="190" alt="Playlist, dark"> | <img src="docs/screenshots/playlist-light.jpg" width="190" alt="Playlist, light"> | <img src="docs/screenshots/library-dark.jpg" width="190" alt="Library, dark"> | <img src="docs/screenshots/library-light.jpg" width="190" alt="Library, light"> |
+| Playlists with genre filters || Library ||
+| <img src="docs/screenshots/downloads-dark.jpg" width="190" alt="Downloads, dark"> | <img src="docs/screenshots/downloads-light.jpg" width="190" alt="Downloads, light"> | <img src="docs/screenshots/together-dark.jpg" width="190" alt="Listen together, dark"> | <img src="docs/screenshots/together-light.jpg" width="190" alt="Listen together, light"> |
+| Downloads, with lyrics saved || Listen together ||
+| <img src="docs/screenshots/replay-dark.jpg" width="190" alt="Replay, dark"> | <img src="docs/screenshots/replay-light.jpg" width="190" alt="Replay, light"> | <img src="docs/screenshots/replay2-dark.jpg" width="190" alt="Replay top genres and songs, dark"> | <img src="docs/screenshots/replay2-light.jpg" width="190" alt="Replay top genres and songs, light"> |
+| Replay, your on-device recap || Top artists, genres and songs ||
+
+### Settings
+
+| | | | |
+|:-:|:-:|:-:|:-:|
+| <img src="docs/screenshots/settings-dark.jpg" width="190" alt="Settings, dark"> | <img src="docs/screenshots/settings-light.jpg" width="190" alt="Settings, light"> | <img src="docs/screenshots/appearance-dark.jpg" width="190" alt="Appearance, dark"> | <img src="docs/screenshots/appearance-light.jpg" width="190" alt="Appearance, light"> |
+| Settings || Theme, accent colour and fonts ||
+| <img src="docs/screenshots/backgrounds-dark.jpg" width="190" alt="Backgrounds, dark"> | <img src="docs/screenshots/backgrounds-light.jpg" width="190" alt="Backgrounds, light"> | <img src="docs/screenshots/sound-dark.jpg" width="190" alt="Playback and sound, dark"> | <img src="docs/screenshots/sound-light.jpg" width="190" alt="Playback and sound, light"> |
+| Screen backgrounds and designs || Lossless, normalization, video quality ||
+| <img src="docs/screenshots/eq-dark.jpg" width="190" alt="Equalizer, dark"> | <img src="docs/screenshots/eq-light.jpg" width="190" alt="Equalizer, light"> | <img src="docs/screenshots/carlyrics-dark.jpg" width="190" alt="Android Auto lyrics settings, dark"> | <img src="docs/screenshots/carlyrics-light.jpg" width="190" alt="Android Auto lyrics settings, light"> |
+| 10-band equalizer || Android Auto lyrics, with preview ||
+
+| | |
+|:-:|:-:|
+| <img src="docs/screenshots/menu.jpg" width="190" alt="Song menu"><br>Song menu | <img src="docs/screenshots/welcome.jpg" width="190" alt="Welcome screen"><br>Welcome, with or without an account |
+
+### Android Auto
+
+<img src="docs/screenshots/android-auto-lyrics.jpg" width="600" alt="Prism on Android Auto, the sung line shown in place of the song title">
+
+The sung line shows in place of the song title on the car's player (parked or passengers only).
 
 ## Credits and inspiration
 
