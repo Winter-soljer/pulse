@@ -155,7 +155,7 @@ class PlaybackService : MediaLibraryService(), Player.Listener {
                 )
             )
             .build()
-        // Wear OS (the Pixel Watch's media controls) has its own keys for keeping the skip
+        // Wear OS (a watch's media controls) has its own keys for keeping the skip
         // buttons: without them it puts the first custom buttons (like, shuffle) where
         // previous/next go. Media3 only sets the phone/Auto equivalents. Set after build():
         // only a change of session extras reaches the platform session's extras.

@@ -113,7 +113,7 @@ offline downloads, EQ/spatial audio, on-device "Replay" stats, and full Android 
   live/remix runs out of order). Floating top-bar buttons use `FloatingDisc` (near-solid, haze can't blur in the NavHost).
   Tabs keep their own back stacks (`saveState`/`restoreState`), so Settings reopens on its last page. Backgrounds have light and
   dark palettes plus a "Simple" group (accent-coloured patterns). System bar icons follow Prism's theme, not the phone's.
-  Checked on the Pixel test copy signed out; stations themselves need a signed-in account to see.
+  Checked on the phone's test copy signed out; stations themselves need a signed-in account to see.
 - Live streams (1.5.4): "Listen together" stations open on a **live stream** (logcat showed a ~220-day
   position and a stalled buffer). NewPipe still lists "progressive" audio for live videos, which is only the newest few
   seconds, so Prism played ~5 s and skipped. Now `StreamResolver` marks live formats (`StreamType.LIVE_STREAM` / player
@@ -151,13 +151,13 @@ offline downloads, EQ/spatial audio, on-device "Replay" stats, and full Android 
   album YouTube's album search omitted looks the album up from `song.album` (`SearchRank.namesItsAlbum`).
 - 1.5.8: Top results always carry a "Live" row (`searchTop` also runs `SearchFilter.LIVE`; `SearchRank.rank` puts it
   second and never lets a stream take the top card unless nothing else matched). Contours and Silk stuttered on the
-  Pixel: they rebuilt ~50k path points every frame, and a page draws its background twice (page + `TopScrollEdge`).
+  phone: they rebuilt ~50k path points every frame, and a page draws its background twice (page + `TopScrollEdge`).
   Now their paths are built once per size (`pathCache` in `Designs.kt`) and slid with `translate` (whole waves per
   screen width, so the loop is seamless; the summit rings rotate a third of a turn, matching their 3/6-fold wobble).
   Light mode: Constellation draws a star chart (`starChart`) instead of grey specks, Horizon's horizon is at 30% height
   (sun behind the title, not the list) with a dawn sky in light mode, Silk is stronger, Halftone stays in its corner.
   Downloads' header shows music videos' count and size (and a "Delete music videos" menu entry).
-- 1.5.9: Pixel Watch controls: Wear OS only keeps previous/next beside play when the platform session's extras carry
+- 1.5.9: Wear OS watch controls: Wear OS only keeps previous/next beside play when the platform session's extras carry
   its own keys (`android.support.wearable.media.extra.RESERVE_SLOT_SKIP_TO_PREVIOUS` / `_NEXT`); Media3 only sets the
   `ALWAYS_RESERVE_SPACE_FOR…` ones, so the watch showed like/shuffle there. `PlaybackService` sets them with
   `session.setSessionExtras` after `build()` (Builder extras don't reach `MediaSessionCompat.setExtras`; only a change
@@ -195,10 +195,10 @@ offline downloads, EQ/spatial audio, on-device "Replay" stats, and full Android 
   not checked on the phone (the owner tests it).
   `ArtistAlbumLiveTest.topResultsAreRelevant` failed then; fixed in 1.5.7.
 - v1.5.5 (versionCode 20, 2026-10-11): live video (the Video button on live streams) and 128 kbps live audio (see
-  "Live streams" above). Checked on the Pixel test copy; PiP for live not tried.
+  "Live streams" above). Checked on the phone's test copy; PiP for live not tried.
   `ArtistAlbumLiveTest.topResultsAreRelevant` ("after hours" top result) failed from here until 1.5.7 fixed it.
 - v1.5.4 (versionCode 19, 2026-10-11): live streams play from HLS, so "Listen together" stations work (see "Live streams"
-  above). Live playback checked on the Pixel test copy (a 24/7 lofi
+  above). Live playback checked on the phone's test copy (a 24/7 lofi
   radio); not yet checked: the station itself on the owner's signed-in Home.
 - v1.5.3 (versionCode 18, 2026-10-11): stations start a radio, artist discography grid + sorting, legible floating buttons,
   light/dark backgrounds + Simple designs, tabs keep their pages, system bars follow Prism's theme (see "1.5.3" above).
@@ -265,7 +265,7 @@ offline downloads, EQ/spatial audio, on-device "Replay" stats, and full Android 
 - An untracked `Prism/` subfolder duplicates the project (with build output and logs) — decide whether to delete it.
 - v1.5.0 (versionCode 15, commit `75c5c7f`, 2026-10-10): the QOL update — frosted artist/album/playlist pages, artist
   signatures and favourites, share sheet + "Play in Prism", Listen Together, playlist edit/remove/save-to-library/new playlist,
-  add-to-playlist sheet, queue save/clear, sleep "end of song". Built and unit-tested; checked on the Pixel with the
+  add-to-playlist sheet, queue save/clear, sleep "end of song". Built and unit-tested; checked on the phone with the
   side-by-side test copy (signed out): artist page dark + light, signatures, album/playlist pages, share sheet + image
   export, Listen Together hosting (a PC guest joined over Wi-Fi; wrong code refused; NSD advert seen). Not yet tried:
   two phones following each other, signed-in actions (save to library, edit/remove, favourite → subscribe).
