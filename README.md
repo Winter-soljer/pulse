@@ -8,6 +8,7 @@
 ![Android 8.0+](https://img.shields.io/badge/Android-8.0%2B-3ddc84?logo=android&logoColor=white)
 ![Kotlin](https://img.shields.io/badge/Kotlin-Jetpack%20Compose-7f52ff?logo=kotlin&logoColor=white)
 ![No tracking](https://img.shields.io/badge/telemetry-none-555)
+[![License: GPL-3.0-or-later](https://img.shields.io/badge/license-GPL--3.0--or--later-blue)](LICENSE)
 [![Support on Ko-fi](https://img.shields.io/badge/Ko--fi-support%20Prism-ff5e5b?logo=ko-fi&logoColor=white)](https://ko-fi.com/yigder)
 
 **[⬇ Download Prism.apk](../../releases/latest/download/Prism.apk)** · [Release notes](../../releases/latest) · [▶ Watch the showcase (1:40)](promo/prism-showcase.mp4)
@@ -163,7 +164,7 @@ Requirements: JDK 17+ and the Android SDK (compile SDK 37).
 ./gradlew :app:assembleRelease
 ```
 
-The APK lands in `app/build/outputs/apk/release/`. Release builds are signed with the debug key so they install directly, and are deliberately unminified (NewPipe Extractor and Rhino rely on reflection). Use your own signing config before distributing your own builds.
+The APK lands in `app/build/outputs/apk/release/`. Without a `keystore.properties` (and its keystore) in the project root, release builds are signed with the debug key so they install directly; official releases use Prism's own key, so a self-built APK installs beside them only after uninstalling the official one. Release builds are deliberately unminified (NewPipe Extractor and Rhino rely on reflection).
 
 Unit tests (some call live lyric and YouTube Music endpoints, so they need a network connection):
 
@@ -184,3 +185,15 @@ Unit tests (some call live lyric and YouTube Music endpoints, so they need a net
 | Compose UI and design kit | `ui/` |
 
 Stack: Kotlin, Jetpack Compose (Material 3), Media3 ExoPlayer and MediaSession, Room, DataStore, OkHttp, kotlinx.serialization, Coil, WorkManager, NewPipe Extractor.
+
+## Contributing
+
+Bug reports, ideas and pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for how to build, test and send changes.
+
+## License
+
+Copyright (C) 2026 Yigder
+
+Prism is free software: you can redistribute it and/or modify it under the terms of the [GNU General Public License](LICENSE) as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version. It is distributed in the hope that it will be useful, but without any warranty; see the license for details.
+
+The license covers Prism's own code. The libraries it's built with keep their own licenses (listed in the app under Settings → About → Open-source licenses). Music, artwork, lyrics and the YouTube and YouTube Music names belong to their respective owners, and Prism is not affiliated with Google or YouTube.

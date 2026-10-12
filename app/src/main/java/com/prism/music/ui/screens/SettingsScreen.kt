@@ -125,7 +125,9 @@ enum class SettingsSection(val key: String, val title: String, val icon: ImageVe
     DOWNLOADS("downloads", "Downloads & storage", Icons.Outlined.DownloadForOffline),
     HOME("home", "Home screen", Icons.Outlined.Home),
     LIBRARY("library", "Library & Replay", Icons.Outlined.LibraryMusic),
-    ABOUT("about", "About", Icons.Outlined.Info);
+    ABOUT("about", "About", Icons.Outlined.Info),
+    /** Not on the hub: opened from About. */
+    LICENSES("licenses", "Open-source licenses", Icons.Outlined.Info);
 
     fun summary(s: AppSettings): String = when (this) {
         APPEARANCE -> listOf(s.themeMode.label + " theme", s.fontChoice.label + " font", when { s.liquidGlass -> "Liquid Glass"; s.frostedGlass -> "Frosted Glass"; else -> "Solid bars" }).joinToString(" · ")
@@ -137,6 +139,7 @@ enum class SettingsSection(val key: String, val title: String, val icon: ImageVe
         HOME -> "Sections, order and styles"
         LIBRARY -> "${s.libraryView.label} view · ${if (s.replayHours) "hours" else "minutes"}"
         ABOUT -> "Prism ${com.prism.music.BuildConfig.VERSION_NAME}"
+        LICENSES -> "GPL-3.0-or-later"
     }
 
     companion object { fun of(key: String?) = entries.firstOrNull { it.key == key } }
@@ -197,9 +200,11 @@ fun SettingsScreen(bottomPadding: Dp, section: SettingsSection? = null) {
                     Item("Prism ${com.prism.music.BuildConfig.VERSION_NAME}", "An unofficial YouTube Music client. Not affiliated with Google or YouTube.", onClick = {})
                     Item("Your data stays here", "History, Replay and settings live only on this phone. Prism has no server.", onClick = {})
                     CheckForUpdates()
+                    Item("Open-source licenses", "Prism is GPL-3.0-or-later · the libraries it's built with", onClick = { nav.go(Routes.settings(SettingsSection.LICENSES.key)) }) { Chevron() }
                 }
                 }
             }
+            SettingsSection.LICENSES -> item { LicensesPage() }
         }
     }
 }
