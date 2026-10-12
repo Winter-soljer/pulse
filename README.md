@@ -89,6 +89,7 @@ Updating works the same way: install the new APK over the old one, and your down
 | | | | |
 |:-:|:-:|:-:|:-:|
 | <img src="docs/screenshots/player.jpg" width="190" alt="Now playing"><br>Now playing | <img src="docs/screenshots/lyrics.jpg" width="190" alt="Lyrics"><br>Word-by-word lyrics | <img src="docs/screenshots/video.jpg" width="190" alt="Music video playing in the player"><br>Music videos, one tap from the song | <img src="docs/screenshots/queue.jpg" width="190" alt="Queue"><br>Queue, shuffle and autoplay |
+| <img src="docs/screenshots/player-blur.jpg" width="190" alt="Player with the blurred cover background and ring controls"><br>Blurred cover, ring controls | <img src="docs/screenshots/player-theme.jpg" width="190" alt="Player with the theme background and classic controls"><br>Theme background, classic controls | <img src="docs/screenshots/playerset-dark.jpg" width="190" alt="Player settings, dark"><br>Player settings | <img src="docs/screenshots/playerset-light.jpg" width="190" alt="Player settings, light"><br>Player settings, light |
 
 ### Light and dark
 
