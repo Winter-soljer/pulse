@@ -144,7 +144,7 @@ class UpdateChecker(private val context: Context, private val http: OkHttpClient
             result.exceptionOrNull()?.let { e ->
                 if (!isActive) return@let
                 _progress.value = if (e is SignatureChanged) UpdateProgress.NewSignature(update.version, File(dir, "Prism-${update.version}.apk"))
-                else UpdateProgress.Failed(e.message ?: "The update didn't download")
+                else UpdateProgress.Failed(e.friendlyMessage("The update didn't download"))
             }
         }
     }

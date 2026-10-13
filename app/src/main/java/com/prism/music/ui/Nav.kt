@@ -1,5 +1,6 @@
 package com.prism.music.ui
 
+import com.prism.music.data.friendlyMessage
 import android.net.Uri
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -81,7 +82,7 @@ class LoaderViewModel : ViewModel() {
             state.value = try {
                 Load.Ok(block())
             } catch (e: Exception) {
-                if (silent && state.value is Load.Ok) state.value else Load.Err(e.message ?: "Something went wrong")
+                if (silent && state.value is Load.Ok) state.value else Load.Err(e.friendlyMessage())
             }
             refreshing.value = false
         }

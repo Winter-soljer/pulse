@@ -36,6 +36,7 @@ import org.schabi.newpipe.extractor.downloader.Request
 import org.schabi.newpipe.extractor.exceptions.AgeRestrictedContentException
 import org.schabi.newpipe.extractor.exceptions.ContentNotAvailableException
 import org.schabi.newpipe.extractor.exceptions.ReCaptchaException
+import org.schabi.newpipe.extractor.exceptions.SignInConfirmNotBotException
 import org.schabi.newpipe.extractor.exceptions.YoutubeMusicPremiumContentException
 import org.schabi.newpipe.extractor.localization.Localization
 import org.schabi.newpipe.extractor.services.youtube.YoutubeParsingHelper
@@ -293,6 +294,8 @@ class StreamResolver(
         val height: Int = 0,
         val fps: Int = 0,
         val original: Boolean = true,
+        /** The real average bitrate (size over length), shown to the listener; [kbps] is YouTube's nominal one, for picking. */
+        val actualKbps: Int = kbps,
         resolveUrl: () -> String,
     ) {
         val url: String by lazy(resolveUrl)
@@ -356,7 +359,9 @@ class StreamResolver(
             }
         }
         try {
+            val started = System.nanoTime()
             val f = load(videoId)
+            Log.i("PrismStream", "$videoId resolved in ${(System.nanoTime() - started) / 1_000_000} ms")
             cache[videoId] = f
             mine.complete(f)
             return f
@@ -368,23 +373,39 @@ class StreamResolver(
         }
     }
 
+    /** Until when NewPipe is skipped: YouTube was turning its anonymous web clients away from this IP ("not a bot"). */
+    @Volatile
+    private var newPipeBlockedUntil = 0L
+
     private fun load(videoId: String): Formats {
         val signedIn = settings.current.isLoggedIn
         if (signedIn && videoId in needsAccount) return signedInFormats(videoId)
+        // While YouTube is blocking NewPipe here, signed-in playback goes straight to the account's own clients
+        // (each song would otherwise wait for NewPipe to be refused first).
+        if (signedIn && System.currentTimeMillis() < newPipeBlockedUntil) {
+            runCatching { signedInFormats(videoId) }.getOrNull()?.let { return it }
+        }
         return try {
             anonymousFormats(videoId).also { if (it.audio.isEmpty() && it.hlsUrl == null) throw StreamException("No playable audio stream was found") }
         } catch (e: Exception) {
             val restricted = e is ContentNotAvailableException
+            val blocked = e is SignInConfirmNotBotException || e is ReCaptchaException
+            if (blocked) {
+                newPipeBlockedUntil = System.currentTimeMillis() + BLOCK_BACKOFF_MS
+                Log.w("StreamResolver", "YouTube is blocking anonymous web playback here; using other clients for a while: $e")
+            }
+            val why = if (blocked) BLOCKED else e.message ?: "Couldn't load this track"
             when {
                 // Anything YouTube won't play (or NewPipe can't get) anonymously is asked for as the user.
                 signedIn -> try {
                     signedInFormats(videoId).also { if (restricted) needsAccount += videoId }
                 } catch (signed: StreamException) {
-                    throw if (restricted) signed else StreamException(e.message ?: "Couldn't load this track", e)
+                    Log.w("StreamResolver", "Signed-in playback of $videoId failed too: ${signed.message}")
+                    throw if (restricted) signed else StreamException(why, e)
                 }
                 e is AgeRestrictedContentException -> throw StreamException("Sign in to play age-restricted songs", e)
                 e is YoutubeMusicPremiumContentException -> throw StreamException("This song needs YouTube Music Premium: sign in with a Premium account to play it", e)
-                else -> throw StreamException(e.message ?: "Couldn't load this track", e)
+                else -> throw StreamException(why, e)
             }
         }
     }
@@ -394,12 +415,16 @@ class StreamResolver(
         fun clen(s: org.schabi.newpipe.extractor.stream.Stream) =
             s.itagItem?.contentLength?.takeIf { it > 0 } ?: Uri.parse(s.content).getQueryParameter("clen")?.toLongOrNull() ?: -1
         val audio = info.audioStreams.filter { it.isUrl && it.deliveryMethod == DeliveryMethod.PROGRESSIVE_HTTP }.map { a ->
+            val len = clen(a)
+            val ms = a.itagItem?.approxDurationMs?.takeIf { it > 0 } ?: (info.duration * 1000)
+            val nominal = a.averageBitrate.takeIf { it > 0 } ?: (a.bitrate / 1000)
             Fmt(
                 itag = a.itag, mime = a.format?.mimeType ?: "audio/*", codec = a.codec,
-                kbps = a.averageBitrate.takeIf { it > 0 } ?: (a.bitrate / 1000),
+                kbps = nominal,
                 sampleRate = a.itagItem?.sampleRate ?: 0, channels = a.itagItem?.audioChannels ?: 2,
-                contentLength = clen(a),
+                contentLength = len,
                 original = a.audioTrackType == null || a.audioTrackType.toString() == "ORIGINAL",
+                actualKbps = realKbps(len, ms, nominal),
             ) { a.content }
         }
         fun video(v: VideoStream) = Fmt(
@@ -442,6 +467,19 @@ class StreamResolver(
         throw StreamException(reason ?: "Couldn't load this track")
     }
 
+    private companion object {
+        const val BLOCK_BACKOFF_MS = 30 * 60_000L
+        const val BLOCKED = "YouTube is limiting playback on this network right now. Try again in a while, switch networks " +
+            "(or turn off a VPN), or sign in."
+
+        /**
+         * A stream's real average bitrate, from its size and length. YouTube's own figure is the format's nominal one
+         * (Opus always says 160 kbps), which is why every song showed the same number.
+         */
+        fun realKbps(bytes: Long, durationMs: Long, nominal: Int): Int =
+            if (bytes > 0 && durationMs > 1000) (bytes * 8 / durationMs).toInt().takeIf { it in 8..5000 } ?: nominal else nominal
+    }
+
     /** [playerId] is the player JS whose signature timestamp the request sent; its ciphers are solved with it. */
     private fun parsePlayer(res: JsonObject, playerId: String?): Formats {
         val data = res.obj("streamingData")
@@ -452,12 +490,15 @@ class StreamResolver(
             val direct = o.str("url")
             val cipher = o.str("signatureCipher") ?: o.str("cipher")
             if (direct == null && cipher == null) return null
+            val len = o.str("contentLength")?.toLongOrNull() ?: -1
+            val nominal = ((o.str("averageBitrate") ?: o.str("bitrate"))?.toIntOrNull() ?: 0) / 1000
             return Fmt(
                 itag = o.str("itag")?.toIntOrNull() ?: 0, mime = mime, codec = codec,
-                kbps = ((o.str("averageBitrate") ?: o.str("bitrate"))?.toIntOrNull() ?: 0) / 1000,
+                kbps = nominal,
+                actualKbps = if (mime.startsWith("audio/")) realKbps(len, o.str("approxDurationMs")?.toLongOrNull() ?: 0, nominal) else nominal,
                 sampleRate = o.str("audioSampleRate")?.toIntOrNull() ?: 0,
                 channels = o.str("audioChannels")?.toIntOrNull() ?: 2,
-                contentLength = o.str("contentLength")?.toLongOrNull() ?: -1,
+                contentLength = len,
                 height = o.str("height")?.toIntOrNull() ?: 0, fps = o.str("fps")?.toIntOrNull() ?: 0,
                 original = o.obj("audioTrack")?.let { t -> t.str("audioIsDefault") != "false" } ?: true,
             ) { decipher(playerId, direct, cipher) }
@@ -567,7 +608,7 @@ class StreamResolver(
             itag = audio.itag,
             mimeType = audio.mime,
             codec = audio.codec,
-            bitrate = audio.kbps,
+            bitrate = audio.actualKbps,
             sampleRate = audio.sampleRate,
             channels = audio.channels,
             contentLength = audio.contentLength.takeIf { it > 0 } ?: uri.getQueryParameter("clen")?.toLongOrNull() ?: -1,

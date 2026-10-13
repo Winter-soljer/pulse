@@ -92,8 +92,10 @@ class YouTubeMusic(private val api: InnerTube) {
      */
     suspend fun searchTop(query: String, taste: SearchRank.Taste = SearchRank.Taste.NONE): TopSearch = kotlinx.coroutines.coroutineScope {
         val kinds = listOf(SearchFilter.SONGS, SearchFilter.ALBUMS, SearchFilter.ARTISTS, SearchFilter.PLAYLISTS, SearchFilter.VIDEOS, SearchFilter.LIVE)
-        val results = kinds.map { f -> async { f to runCatching { search(query, f).items }.getOrDefault(emptyList()) } }.awaitAll()
-        if (results.all { it.second.isEmpty() }) throw java.io.IOException("Search failed")
+        val attempts = kinds.map { f -> async { f to runCatching { search(query, f).items } } }.awaitAll()
+        val results = attempts.map { (f, r) -> f to r.getOrDefault(emptyList()) }
+        // Every search failed: keep why (offline, a timeout…), so the message can say so.
+        if (results.all { it.second.isEmpty() }) throw java.io.IOException("Search failed", attempts.firstNotNullOfOrNull { it.second.exceptionOrNull() })
         val ranked = SearchRank.rank(query, results, taste)
         // A title track on top whose album YouTube's album search left out (it varies from one request to the next:
         // "after hours" sometimes has no After Hours by The Weeknd): the song names its album, so look that up.
@@ -158,6 +160,9 @@ class YouTubeMusic(private val api: InnerTube) {
         val albumRef = com.prism.music.data.model.AlbumRef(title, browseId)
         val songs = songsFrom(res).map { s ->
             s.copy(
+                // An album's tracks are its songs. Signed out, YouTube now lists the label's "Official Audio" /
+                // "Lyric Video" uploads here, typed as music videos, and they opened in video mode.
+                isVideo = false,
                 artists = s.artists.ifEmpty { artists },
                 album = s.album ?: albumRef,
                 thumbnail = s.thumbnail ?: thumb,

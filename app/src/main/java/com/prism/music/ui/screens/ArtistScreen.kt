@@ -462,7 +462,7 @@ private fun Spotlight(item: AlbumItem, onOpen: () -> Unit) {
     val release by produceState<List<Song>?>(null, item.id) { value = runCatching { c.ytm.album(item.id).songs }.getOrNull() }
     val details = release?.takeIf { it.isNotEmpty() }?.let { songs ->
         val min = (songs.sumOf { it.durationSec } + 30) / 60
-        listOfNotNull(if (songs.size == 1) "1 song" else "${songs.size} songs", min.takeIf { it > 0 }?.let { "$it min" }).joinToString(" · ")
+        listOfNotNull(com.prism.music.data.model.songCount(songs.size), min.takeIf { it > 0 }?.let { "$it min" }).joinToString(" · ")
     }
     val kind = item.subtitle.split(" • ").firstOrNull { it in setOf("Single", "EP", "Album") } ?: "Album"
     val year = yearOf(item).takeIf { it > 0 }
@@ -730,10 +730,16 @@ fun BrowseScreen(id: String, params: String?, title: String, bottomPadding: Dp) 
             Load.Loading -> item { LoadingState() }
             is Load.Err -> item { ErrorState(s.message) { load.reload(false) } }
             is Load.Ok -> s.value.forEach { shelf ->
-                // An artist's "See all" albums or singles: big covers, two to a row, like YouTube Music's own grid.
-                if (shelf.grid && shelf.items.count { it is AlbumItem } * 2 > shelf.items.size) {
-                    releaseGrid(shelf, sort, { sort = it }) { nav.open(it, onSong) }
-                } else shelfItems(shelf) { nav.open(it, onSong) }
+                when {
+                    // An artist's "See all" albums or singles: big covers, two to a row, like YouTube Music's own grid.
+                    shelf.grid && shelf.items.count { it is AlbumItem } * 2 > shelf.items.size ->
+                        releaseGrid(shelf, sort, { sort = it }) { nav.open(it, onSong) }
+                    // Any other page of cards ("Mixed for you", a shelf's "See all" playlists): the same big covers
+                    // down the page, rather than one sideways carousel.
+                    shelf.items.none { it is SongItem } && (shelf.grid || s.value.size == 1) ->
+                        cardGrid(shelf, showTitle = s.value.size > 1) { nav.open(it, onSong) }
+                    else -> shelfItems(shelf) { nav.open(it, onSong) }
+                }
             }
         }
     }
@@ -765,6 +771,19 @@ private fun androidx.compose.foundation.lazy.LazyListScope.releaseGrid(
     }
     items.chunked(2).forEachIndexed { r, pair ->
         item(key = "g:${shelf.title}:${sort.name}:$r") {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                pair.forEach { ReleaseCard(it, Modifier.weight(1f), open) }
+                if (pair.size == 1) Spacer(Modifier.weight(1f))
+            }
+        }
+    }
+}
+
+/** Playlists, mixes or artists as a vertical grid of large covers, two to a row. */
+private fun androidx.compose.foundation.lazy.LazyListScope.cardGrid(shelf: Shelf, showTitle: Boolean, open: (BrowseItem) -> Unit) {
+    if (showTitle && shelf.title.isNotBlank()) item(key = "gt:" + shelf.title) { SectionHeader(shelf.title, strapline = shelf.strapline) }
+    shelf.items.chunked(2).forEachIndexed { r, pair ->
+        item(key = "cg:${shelf.title}:$r") {
             Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                 pair.forEach { ReleaseCard(it, Modifier.weight(1f), open) }
                 if (pair.size == 1) Spacer(Modifier.weight(1f))

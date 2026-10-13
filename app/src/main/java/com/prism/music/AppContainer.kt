@@ -42,6 +42,9 @@ import java.io.IOException
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 
+/** About 10 seconds of a song's stream (Opus ~160 kbps, AAC up to 256 kbps), saved ahead by [AppContainer.warmUp]. */
+private const val PREBUFFER_BYTES = 320L * 1024
+
 class PrismApp : Application() {
     lateinit var container: AppContainer
         private set
@@ -75,6 +78,7 @@ class AppContainer(val app: Application) {
     val ytm = YouTubeMusic(innerTube)
     val db = PrismDatabase.build(app)
     val streams by lazy { StreamResolver(app, http, settings, innerTube) }
+    val translator = com.prism.music.data.lyrics.LyricsTranslator(http)
     val lyrics = LyricsRepository(http, db.lyrics(), ytm) { settings.current }.apply {
         choices = app.getSharedPreferences("lyrics_choice", android.content.Context.MODE_PRIVATE)
     }
@@ -85,6 +89,8 @@ class AppContainer(val app: Application) {
         useIndex(File(app.filesDir, "canvas_index.json"))
     }
     val videoSync by lazy { com.prism.music.playback.VideoSync(app, streamHttp, streams, scope) }
+    /** Songs' tempo and edges, for Mix. */
+    val mixTempo by lazy { com.prism.music.playback.MixTempo(app, streamHttp, streams) }
     /** Per-song lyric timing nudges, in ms (positive = lyrics earlier). Keyed by song id, plus ":video" in video mode. */
     /** YouTube's loudness figure per song (dB from its reference level), kept for offline normalization. */
     val loudness: android.content.SharedPreferences = app.getSharedPreferences("loudness", android.content.Context.MODE_PRIVATE)
@@ -170,9 +176,34 @@ class AppContainer(val app: Application) {
         } catch (e: Exception) {
             throw IOException(e.message ?: "Couldn't resolve stream", e)
         }
+        // The song's start was saved ahead from another format (the network changed since, so another quality
+        // was picked): bytes of two formats can't be stitched together, so that start goes.
+        prebuffered.remove(id)?.let { itag -> if (itag != s.itag) runCatching { playerCache.removeResource(id) } }
         streamDetails[id] = (if (useCaches) "Streaming" else "Downloading") to s
         if (useCaches) onStreamResolved?.invoke(id)
         return spec.buildUpon().setUri(s.audioUrl).setKey(id).build()
+    }
+
+    /** Songs whose first seconds [warmUp] saved into the song cache, and the stream (itag) they came from. */
+    private val prebuffered = ConcurrentHashMap<String, Int>()
+
+    /**
+     * Gets a song ready to start the moment it's picked: its stream is resolved (the slow part, 1–2 s through
+     * NewPipe) and, on Wi-Fi, its first ~10 seconds are saved into the song cache, so playback opens on bytes
+     * already here instead of waiting on googlevideo. Blocking; call it off the main thread.
+     */
+    fun warmUp(id: String) {
+        if (downloadCache.fullyCached(id, 0, C.LENGTH_UNSET.toLong())) return
+        val s = runCatching { streams.resolve(id) }.getOrNull() ?: return // live streams and failures: nothing to save
+        val metered = app.getSystemService(android.net.ConnectivityManager::class.java)?.isActiveNetworkMetered != false
+        if (metered || prebuffered.containsKey(id)) return
+        val bytes = PREBUFFER_BYTES.let { if (s.contentLength > 0) minOf(it, s.contentLength) else it }
+        if (playerCache.isCached(id, 0, bytes)) return
+        val spec = DataSpec.Builder().setUri(s.audioUrl).setKey(id).setPosition(0).setLength(bytes).build()
+        val source = CacheDataSource(playerCache, OkHttpDataSource.Factory(streamHttp).createDataSource())
+        runCatching { androidx.media3.datasource.cache.CacheWriter(source, spec, null, null).cache() }
+            .onSuccess { prebuffered[id] = s.itag }
+            .onFailure { android.util.Log.w("PrismStream", "Couldn't save the start of $id ahead: $it") }
     }
 
     /** Download cache → song cache → network, with prism:// URIs resolved lazily. */

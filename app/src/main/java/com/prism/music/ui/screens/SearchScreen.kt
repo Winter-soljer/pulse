@@ -1,5 +1,6 @@
 package com.prism.music.ui.screens
 
+import com.prism.music.data.friendlyMessage
 import android.content.Context
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
@@ -154,11 +155,16 @@ fun SearchScreen(bottomPadding: Dp) {
             if (top == null) top = Load.Loading
             // Leaned toward what this listener plays (built on the phone, never sent anywhere).
             val taste = runCatching { c.taste.searchTaste() }.getOrDefault(com.prism.music.data.innertube.SearchRank.Taste.NONE)
-            top = runCatching { c.ytm.searchTop(live, taste) }.fold({ Load.Ok(it) }, { Load.Err(it.message ?: "Search failed") })
+            top = runCatching { c.ytm.searchTop(live, taste) }.fold({ Load.Ok(it) }, { Load.Err(it.friendlyMessage("Search failed")) })
+            // The top result is the likeliest tap: when it's a song, get it ready (on Wi-Fi) so it starts at once.
+            ((top as? Load.Ok)?.value?.top as? SongItem)?.song?.let { song ->
+                val cm = context.getSystemService(android.net.ConnectivityManager::class.java)
+                if (cm?.isActiveNetworkMetered == false && !song.isLive) c.scope.launch(kotlinx.coroutines.Dispatchers.IO) { c.warmUp(song.id) }
+            }
         } else {
             if (list == null) list = Load.Loading
             list = runCatching { c.ytm.search(live, filter) }
-                .fold({ continuation = it.continuation; Load.Ok(it.items) }, { Load.Err(it.message ?: "Search failed") })
+                .fold({ continuation = it.continuation; Load.Ok(it.items) }, { Load.Err(it.friendlyMessage("Search failed")) })
         }
         loading = false
     }

@@ -131,7 +131,7 @@ class MediaTree(private val c: AppContainer) {
     private fun shuffleItem(folderId: String, list: List<Song>) = MediaItem.Builder().setMediaId("$SHUFFLE$folderId").setMediaMetadata(
         MediaMetadata.Builder()
             .setTitle("Shuffle play")
-            .setSubtitle("${list.size} songs")
+            .setSubtitle(com.prism.music.data.model.songCount(list.size))
             .setArtworkUri(Uri.parse("android.resource://${BuildConfig.APPLICATION_ID}/${com.prism.music.R.drawable.ic_auto_shuffle}"))
             .setIsBrowsable(false)
             .setIsPlayable(true)

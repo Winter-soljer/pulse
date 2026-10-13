@@ -66,7 +66,7 @@ class LibraryRepository(private val c: AppContainer) {
             songs.upsert(song.toEntity(existing).copy(liked = liked, likedAt = if (liked) System.currentTimeMillis() else 0))
             if (liked && c.settings.current.downloadLikes) c.downloads.download(song)
             if (c.settings.current.isLoggedIn) {
-                runCatching { c.ytm.like(song.id, liked) }.onFailure { lastError.value = "Couldn't sync like: ${it.message}" }
+                runCatching { c.ytm.like(song.id, liked) }.onFailure { lastError.value = "Couldn't sync like: ${it.friendlyMessage()}" }
             }
         }
     }
@@ -109,7 +109,7 @@ class LibraryRepository(private val c: AppContainer) {
             // Likes from YouTube Music are in: bring the Liked songs playlist (if there is one) in line.
             c.likedPlaylist.syncInBackground(full = true)
         } catch (e: Exception) {
-            lastError.value = e.message
+            lastError.value = e.friendlyMessage()
             syncState.value = SyncState.ERROR
         }
     }
@@ -238,7 +238,7 @@ class LibraryRepository(private val c: AppContainer) {
             artists.value = listOf(ArtistItem(artist.id, artist.name, "Artist", artist.thumbnail)) + artists.value
         }
         if (c.settings.current.isLoggedIn && channelId != null) c.scope.launch(Dispatchers.IO) {
-            runCatching { c.ytm.subscribe(channelId, on) }.onFailure { lastError.value = "Couldn't update ${artist.name} on YouTube Music: ${it.message}" }
+            runCatching { c.ytm.subscribe(channelId, on) }.onFailure { lastError.value = "Couldn't update ${artist.name} on YouTube Music: ${it.friendlyMessage()}" }
         }
     }
 
@@ -274,7 +274,7 @@ class LibraryRepository(private val c: AppContainer) {
             .groupBy { it.album!!.id!! }
             .map { (id, list) ->
                 val first = list.first()
-                AlbumItem(id, first.album!!.title, first.primaryArtist + " • " + (if (list.size == 1) "1 song" else "${list.size} songs"), first.thumbnail) to list.size
+                AlbumItem(id, first.album!!.title, first.primaryArtist + " • " + (com.prism.music.data.model.songCount(list.size)), first.thumbnail) to list.size
             }
             .sortedByDescending { it.second }
             .map { it.first }
@@ -284,7 +284,7 @@ class LibraryRepository(private val c: AppContainer) {
             .flatMap { s -> s.artists.filter { it.id != null }.map { it to s } }
             .groupBy { it.first.id!! }
             .map { (id, pairs) ->
-                ArtistItem(id, pairs.first().first.name, if (pairs.size == 1) "1 song" else "${pairs.size} songs", null) to pairs.size
+                ArtistItem(id, pairs.first().first.name, com.prism.music.data.model.songCount(pairs.size), null) to pairs.size
             }
             .sortedByDescending { it.second }
             .map { it.first }

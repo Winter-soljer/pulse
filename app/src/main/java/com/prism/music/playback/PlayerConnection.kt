@@ -247,6 +247,7 @@ class PlayerConnection(private val context: Context, private val c: AppContainer
         c.queue.source.value = source
         c.queue.autoplayContinuation = null
         c.queue.autoplayStart.value = -1
+        c.queue.userQueued.value = emptySet()
         ensureStarted()
         withPlayer { p ->
             p.shuffleModeEnabled = shuffle
@@ -264,29 +265,52 @@ class PlayerConnection(private val context: Context, private val c: AppContainer
 
     fun playRadio(song: Song) = playQueue(listOf(song), 0, QueueSource(QueueKind.SINGLE, "${song.title} Radio", seedId = song.id))
 
-    fun playNext(song: Song) = withPlayer { p ->
-        if (p.mediaItemCount == 0) playSingle(song)
-        else p.addMediaItem(p.currentMediaItemIndex + 1, song.toMediaItem())
+    fun playNext(song: Song) = playNext(listOf(song), null)
+
+    fun addToQueue(song: Song) = addToQueue(listOf(song), null)
+
+    /** Songs the listener adds go in at [at]; autoplay's suggestions (after them) move along. */
+    private fun insertQueued(p: ExoPlayer, at: Int, songs: List<Song>) {
+        p.addMediaItems(at, songs.map { it.toMediaItem() })
+        val auto = c.queue.autoplayStart.value
+        if (auto >= at) c.queue.autoplayStart.value = auto + songs.size
+        c.queue.userQueued.value = c.queue.userQueued.value + songs.map { it.id }
     }
 
-    fun addToQueue(song: Song) = withPlayer { p ->
-        if (p.mediaItemCount == 0) playSingle(song) else p.addMediaItem(song.toMediaItem())
-    }
-
-    /** A whole album or playlist straight after the current song (or played, with nothing on). */
-    fun playNext(songs: List<Song>, source: QueueSource) {
+    /** Songs (one, or a whole album or playlist) straight after the current song, or played, with nothing on. */
+    fun playNext(songs: List<Song>, source: QueueSource?) {
         if (songs.isEmpty()) return
         withPlayer { p ->
-            if (p.mediaItemCount == 0) playQueue(songs, 0, source)
-            else p.addMediaItems(p.currentMediaItemIndex + 1, songs.map { it.toMediaItem() })
+            if (p.mediaItemCount == 0) {
+                if (source == null) playSingle(songs.first()) else playQueue(songs, 0, source)
+            } else insertQueued(p, p.currentMediaItemIndex + 1, songs)
         }
     }
 
-    /** A whole album or playlist at the end of the queue (or played, with nothing on). */
-    fun addToQueue(songs: List<Song>, source: QueueSource) {
+    /**
+     * Songs after what's queued, before autoplay's suggestions (they used to land after those, so a song added
+     * to the queue could be a long way off). Played, with nothing on.
+     */
+    fun addToQueue(songs: List<Song>, source: QueueSource?) {
         if (songs.isEmpty()) return
         withPlayer { p ->
-            if (p.mediaItemCount == 0) playQueue(songs, 0, source) else p.addMediaItems(songs.map { it.toMediaItem() })
+            if (p.mediaItemCount == 0) {
+                if (source == null) playSingle(songs.first()) else playQueue(songs, 0, source)
+            } else {
+                val auto = c.queue.autoplayStart.value
+                val cur = p.currentMediaItemIndex
+                val at = when {
+                    auto < 0 -> p.mediaItemCount
+                    auto > cur -> minOf(auto, p.mediaItemCount)
+                    // Already into autoplay's songs: after anything else queued, before the next suggestion.
+                    else -> {
+                        var i = cur + 1
+                        while (i < p.mediaItemCount && p.getMediaItemAt(i).mediaId in c.queue.userQueued.value) i++
+                        i
+                    }
+                }
+                insertQueued(p, at, songs)
+            }
         }
     }
 
@@ -297,6 +321,7 @@ class PlayerConnection(private val context: Context, private val c: AppContainer
         c.queue.source.value = QueueSource(QueueKind.OTHER, title)
         c.queue.autoplayContinuation = null
         c.queue.autoplayStart.value = -1
+        c.queue.userQueued.value = emptySet()
         ensureStarted()
         withPlayer { p ->
             p.shuffleModeEnabled = false
@@ -332,6 +357,7 @@ class PlayerConnection(private val context: Context, private val c: AppContainer
         val i = p.currentMediaItemIndex
         if (i + 1 < p.mediaItemCount) p.removeMediaItems(i + 1, p.mediaItemCount)
         c.queue.autoplayStart.value = -1
+        c.queue.userQueued.value = emptySet()
     }
 
     fun togglePlay() = withPlayer { p ->
@@ -349,7 +375,11 @@ class PlayerConnection(private val context: Context, private val c: AppContainer
         if (p.playbackState == Player.STATE_IDLE) p.prepare()
         p.play()
     }
-    fun removeAt(index: Int) = withPlayer { it.removeMediaItem(index) }
+    fun removeAt(index: Int) = withPlayer {
+        it.removeMediaItem(index)
+        val auto = c.queue.autoplayStart.value
+        if (auto > index) c.queue.autoplayStart.value = auto - 1
+    }
     fun move(from: Int, to: Int) = withPlayer { it.moveMediaItem(from, to) }
     fun toggleShuffle() = withPlayer {
         if (!it.shuffleModeEnabled) reshuffle(it)

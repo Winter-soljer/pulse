@@ -61,6 +61,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -365,20 +366,25 @@ private fun TypeSettings() {
 private fun FontPicker(current: FontChoice, onPick: (FontChoice) -> Unit) {
     val scheme = MaterialTheme.colorScheme
     val ui = LocalUi.current
+    val missing = remember { FontChoice.entries.filterNot(AppFonts::available) }
     FlowRow(Modifier.padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         FontChoice.entries.forEach { f ->
             val on = f == current
+            val usable = f !in missing
             Column(
                 Modifier.width(96.dp).clip(ui.tile)
                     .background(if (on) scheme.primaryContainer else com.prism.music.ui.components.quietFill())
                     .border(if (on) 2.dp else 0.dp, if (on) scheme.primary else Color.Transparent, ui.tile)
-                    .clickable { onPick(f) }.padding(10.dp),
+                    .clickable(enabled = usable) { onPick(f) }
+                    .then(if (usable) Modifier else Modifier.alpha(0.38f))
+                    .padding(10.dp),
             ) {
                 Text("Aa", style = TextStyle(fontFamily = AppFonts.family(f), fontWeight = FontWeight.Bold, fontSize = MaterialTheme.typography.headlineSmall.fontSize), color = if (on) scheme.onPrimaryContainer else scheme.onSurface)
                 Text(f.label, style = MaterialTheme.typography.labelMedium.copy(fontFamily = AppFonts.family(f)), color = if (on) scheme.onPrimaryContainer else scheme.onSurfaceVariant, maxLines = 1)
             }
         }
     }
+    if (missing.isNotEmpty()) Note("${missing.joinToString(" and ") { it.label }} need${if (missing.size == 1) "s" else ""} Google Sans Flex, which this phone doesn't have.")
 }
 
 @Composable
@@ -593,6 +599,21 @@ private fun SoundPage() {
             Toggle("Keep playing videos", "While a music video is showing, the next song plays as its video too, until you switch back to Song", s.videoContinues) { prefs.setVideoContinues(it) }
             Toggle("Skip silence", "Trims silent gaps at the start and end of songs", s.skipSilence) { prefs.setSkipSilence(it) }
         }
+        Group("Mix") {
+            Toggle(
+                "Mix songs together",
+                "When a song runs into the next, the two blend like a DJ set instead of stopping and starting. Not between an album's own tracks",
+                s.mix,
+            ) { prefs.setMix(it) }
+            if (s.mix) {
+                SliderSetting("Blend", s.mixSeconds.toFloat(), 2f..12f, { "${it.roundToInt()} s" }, steps = 9) { prefs.setMixSeconds(it.roundToInt()) }
+                Toggle(
+                    "Match tempo and beats",
+                    "Prism measures each song's tempo (on Wi-Fi) and lines up the beats, playing the next song at the same tempo while they overlap",
+                    s.mixBeatMatch,
+                ) { prefs.setMixBeatMatch(it) }
+            }
+        }
         Group("Quality") {
             Toggle(
                 "Lossless playback",
@@ -637,6 +658,14 @@ private fun SoundPage() {
 
 // ---------------------------------------------------------------------------- Lyrics
 
+/** Languages lyrics can be translated into (Google Translate codes); "" is the phone's own. */
+private val TRANSLATE_LANGUAGES = listOf(
+    "" to "Phone's language", "en" to "English", "es" to "Spanish", "pt" to "Portuguese", "fr" to "French",
+    "de" to "German", "it" to "Italian", "nl" to "Dutch", "pl" to "Polish", "tr" to "Turkish", "ru" to "Russian",
+    "uk" to "Ukrainian", "ar" to "Arabic", "hi" to "Hindi", "id" to "Indonesian", "vi" to "Vietnamese",
+    "tl" to "Filipino", "ja" to "Japanese", "ko" to "Korean", "zh-CN" to "Chinese (Simplified)", "zh-TW" to "Chinese (Traditional)",
+)
+
 @Composable
 private fun LyricsSettings() {
     val s = LocalAppSettings.current
@@ -646,6 +675,16 @@ private fun LyricsSettings() {
             Toggle("Prefer synced lyrics", "Skip plain-text results when a later source has time-synced lines", s.preferSynced) { prefs.setPreferSynced(it) }
             Toggle("Uncensor lyrics", "Fill starred-out swear words (f**k) back in from Genius, keeping word timings, and pass over a source that still stars them out", s.skipCensored) { prefs.setSkipCensored(it) }
             Toggle("Focus blur", "Lines further from the one being sung fall out of focus", s.lyricsBlur) { prefs.setLyricsBlur(it) }
+            Toggle(
+                "Translate lyrics",
+                "Each line in your language under it, when a song is in another one. Machine translation: the lyrics' text is sent to Google Translate",
+                s.lyricsTranslate,
+            ) { prefs.setLyricsTranslate(it) }
+            if (s.lyricsTranslate) {
+                Label("Translate into")
+                Chips(TRANSLATE_LANGUAGES.map { it.first }, s.lyricsTranslateTo.takeIf { code -> TRANSLATE_LANGUAGES.any { it.first == code } } ?: "",
+                    { code -> TRANSLATE_LANGUAGES.first { it.first == code }.second }) { prefs.setLyricsTranslateTo(it) }
+            }
             Label("Alignment")
             Chips(LyricsAlign.entries, s.lyricsAlign, { it.label }) { prefs.setLyricsAlign(it) }
             SliderSetting("Text size", s.lyricsScale, 0.75f..1.4f, { "${(it * 100).roundToInt()}%" }) { prefs.setLyricsScale(it) }

@@ -83,8 +83,8 @@ fun PlayActionsSheet(target: Playable, extra: List<SheetItem> = emptyList(), onD
     sharing?.let { t -> ShareSheet(t) { sharing = null; onDismiss() }; return }
     val ui = com.prism.music.ui.theme.LocalUi.current
     val (title, subtitle) = when (target) {
-        Playable.Liked -> "Liked songs" to "${liked.size} songs"
-        Playable.Downloads -> "Downloads" to "${c.downloads.completedSongs().size} songs"
+        Playable.Liked -> "Liked songs" to com.prism.music.data.model.songCount(liked.size)
+        Playable.Downloads -> "Downloads" to com.prism.music.data.model.songCount(c.downloads.completedSongs().size)
         is Playable.Of -> target.item.title to target.item.subtitle.ifBlank {
             when (target.item) { is AlbumItem -> "Album"; is ArtistItem -> "Artist"; else -> "Playlist" }
         }
@@ -112,7 +112,7 @@ fun PlayActionsSheet(target: Playable, extra: List<SheetItem> = emptyList(), onD
             return@launch
         }
         if (next) c.player.playNext(loaded.first, loaded.second) else c.player.addToQueue(loaded.first, loaded.second)
-        Toast.makeText(context, "${loaded.first.size} songs ${if (next) "playing next" else "added to the queue"}", Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, "${com.prism.music.data.model.songCount(loaded.first.size)} ${if (next) "playing next" else "added to the queue"}", Toast.LENGTH_SHORT).show()
     }
     val quick = if (item is ArtistItem) listOf(
         ActionItem(Icons.Rounded.Shuffle, "Shuffle") { play(shuffle = true) },
@@ -138,8 +138,8 @@ fun PlayActionsSheet(target: Playable, extra: List<SheetItem> = emptyList(), onD
         ) {
             SheetIconButton(Icons.Rounded.Share, "Share") {
                 sharing = when (target) {
-                    Playable.Liked -> ShareTarget("Liked songs", "${liked.size} songs", "Playlist", art, null, songs = liked)
-                    Playable.Downloads -> c.downloads.completedSongs().let { ShareTarget("Downloads", "${it.size} songs", "Playlist", art, null, songs = it) }
+                    Playable.Liked -> ShareTarget("Liked songs", com.prism.music.data.model.songCount(liked.size), "Playlist", art, null, songs = liked)
+                    Playable.Downloads -> c.downloads.completedSongs().let { ShareTarget("Downloads", com.prism.music.data.model.songCount(it.size), "Playlist", art, null, songs = it) }
                     is Playable.Of -> target.item.shareTarget(art)
                 }
             }

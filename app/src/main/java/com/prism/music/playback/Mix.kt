@@ -1,0 +1,444 @@
+package com.prism.music.playback
+
+import android.os.SystemClock
+import android.util.Log
+import androidx.annotation.OptIn
+import androidx.media3.common.C
+import androidx.media3.common.MediaItem
+import androidx.media3.common.PlaybackParameters
+import androidx.media3.common.Player
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.exoplayer.ExoPlayer
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import kotlin.math.PI
+import kotlin.math.abs
+import kotlin.math.cos
+import kotlin.math.floor
+import kotlin.math.ln
+import kotlin.math.sin
+
+/**
+ * Mix (after Spotify's): when a song runs into the next one, the two blend instead of one stopping and the next
+ * starting.
+ *
+ * How a blend goes: a few seconds before it, a second player ([buildTail]) gets the ending song ready at the same
+ * spot, muted. Just before the blend it starts playing along, and its audio is shifted until it's in step with the
+ * main player (it's still silent). At the blend the main player hands over: the tail carries on the ending song,
+ * and the main player moves to the next song, starting where its music starts (or on its first beat), silent, then
+ * fading in while the tail fades out (equal power, so the loudness holds). With beat matching, the next song plays
+ * at the ending song's tempo while they overlap (pitch kept), its beats lined up with the ending song's, and drifts
+ * back to its own tempo once the ending song is gone.
+ *
+ * The main player moves on to the next song as the blend starts (as Spotify's does), so the player, lyrics,
+ * history and the car's screen are all about the incoming song from then on.
+ */
+@OptIn(UnstableApi::class)
+class MixEngine(
+    private val main: ExoPlayer,
+    private val scope: CoroutineScope,
+    private val tempo: MixTempo,
+    /** Blend length in ms, or null when Mix is off. */
+    private val mixMs: () -> Long?,
+    private val beatMatch: () -> Boolean,
+    /** Whether this transition may blend at all (video, live, Listen Together, an album's next track…). */
+    private val allowed: (from: MediaItem, to: MediaItem) -> Boolean,
+    /** Analysis needs the songs' audio, so it waits for Wi-Fi. */
+    private val unmetered: () -> Boolean,
+    /** A second player for the ending song: same sources and effects as the main one (plus [ShiftProcessor] first), no audio focus. */
+    private val buildTail: (ShiftProcessor) -> ExoPlayer,
+) {
+    private class Plan(
+        val fromId: String,
+        val toId: String,
+        val toIndex: Int,
+        /** Where in the ending song the blend starts. */
+        val startMs: Long,
+        /** Where in the next song it starts playing. */
+        val inMs: Long,
+        val lengthMs: Long,
+        /** The next song's speed while they overlap (its tempo matched to the ending song's); 1 without beat matching. */
+        val ratio: Float,
+        val beats: Boolean,
+        /** A beat of the ending song in the next song's time (ms), with beat matching. */
+        val beatMs: Double = 0.0,
+    )
+
+    private enum class Phase { IDLE, PREPARED, SYNCING, BLENDING, SETTLING }
+
+    private var phase = Phase.IDLE
+    private var plan: Plan? = null
+    private var tail: ExoPlayer? = null
+    private var shifter: ShiftProcessor? = null
+    private var blendStartedAt = 0L
+    private var settleFrom = 1f
+    private var settleStartedAt = 0L
+    private var noPlanFor: String? = null
+    private var lastSyncLog = 0L
+    private var syncActionAt = 0L
+    /** While the next song plays a little off tempo to bring its beats in line: when to stop (0 when it isn't). */
+    private var catchUpUntil = 0L
+    /** Each player's position less the clock, at its freshest in the current window of readings. */
+    private var mainLead = Long.MIN_VALUE
+    private var tailLead = Long.MIN_VALUE
+    private var windowFrom = 0L
+    /** How far the tail is ahead of the main player (ms) by the last full window since it was shifted; null until measured. */
+    private var offset: Long? = null
+    /** The main player's position less the clock, by the last window (for timing the cross-over between readings). */
+    private var clockLead = Long.MIN_VALUE
+    /** How long the cross-over to the tail takes, settled as the blend comes up (0 until then). */
+    private var handoverMs = 0L
+    private var loop: Job? = null
+
+    fun start() {
+        if (loop?.isActive == true) return
+        loop = scope.launch {
+            while (isActive) {
+                val wait = runCatching { tick() }.getOrElse { e ->
+                    Log.w(TAG, "mix step failed", e)
+                    abort("error")
+                    500L
+                }
+                delay(wait)
+            }
+        }
+    }
+
+    fun release() {
+        loop?.cancel()
+        abort("released")
+    }
+
+    /** Measures the tempo of the playing song and the next one ahead of their blend (on Wi-Fi). */
+    fun analyzeAhead(currentId: String?, nextId: String?) {
+        if (mixMs() == null || !beatMatch()) return
+        if (!unmetered()) { Log.i(TAG, "tempo of $currentId / $nextId waits for Wi-Fi"); return }
+        scope.launch {
+            currentId?.let { tempo.measure(it) }
+            nextId?.let { tempo.measure(it) }
+        }
+    }
+
+    /** One step; returns how long to wait before the next. */
+    private fun tick(): Long {
+        val length = mixMs()
+        if (length == null) {
+            if (phase != Phase.IDLE) abort("Mix turned off")
+            return 1000
+        }
+        return when (phase) {
+            Phase.IDLE -> idle(length)
+            Phase.PREPARED -> prepared()
+            Phase.SYNCING -> syncing()
+            Phase.BLENDING -> blending()
+            Phase.SETTLING -> settling()
+        }
+    }
+
+    private fun idle(length: Long): Long {
+        if (!main.isPlaying) return 500
+        val item = main.currentMediaItem ?: return 500
+        val dur = main.duration.takeIf { it != C.TIME_UNSET && it > 0 } ?: return 500
+        val left = dur - main.currentPosition
+        if (left > length + 20_000) return minOf(2000, left - length - 20_000).coerceAtLeast(250)
+        if (noPlanFor == item.mediaId) return 1000
+        val p = makePlan(item, dur, length) ?: run { noPlanFor = item.mediaId; return 1000 }
+        if (main.currentPosition > p.startMs - LEAD_MS - PREPARE_MS) {
+            // Too late to get the tail ready in time (a seek near the end): let this one end on its own.
+            noPlanFor = item.mediaId
+            return 1000
+        }
+        if (main.currentPosition < p.startMs - LEAD_MS - PREPARE_MS - 3000) return 250
+        val shift = ShiftProcessor()
+        val t = buildTail(shift)
+        shifter = shift
+        t.volume = 0f
+        t.setMediaItem(item.buildUpon().build())
+        t.seekTo(p.startMs - LEAD_MS)
+        t.playWhenReady = false
+        t.prepare()
+        tail = t
+        plan = p
+        phase = Phase.PREPARED
+        Log.i(TAG, "planned ${p.fromId} -> ${p.toId}: blend at ${p.startMs} ms for ${p.lengthMs} ms, next from ${p.inMs} ms" +
+            if (p.beats) ", tempo ×%.3f, on the beat".format(p.ratio) else "")
+        return 50
+    }
+
+    private fun makePlan(item: MediaItem, dur: Long, length: Long): Plan? {
+        val toIndex = main.nextMediaItemIndex.takeIf { it != C.INDEX_UNSET } ?: return null
+        if (main.repeatMode == Player.REPEAT_MODE_ONE) return null
+        val next = main.getMediaItemAt(toIndex)
+        if (next.mediaId.isBlank() || next.mediaId == item.mediaId || !allowed(item, next)) return null
+        val a = tempo.cached(item.mediaId)
+        val b = tempo.cached(next.mediaId)
+        val nextDur = (next.mediaMetadata.durationMs ?: 0L).takeIf { it > 0 } ?: Long.MAX_VALUE
+        val len = minOf(length, dur / 3, nextDur / 3)
+        if (len < 1500 || dur < 30_000) return null
+        val end = (a?.lastSoundMs?.takeIf { it in dur / 2..dur } ?: dur)
+        var start = end - len
+        var inMs = (b?.firstSoundMs ?: 0L).coerceIn(0, 3000)
+        var ratio = 1f
+        var beats = false
+        var beatMs = 0.0
+        if (beatMatch() && a != null && b != null && a.steady && b.steady) {
+            // Tempo compared octave-free: a 170 BPM song against an 85 BPM one already shares a beat.
+            val bBpm = listOf(b.bpm, b.bpm * 2, b.bpm / 2).minBy { abs(ln(it / a.bpm)) }
+            val r = a.bpm / bBpm
+            if (abs(r - 1) <= MAX_STRETCH && b.firstBeatMs <= 4000) {
+                // The blend starts on one of the ending song's beats, with the next song's first beat.
+                val beat = a.periodMs
+                val k = floor((start - a.outroBeatMs) / beat)
+                start = (a.outroBeatMs + k * beat).toLong()
+                inMs = b.firstBeatMs
+                ratio = r.toFloat()
+                beats = true
+                beatMs = beat * r
+            }
+        }
+        if (start < dur / 2) return null
+        return Plan(item.mediaId, next.mediaId, toIndex, start, inMs, len, ratio, beats, beatMs)
+    }
+
+    /** The tail is getting ready; it starts playing along (muted) just before the blend. */
+    private fun prepared(): Long {
+        val p = plan ?: return abort("no plan")
+        val t = tail ?: return abort("no tail")
+        if (main.currentMediaItem?.mediaId != p.fromId) return abort("song changed")
+        val pos = main.currentPosition
+        if (pos > p.startMs + 200 || pos < p.startMs - LEAD_MS - PREPARE_MS - 15_000) return abort("seeked away")
+        if (pos < p.startMs - LEAD_MS) return if (p.startMs - LEAD_MS - pos > 400) 100 else 10
+        if (t.playbackState != Player.STATE_READY) {
+            // Not ready in time (the ending wasn't buffered): no blend, the song ends on its own.
+            return abort("tail not ready")
+        }
+        // Where the main player is now, if it's well past where the tail waits (a reload costs a moment; [syncing]
+        // shifts away whatever difference is left). Still muted.
+        if (abs(pos - t.currentPosition) > 1000) t.seekTo(pos)
+        t.playWhenReady = main.playWhenReady
+        mainLead = Long.MIN_VALUE; tailLead = Long.MIN_VALUE; windowFrom = 0L
+        offset = null
+        clockLead = Long.MIN_VALUE
+        handoverMs = 0
+        syncActionAt = SystemClock.elapsedRealtime()
+        phase = Phase.SYNCING
+        return 20
+    }
+
+    /** The tail's place in the song: its reported position plus however far [ShiftProcessor] has moved it. */
+    private fun tailPosition(t: ExoPlayer): Long = t.currentPosition + (shifter?.shiftedMs ?: 0L)
+
+    /**
+     * Both play the ending song, the tail muted, until the tail is in step. The two are compared over a stretch of
+     * readings (a median, as a player's reported position wobbles, most of all just after it starts), then the
+     * tail's audio is shifted by exactly that much ([ShiftProcessor]: frames skipped or silence added), and checked
+     * again once the shifted audio has reached the speaker.
+     */
+    private fun syncing(): Long {
+        val p = plan ?: return abort("no plan")
+        val t = tail ?: return abort("no tail")
+        if (main.currentMediaItem?.mediaId != p.fromId) return abort("song changed")
+        t.playWhenReady = main.playWhenReady
+        val pos = main.currentPosition
+        if (pos > p.startMs + 500 || pos < p.startMs - LEAD_MS - 2000) return abort("seeked away")
+        val now = SystemClock.elapsedRealtime()
+        val drift = tailPosition(t) - pos
+        // A player's reported position isn't worked out afresh on every read: it's the position as of its last update,
+        // which comes every few hundred ms while it's busy loading, so a reading can be that stale (never early). Each
+        // player's lead over the clock is therefore taken at its freshest over a window longer than that.
+        if (t.isPlaying && main.isPlaying && now - syncActionAt > SETTLE_READINGS_MS) {
+            mainLead = maxOf(mainLead, pos - now)
+            tailLead = maxOf(tailLead, tailPosition(t) - now)
+            if (windowFrom == 0L) windowFrom = now
+            if (now - windowFrom >= WINDOW_MS) {
+                val off = tailLead - mainLead
+                offset = off
+                clockLead = mainLead
+                mainLead = Long.MIN_VALUE; tailLead = Long.MIN_VALUE; windowFrom = 0L
+                Log.d(TAG, "tail $off ms off (shifted ${shifter?.shiftedMs} ms), ${p.startMs - pos} ms to the blend")
+                // A shift is only made while there's time to check it before the blend.
+                if (abs(off) > IN_STEP_MS && p.startMs - pos > SETTLE_READINGS_MS + WINDOW_MS + LONG_HANDOVER_MS + 100) {
+                    shifter?.shift(-off)
+                    offset = null
+                    syncActionAt = now
+                }
+            }
+        }
+        if (com.prism.music.BuildConfig.DEBUG && now - lastSyncLog > 100) {
+            lastSyncLog = now
+            Log.v(TAG, "in step? tail $drift ms off as read, ${p.startMs - pos} ms to the blend")
+        }
+        // Where the main player really is: its last reading may be a few hundred ms old (see above).
+        val at = if (main.isPlaying && clockLead != Long.MIN_VALUE) maxOf(pos, now + clockLead) else pos
+        if (at < p.startMs - LONG_HANDOVER_MS) return 10
+        val d = offset
+        // How the two cross over is settled once, as the blend comes up: in step, quickly; a little apart, over a
+        // longer stretch, which sounds like a brief doubling rather than a jump; further apart than that, or not
+        // measured, not at all (the song ends as usual).
+        if (handoverMs == 0L) {
+            handoverMs = when {
+                d == null || !t.isPlaying || abs(d) > 250 -> {
+                    Log.w(TAG, "tail out of step by ${d ?: "an unknown amount"} ms at the blend")
+                    return abort("out of step")
+                }
+                abs(d) > 45 -> LONG_HANDOVER_MS
+                else -> HANDOVER_MS
+            }
+        }
+        if (at < p.startMs) {
+            // The same audio from both: cross over to the tail in a few steps, so nothing clicks.
+            val x = ((at - (p.startMs - handoverMs)).toFloat() / handoverMs).coerceIn(0f, 1f)
+            t.volume = x
+            main.volume = 1f - x
+            return 10
+        }
+        // Hand over: the tail carries the ending song on; the main player moves to the next one, silent.
+        t.volume = 1f
+        main.volume = 0f
+        main.seekTo(p.toIndex, p.inMs)
+        main.playbackParameters = PlaybackParameters(p.ratio, 1f)
+        blendStartedAt = now
+        syncActionAt = now
+        windowFrom = 0L
+        catchUpUntil = 0L
+        phase = Phase.BLENDING
+        Log.i(TAG, "blend ${p.fromId} -> ${p.toId} started (tail $d ms off)")
+        return 20
+    }
+    private fun blending(): Long {
+        val p = plan ?: return abort("no plan")
+        val t = tail ?: return abort("no tail")
+        if (main.currentMediaItem?.mediaId != p.toId) return abort("skipped during the blend")
+        t.playWhenReady = main.playWhenReady
+        // The blend's clock is whichever song is behind: a pause can't rush it, and if the next song takes a moment to
+        // start, the ending one isn't faded out into a gap before it's there.
+        val tailProgress = (tailPosition(t) - p.startMs).toFloat() / p.lengthMs
+        val mainProgress = if (main.isPlaying) (main.currentPosition - p.inMs) / p.ratio / p.lengthMs else 0f
+        val progress = minOf(tailProgress, mainProgress).coerceIn(0f, 1f)
+        val ended = t.playbackState == Player.STATE_ENDED
+        main.volume = sin(progress * PI / 2).toFloat()
+        t.volume = cos(progress * PI / 2).toFloat()
+        if (p.beats && t.isPlaying) alignBeats(p, t, progress)
+        if (progress >= 1f || ended) {
+            t.release()
+            tail = null
+            shifter = null
+            main.volume = 1f
+            Log.i(TAG, "blend ${p.fromId} -> ${p.toId} done in ${SystemClock.elapsedRealtime() - blendStartedAt} ms")
+            if (main.playbackParameters.speed != 1f) {
+                settleFrom = main.playbackParameters.speed
+                settleStartedAt = SystemClock.elapsedRealtime()
+                phase = Phase.SETTLING
+            } else finish()
+        }
+        return 30
+    }
+
+    /**
+     * Beats: the next song started a little late (it had to load), so its beats are off the ending song's. Only the
+     * beat matters, not which one, so the gap is taken modulo a beat. It's measured over a window (each player at its
+     * freshest reading, as in [syncing]); a big gap is closed by a seek while the next song is still barely audible,
+     * a small one by playing it a few percent faster or slower for exactly as long as that takes, without steering by
+     * the reported position meanwhile (it glides for a while after a speed change).
+     */
+    private fun alignBeats(p: Plan, t: ExoPlayer, progress: Float) {
+        val now = SystemClock.elapsedRealtime()
+        if (!main.isPlaying) { syncActionAt = now; windowFrom = 0L; return }
+        if (catchUpUntil != 0L) {
+            if (now < catchUpUntil) return
+            main.playbackParameters = PlaybackParameters(p.ratio, 1f)
+            catchUpUntil = 0L
+            syncActionAt = now
+            return
+        }
+        if (now - syncActionAt < SETTLE_READINGS_MS) return
+        if (windowFrom == 0L) { windowFrom = now; mainLead = Long.MIN_VALUE; tailLead = Long.MIN_VALUE }
+        val dt = now - windowFrom
+        // Each player's position as of the window's start, at its freshest.
+        mainLead = maxOf(mainLead, main.currentPosition - (dt * p.ratio).toLong())
+        tailLead = maxOf(tailLead, tailPosition(t) - dt)
+        if (dt < WINDOW_MS) return
+        windowFrom = 0L
+        val raw = mainLead - (p.inMs + (tailLead - p.startMs) * p.ratio).toLong()
+        val err = raw - (Math.round(raw / p.beatMs) * p.beatMs).toLong()
+        Log.d(TAG, "beats ${err} ms apart (${raw} ms in all)")
+        when {
+            abs(err) <= BEATS_IN_STEP_MS -> syncActionAt = now
+            abs(err) > 60 && progress < 0.2f -> {
+                main.seekTo(main.currentPosition - err)
+                syncActionAt = now
+            }
+            else -> {
+                val faster = err < 0
+                main.playbackParameters = PlaybackParameters(p.ratio * (if (faster) 1 + CATCH_UP else 1 - CATCH_UP), 1f)
+                catchUpUntil = now + (abs(err) / (CATCH_UP * p.ratio)).toLong()
+            }
+        }
+    }
+
+    /** After a tempo-matched blend, the song eases back to its own speed. */
+    private fun settling(): Long {
+        val p = plan
+        if (p != null && main.currentMediaItem?.mediaId != p.toId) {
+            main.playbackParameters = PlaybackParameters.DEFAULT
+            finish(); return 250
+        }
+        val f = ((SystemClock.elapsedRealtime() - settleStartedAt) / SETTLE_MS.toFloat()).coerceIn(0f, 1f)
+        main.playbackParameters = PlaybackParameters(settleFrom + (1f - settleFrom) * f, 1f)
+        if (f >= 1f) { main.playbackParameters = PlaybackParameters.DEFAULT; finish() }
+        return 100
+    }
+
+    private fun finish() {
+        catchUpUntil = 0L
+        phase = Phase.IDLE
+        plan = null
+        noPlanFor = null
+    }
+
+    private fun abort(why: String): Long {
+        if (phase != Phase.IDLE) Log.i(TAG, "blend stopped: $why")
+        tail?.let { runCatching { it.release() } }
+        tail = null
+        shifter = null
+        if (main.volume != 1f) main.volume = 1f
+        if (main.playbackParameters.speed != 1f) main.playbackParameters = PlaybackParameters.DEFAULT
+        if (phase == Phase.PREPARED || phase == Phase.SYNCING) plan?.let { noPlanFor = it.fromId }
+        catchUpUntil = 0L
+        phase = Phase.IDLE
+        plan = null
+        return 500
+    }
+
+    companion object {
+        private const val TAG = "PrismMix"
+        /** The tail starts playing along this long before the blend, to get in step while still silent. */
+        private const val LEAD_MS = 5000L
+        /** The last moments before the blend, when the two players (same song, in step) cross over. */
+        private const val HANDOVER_MS = 120L
+        /** The cross-over when the two are a little apart. */
+        private const val LONG_HANDOVER_MS = 350L
+        /**
+         * A player's reported position is unsteady for a moment after it starts, and a shift takes the length of the
+         * audio buffer to reach the speaker; readings wait this long.
+         */
+        private const val SETTLE_READINGS_MS = 800L
+        /** Beats this close count as together. */
+        private const val BEATS_IN_STEP_MS = 15L
+        /** How much faster or slower the next song plays while its beats catch up. */
+        private const val CATCH_UP = 0.05f
+        /** How long each window of readings runs: longer than the gap between a busy player's position updates. */
+        private const val WINDOW_MS = 450L
+        /** Closer than this, the tail counts as in step (the ear doesn't hear a doubling this short). */
+        private const val IN_STEP_MS = 8L
+        /** Time given to the tail to load the ending (it's in the song cache, so usually far less). */
+        private const val PREPARE_MS = 3000L
+        /** The furthest the next song's tempo is stretched to match (±6%, a DJ's usual range); beyond that it blends without beats. */
+        private const val MAX_STRETCH = 0.06
+        /** How long the next song takes to ease back to its own tempo after a tempo-matched blend. */
+        private const val SETTLE_MS = 4000L
+    }
+}

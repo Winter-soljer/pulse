@@ -208,7 +208,8 @@ class VideoSync(
         const val SONG_SECONDS = 70
         const val VIDEO_SECONDS = 190
         private const val BANDS = 16
-        private const val WINDOW = 512
+        /** FFT window of [bandFeatures], in samples: a frame's energy is that of the window starting at it. */
+        const val WINDOW = 512
 
         private fun fft(re: FloatArray, im: FloatArray) {
             val n = re.size

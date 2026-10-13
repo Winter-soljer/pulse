@@ -39,10 +39,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
-import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
@@ -76,21 +73,13 @@ fun InlineQueue(onRevealPlayer: () -> Unit, onHidePlayer: () -> Unit, modifier: 
     val shuffled by pc.shuffle.collectAsState()
     // In play order, so with shuffle on this is the shuffled order.
     val order = upNext.mapNotNull { queue.getOrNull(it) }
-    val upcoming = order.filter { it.index < autoplayFrom }
-    val autoplay = order.filter { it.index >= autoplayFrom }
+    val userQueued by c.queue.userQueued.collectAsState()
+    // What the listener added (Play next, Add to queue) comes first, under its own heading.
+    val queued = order.filter { it.song.id in userQueued }
+    val upcoming = order.filter { it.index < autoplayFrom && it.song.id !in userQueued }
+    val autoplay = order.filter { it.index >= autoplayFrom && it.song.id !in userQueued }
 
-    val controlsOnScroll = remember {
-        object : NestedScrollConnection {
-            var acc = 0f
-            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
-                if (source == NestedScrollSource.UserInput) {
-                    acc = if ((acc > 0) == (available.y > 0)) acc + available.y else available.y
-                    if (acc < -40f) { onHidePlayer(); acc = 0f } else if (acc > 40f) { onRevealPlayer(); acc = 0f }
-                }
-                return Offset.Zero
-            }
-        }
-    }
+    val controlsOnScroll = remember { ControlsOnScroll(onHide = onHidePlayer, onReveal = onRevealPlayer) }
 
     var saving by remember { mutableStateOf(false) }
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -99,7 +88,7 @@ fun InlineQueue(onRevealPlayer: () -> Unit, onHidePlayer: () -> Unit, modifier: 
         val songs = (listOfNotNull(now) + order).map { it.song.id }.distinct().take(300)
         c.scope.launch(kotlinx.coroutines.Dispatchers.Main) {
             val id = runCatching { c.ytm.createPlaylist(name, songs, privacy = privacy) }.getOrNull()
-            android.widget.Toast.makeText(context, if (id != null) "Saved ${songs.size} songs to $name" else "Couldn't save the queue", android.widget.Toast.LENGTH_SHORT).show()
+            android.widget.Toast.makeText(context, if (id != null) "Saved ${com.prism.music.data.model.songCount(songs.size)} to $name" else "Couldn't save the queue", android.widget.Toast.LENGTH_SHORT).show()
             if (id != null) c.library.refreshCollections()
         }
     }
@@ -118,6 +107,10 @@ fun InlineQueue(onRevealPlayer: () -> Unit, onHidePlayer: () -> Unit, modifier: 
             if (now != null) {
                 item(key = "h-now") { Heading("Now Playing", Modifier.padding(top = 12.dp, bottom = 6.dp)) }
                 item(key = "now-" + now.uid) { QueueRow(now.song, isCurrent = true, onClick = {}, onRemove = null) }
+            }
+            if (queued.isNotEmpty()) {
+                item(key = "h-queued") { Heading("Next in queue", Modifier.padding(top = 16.dp, bottom = 6.dp)) }
+                queueSection(queued, reorder = !shuffled) { from, to -> pc.move(from, to) }
             }
             if (upcoming.isNotEmpty()) {
                 item(key = "h-next") { Heading("Next from: ${source.title.ifBlank { now?.song?.album?.title ?: "Queue" }}", Modifier.padding(top = 16.dp, bottom = 6.dp)) }

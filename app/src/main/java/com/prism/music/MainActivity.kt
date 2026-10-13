@@ -380,7 +380,17 @@ private fun PrismRoot(deepLink: MutableStateFlow<Uri?>) {
         CompositionLocalProvider(LocalNavigator provides navigator, LocalHazeState provides haze) {
             Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
                 Box(Modifier.fillMaxSize().nestedScroll(barScroll).hazeSource(haze)) {
-                    NavHost(navController, startDestination = start) {
+                    // The same cross-fade both ways, and for the back gesture too: left to its default,
+                    // a predictive back (swipe from the edge) shrinks the page like a card instead.
+                    NavHost(
+                        navController, startDestination = start,
+                        enterTransition = { fadeIn(tween(700)) },
+                        exitTransition = { fadeOut(tween(700)) },
+                        popEnterTransition = { fadeIn(tween(700)) },
+                        popExitTransition = { fadeOut(tween(700)) },
+                        predictivePopEnterTransition = { fadeIn(tween(700)) },
+                        predictivePopExitTransition = { fadeOut(tween(700)) },
+                    ) {
                         composable(Routes.WELCOME) {
                             WelcomeScreen(
                                 onSignIn = { navController.navigate(Routes.LOGIN) },

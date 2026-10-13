@@ -1,5 +1,6 @@
 package com.prism.music.ui.screens
 
+import com.prism.music.data.friendlyMessage
 import android.text.format.DateUtils
 import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
@@ -81,7 +82,7 @@ fun LikedPlaylistSheet(art: String?, onDismiss: () -> Unit) {
             confirmButton = {
                 TextButton(onClick = {
                     confirmDelete = false
-                    scope.launch { mirror.stop(delete = true).onFailure { toast("Couldn't delete it: ${it.message}") } }
+                    scope.launch { mirror.stop(delete = true).onFailure { toast("Couldn't delete it: ${it.friendlyMessage()}") } }
                 }) { Text("Delete", color = scheme.error) }
             },
             dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Cancel") } },
@@ -91,7 +92,7 @@ fun LikedPlaylistSheet(art: String?, onDismiss: () -> Unit) {
     ActionSheet(art, onDismiss) { close ->
         ActionHeader(
             art, "Liked songs playlist",
-            if (id != null) "Kept up to date" else "${liked.size} songs",
+            if (id != null) "Kept up to date" else com.prism.music.data.model.songCount(liked.size),
             placeholderIcon = Icons.Rounded.Favorite,
         )
         when {
@@ -113,8 +114,8 @@ fun LikedPlaylistSheet(art: String?, onDismiss: () -> Unit) {
                         making = true
                         scope.launch {
                             mirror.create(name.trim(), privacy)
-                                .onSuccess { toast("Made \"${name.trim()}\" with ${liked.size} songs") }
-                                .onFailure { toast("Couldn't make the playlist: ${it.message}") }
+                                .onSuccess { toast("Made \"${name.trim()}\" with ${com.prism.music.data.model.songCount(liked.size)}") }
+                                .onFailure { toast("Couldn't make the playlist: ${it.friendlyMessage()}") }
                             making = false
                         }
                     },

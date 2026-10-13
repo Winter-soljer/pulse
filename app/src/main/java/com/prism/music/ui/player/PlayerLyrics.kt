@@ -421,6 +421,43 @@ fun SweptLine(
     }
 }
 
+/**
+ * Shows the player's controls on a drag down and hides them on a drag up, once per drag. Showing or hiding them
+ * resizes the list under the finger, which reads as a drag the other way: allowed to switch again within the same
+ * drag, they flickered in and out for as long as the finger moved (reported on a 120 Hz Galaxy, scrolling the lyrics
+ * up after changing their source).
+ */
+class ControlsOnScroll(private val onHide: () -> Unit, private val onReveal: () -> Unit) : NestedScrollConnection {
+    private var acc = 0f
+    private var switched = false
+
+    override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+        if (source != NestedScrollSource.UserInput || switched) return Offset.Zero
+        acc = if ((acc > 0) == (available.y > 0)) acc + available.y else available.y
+        if (acc < -40f) { onHide(); switched = true } else if (acc > 40f) { onReveal(); switched = true }
+        return Offset.Zero
+    }
+
+    /** The finger is up: the next drag may switch them again. */
+    override suspend fun onPreFling(available: androidx.compose.ui.unit.Velocity): androidx.compose.ui.unit.Velocity {
+        acc = 0f
+        switched = false
+        return androidx.compose.ui.unit.Velocity.Zero
+    }
+}
+
+/** The phone's language as Google Translate names it (Chinese by script, old Java codes renamed). */
+fun defaultTranslateTarget(): String {
+    val l = java.util.Locale.getDefault()
+    return when (l.language) {
+        "zh" -> if (l.script == "Hant" || l.country in setOf("TW", "HK", "MO")) "zh-TW" else "zh-CN"
+        "iw" -> "he"
+        "in" -> "id"
+        "" -> "en"
+        else -> l.language
+    }
+}
+
 /** Full lyrics inside the player: big tight type, the sung line crisp, the rest falling out of focus. */
 @Composable
 fun LyricsPanel(
@@ -459,18 +496,18 @@ fun LyricsPanel(
             else -> listState.animateScrollToItem(lead)
         }
     }
-    val controlsOnScroll = remember {
-        object : NestedScrollConnection {
-            var acc = 0f
-            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
-                if (source == NestedScrollSource.UserInput) {
-                    acc = if ((acc > 0) == (available.y > 0)) acc + available.y else available.y
-                    if (acc < -40f) { onHideControls(); acc = 0f } else if (acc > 40f) { onRevealControls(); acc = 0f }
-                }
-                return Offset.Zero
-            }
-        }
+    val controlsOnScroll = remember { ControlsOnScroll(onHide = onHideControls, onReveal = onRevealControls) }
+
+    // A translation under each line, when it's turned on and the song isn't already in that language.
+    val translateTo = settings.lyricsTranslateTo.ifBlank { defaultTranslateTarget() }
+    var translation by remember(lines, settings.lyricsTranslate, translateTo) { mutableStateOf<com.prism.music.data.lyrics.LyricsTranslator.Translation?>(null) }
+    LaunchedEffect(lines, settings.lyricsTranslate, translateTo) {
+        if (!settings.lyricsTranslate || lines.isEmpty()) return@LaunchedEffect
+        val texts = lines.map { l -> if (l.isGap || (l.text.startsWith("[") && l.text.endsWith("]"))) "" else l.text }
+        translation = runCatching { c.translator.translate(texts, translateTo) }
+            .onFailure { android.util.Log.w("PrismLyrics", "Couldn't translate the lyrics: $it") }.getOrNull()
     }
+    val translations = translation?.takeUnless { it.sameLanguage }?.translations
 
     if (lines.isEmpty()) {
         Box(modifier.pointerInput(Unit) { detectTapGestures { onRevealControls() } }, contentAlignment = Alignment.Center) {
@@ -542,12 +579,22 @@ fun LyricsPanel(
                     .clickable(enabled = synced) { c.player.seekToLyric(line.timeMs); browsing = false }
                     .padding(vertical = 9.dp, horizontal = 2.dp),
             ) {
-                if (isActive && line.isWordSynced) {
-                    SweptLine(line, clock, style, Modifier.fillMaxWidth())
-                } else {
-                    // Inactive lines sit back; the sung line is full white.
-                    val lineAlpha = if (synced && !isActive) alpha * 0.55f else alpha
-                    Text(line.text, style = style, color = Color.White.copy(alpha = lineAlpha), modifier = Modifier.fillMaxWidth())
+                // Inactive lines sit back; the sung line is full white.
+                val lineAlpha = if (synced && !isActive) alpha * 0.55f else alpha
+                Column(Modifier.fillMaxWidth()) {
+                    if (isActive && line.isWordSynced) {
+                        SweptLine(line, clock, style, Modifier.fillMaxWidth())
+                    } else {
+                        Text(line.text, style = style, color = Color.White.copy(alpha = lineAlpha), modifier = Modifier.fillMaxWidth())
+                    }
+                    translations?.getOrNull(index)?.takeUnless { it.equals(line.text.trim(), ignoreCase = true) }?.let { t ->
+                        Text(
+                            t,
+                            style = style.copy(fontSize = style.fontSize * 0.52f, lineHeight = style.lineHeight * 0.56f, fontWeight = FontWeight.SemiBold),
+                            color = Color.White.copy(alpha = (if (isActive) 0.75f else lineAlpha * 0.8f)),
+                            modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                        )
+                    }
                 }
             }
         }

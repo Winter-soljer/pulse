@@ -1,5 +1,6 @@
 package com.prism.music.ui.screens
 
+import com.prism.music.data.friendlyMessage
 import android.widget.Toast
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
@@ -166,7 +167,7 @@ fun CollectionScreen(type: CollectionType, id: String, initialGenre: String?, bo
     }
     val page: Load<LiveCollection> = when (type) {
         CollectionType.LIKED -> Load.Ok(remember(liked) {
-            LiveCollection(CollectionPage("liked", CollectionKind.PLAYLIST, "Liked songs", "${liked.size} songs", thumbnail = null, songs = liked), c.scope, null)
+            LiveCollection(CollectionPage("liked", CollectionKind.PLAYLIST, "Liked songs", com.prism.music.data.model.songCount(liked.size), thumbnail = null, songs = liked), c.scope, null)
         })
         CollectionType.DOWNLOADS -> {
             val songs = remember(downloads) { c.downloads.completedSongs() }
@@ -237,6 +238,16 @@ private fun CollectionContent(type: CollectionType, live: LiveCollection, initia
     var query by rememberSaveable(page.id) { mutableStateOf("") }
     val showGenres = type != CollectionType.ALBUM && songs.size > 1
     val showSearch = type != CollectionType.ALBUM || songs.size > 12
+
+    // Starting a song waits on its stream (a few seconds through NewPipe), so on Wi-Fi the first track's is fetched
+    // while the page is being looked at: Play then starts straight away.
+    LaunchedEffect(page.id, songs.isNotEmpty()) {
+        val first = songs.firstOrNull { !c.downloads.isDownloaded(it.id) } ?: return@LaunchedEffect
+        val cm = context.getSystemService(android.net.ConnectivityManager::class.java)
+        if (cm?.isActiveNetworkMetered != false || type == CollectionType.DOWNLOADS) return@LaunchedEffect
+        kotlinx.coroutines.delay(600) // not for pages only passed through
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { c.warmUp(first.id) }
+    }
 
     // Genres are detected quietly per artist, a few at a time; chips fill in as each batch lands.
     // Main genres come first, then any clear second genre an artist also has.
@@ -334,7 +345,7 @@ private fun CollectionContent(type: CollectionType, live: LiveCollection, initia
             Toast.makeText(context, "Removed ${page.songs.size} downloads", Toast.LENGTH_SHORT).show()
         } else {
             c.downloads.downloadAll(page.songs)
-            Toast.makeText(context, "Downloading ${page.songs.size - downloadedCount} songs", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, "Downloading ${com.prism.music.data.model.songCount(page.songs.size - downloadedCount)}", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -351,7 +362,7 @@ private fun CollectionContent(type: CollectionType, live: LiveCollection, initia
                     .onSuccess { Toast.makeText(context, "Removed from ${page.title}", Toast.LENGTH_SHORT).show() }
                     .onFailure {
                         live.songs.value = before
-                        Toast.makeText(context, "Couldn't remove it: ${it.message}", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "Couldn't remove it: ${it.friendlyMessage()}", Toast.LENGTH_SHORT).show()
                     }
             }
         })
@@ -551,7 +562,7 @@ private fun CollectionContent(type: CollectionType, live: LiveCollection, initia
                     title = t; description = d.ifBlank { null }; privacy = p
                     c.library.refreshCollections()
                     Toast.makeText(context, "Saved", Toast.LENGTH_SHORT).show()
-                }.onFailure { Toast.makeText(context, "Couldn't save: ${it.message}", Toast.LENGTH_SHORT).show() }
+                }.onFailure { Toast.makeText(context, "Couldn't save: ${it.friendlyMessage()}", Toast.LENGTH_SHORT).show() }
             }
         }
     }
@@ -565,7 +576,7 @@ private fun CollectionContent(type: CollectionType, live: LiveCollection, initia
                 scope.launch {
                     c.library.deletePlaylist(PlaylistItem(page.id, title, "", page.thumbnail))
                         .onSuccess { nav.back() }
-                        .onFailure { Toast.makeText(context, "Couldn't delete \"$title\": ${it.message}", Toast.LENGTH_LONG).show() }
+                        .onFailure { Toast.makeText(context, "Couldn't delete \"$title\": ${it.friendlyMessage()}", Toast.LENGTH_LONG).show() }
                 }
             }) { Text("Delete", color = MaterialTheme.colorScheme.error) }
         },
@@ -578,8 +589,8 @@ private fun CollectionContent(type: CollectionType, live: LiveCollection, initia
                 title, page.subtitle.removePrefix("Playlist • "), "Playlist", art, ShareLinks.playlist(page.id),
                 playlistId = page.id.takeIf { live.page.owned }, privacy = privacy.takeIf { live.page.owned },
             )
-            CollectionType.LIKED -> ShareTarget("Liked songs", "${songs.size} songs", "Playlist", art, null, songs = songs)
-            CollectionType.DOWNLOADS -> ShareTarget("Downloads", "${songs.size} songs", "Playlist", art, null, songs = songs)
+            CollectionType.LIKED -> ShareTarget("Liked songs", com.prism.music.data.model.songCount(songs.size), "Playlist", art, null, songs = songs)
+            CollectionType.DOWNLOADS -> ShareTarget("Downloads", com.prism.music.data.model.songCount(songs.size), "Playlist", art, null, songs = songs)
         },
     ) { sharing = false }
 }
@@ -960,7 +971,7 @@ private fun DownloadsMenuItems(close: () -> Unit, ask: (String, () -> Unit) -> U
     DropdownMenuItem({ Text("Get missing lyrics") }, { close(); c.downloads.backfillLyrics(force = true) }, leadingIcon = { Icon(Icons.Rounded.Lyrics, null) })
     if (smart.isNotEmpty()) DropdownMenuItem({ Text("Delete smart downloads (${smart.size})") }, {
         close()
-        ask("Delete the ${smart.size} songs smart downloads added? They may come back later if smart downloads stays on.") { c.downloads.removeMany(smart) }
+        ask("Delete the ${com.prism.music.data.model.songCount(smart.size)} smart downloads added? They may come back later if smart downloads stays on.") { c.downloads.removeMany(smart) }
     }, leadingIcon = { Icon(Icons.Rounded.DeleteSweep, null) })
     val videos by c.downloads.videos.collectAsState()
     if (videos.isNotEmpty()) DropdownMenuItem({ Text("Delete music videos (${sizeText(videos.values.sumOf { it.bytes })})") }, {

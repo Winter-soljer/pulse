@@ -89,6 +89,17 @@ object AppFonts {
         FontChoice.MONO -> FontFamily.Monospace
     }
 
+    /**
+     * Whether this phone has the font behind [choice]. Google Sans and Rounded need Google Sans Flex, which Pixels have
+     * and Samsungs (among others) don't; without it they fell back to the same face as Default, so picking them seemed
+     * to do nothing.
+     */
+    fun available(choice: FontChoice): Boolean = when (choice) {
+        FontChoice.GOOGLE_SANS -> file(*sansFlex) != null || file(*googleSans) != null
+        FontChoice.ROUNDED -> file(*sansFlex) != null
+        else -> true
+    }
+
     fun family(choice: FontChoice): FontFamily = synchronized(cache) {
         cache.getOrPut(choice) { runCatching { build(choice) }.getOrDefault(FontFamily.Default) }
     }

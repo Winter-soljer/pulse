@@ -1,5 +1,6 @@
 package com.prism.music.ui.screens
 
+import com.prism.music.data.friendlyMessage
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -232,8 +233,8 @@ fun LibraryScreen(bottomPadding: Dp) {
                 }
                 when (tab) {
                     LibTab.PLAYLISTS -> {
-                        item { ShortcutTile("Liked songs", "${liked.size} songs", Icons.Rounded.Favorite, asList, art = c.covers.custom("liked"), onLongClick = { menu(com.prism.music.ui.components.Playable.Liked) }) { nav.go(Routes.liked()) } }
-                        item { ShortcutTile("Downloads", "${dls.values.count { it.state == androidx.media3.exoplayer.offline.Download.STATE_COMPLETED }} songs", Icons.Rounded.DownloadDone, asList, onLongClick = { menu(com.prism.music.ui.components.Playable.Downloads) }) { nav.go(Routes.DOWNLOADS) } }
+                        item { ShortcutTile("Liked songs", com.prism.music.data.model.songCount(liked.size), Icons.Rounded.Favorite, asList, art = c.covers.custom("liked"), onLongClick = { menu(com.prism.music.ui.components.Playable.Liked) }) { nav.go(Routes.liked()) } }
+                        item { ShortcutTile("Downloads", com.prism.music.data.model.songCount(dls.values.count { it.state == androidx.media3.exoplayer.offline.Download.STATE_COMPLETED }), Icons.Rounded.DownloadDone, asList, onLongClick = { menu(com.prism.music.ui.components.Playable.Downloads) }) { nav.go(Routes.DOWNLOADS) } }
                         item { ShortcutTile("Replay", "Your listening recap", Icons.Rounded.History, asList) { nav.go(Routes.REPLAY) } }
                         item { ShortcutTile("Listen together", "With friends on the same Wi-Fi", Icons.Rounded.Groups, asList) { nav.go(Routes.TOGETHER) } }
                         if (settings.isLoggedIn) item { ShortcutTile("New playlist", "Make one on YouTube Music", Icons.Rounded.Add, asList) { creating = true } }
@@ -271,7 +272,7 @@ fun LibraryScreen(bottomPadding: Dp) {
                     }
                     LibTab.SONGS -> {
                         if (liked.isNotEmpty()) item(span = { GridItemSpan(maxLineSpan) }) {
-                            SortBar("${liked.size} songs", SongSort.entries, songSort, { it.label }) { songSort = it }
+                            SortBar(com.prism.music.data.model.songCount(liked.size), SongSort.entries, songSort, { it.label }) { songSort = it }
                         }
                         items(sortedSongs, key = { "s" + it.id }, span = { GridItemSpan(maxLineSpan) }) { s ->
                             SongRow(s) { c.player.playQueue(sortedSongs, sortedSongs.indexOf(s), com.prism.music.playback.QueueSource(com.prism.music.playback.QueueKind.LIBRARY, "Liked songs")) }
@@ -285,7 +286,7 @@ fun LibraryScreen(bottomPadding: Dp) {
                     }
                     LibTab.ARTISTS -> {
                         if (artists.isNotEmpty()) item(span = { GridItemSpan(maxLineSpan) }) {
-                            SortBar("${artists.size} artists", ArtistSort.entries, artistSort, { it.label }) { artistSort = it }
+                            SortBar(if (artists.size == 1) "1 artist" else "${artists.size} artists", ArtistSort.entries, artistSort, { it.label }) { artistSort = it }
                         }
                         items(sortedArtists, key = { "r" + it.id }) { a -> LibraryItem(a, asList) { nav.open(a, onSong) } }
                     }
@@ -331,7 +332,7 @@ fun LibraryScreen(bottomPadding: Dp) {
                     deleting = null
                     scope.launch {
                         c.library.deletePlaylist(p).onFailure {
-                            android.widget.Toast.makeText(context, "Couldn't delete \"${p.title}\": ${it.message}", android.widget.Toast.LENGTH_LONG).show()
+                            android.widget.Toast.makeText(context, "Couldn't delete \"${p.title}\": ${it.friendlyMessage()}", android.widget.Toast.LENGTH_LONG).show()
                         }
                     }
                 }) { Text("Delete", color = MaterialTheme.colorScheme.error) }
@@ -430,7 +431,7 @@ private fun DownloadsSummary() {
                 .clickable { nav.go(Routes.DOWNLOADS) }.padding(20.dp),
         ) {
             Column {
-                Text("${done.size} songs offline", style = MaterialTheme.typography.titleLarge, color = ink)
+                Text("${com.prism.music.data.model.songCount(done.size)} offline", style = MaterialTheme.typography.titleLarge, color = ink)
                 Text(
                     "%.1f MB used".format(done.sumOf { it.bytes } / 1_048_576.0) + if (active.isNotEmpty()) " · ${active.size} in progress" else "",
                     style = MaterialTheme.typography.bodyMedium, color = ink.copy(alpha = 0.8f),

@@ -43,12 +43,14 @@ Updating works the same way: install the new APK over the old one, and your down
 | 🔗 **Share anything** | Story cards and links for songs, albums, playlists and artists, plus "Play in Prism" for YouTube links. |
 | 📥 **Offline** | Downloads and smart downloads, with lyrics saved alongside every song. |
 | 🎚️ **Sound** | 10-band EQ, loudness normalization, Prism Spatial, skip silence and lossless playback. |
+| 🎛️ **Mix** | Songs blend into each other like a DJ set, with tempos matched and beats lined up. |
 | 🚗 **Android Auto** | Shuffle play, extra player buttons and lyrics on the car screen. |
 
 ## Features
 
 ### Listening
-- **Lyrics, word by word.** Better Lyrics (Apple Music's timed lyrics), QQ Music, NetEase, KuGou, LyricsPlus, Bini, LRCLIB, Unison, Genius and YouTube Music. Starred-out swear words ("f**k") are filled back in from Genius's full text, keeping the word-by-word timing.
+- **Lyrics, word by word.** Better Lyrics (Apple Music's timed lyrics), QQ Music, NetEase, KuGou, LyricsPlus, Bini, LRCLIB, Unison, Genius and YouTube Music. Starred-out swear words ("f**k") are filled back in from Genius's full text, keeping the word-by-word timing. Lyrics in another language can show a translation under each line.
+- **Mix.** When a song runs into the next, the two blend instead of stopping and starting. Prism measures each song's tempo on the phone (on Wi-Fi), starts the next song on the beat and plays it at the same tempo while they overlap, then eases it back to its own. Blends last 2 to 12 seconds, and an album's own tracks still play straight through.
 - **Player.** Full-bleed artwork and animated covers. Shows the codec and bitrate (or Lossless / Downloaded), with stats in an in-player panel.
 - **Music videos.** Tap the video toggle under the player to switch any song to its official music video. Playback carries on from the same spot, and the lyrics stay in sync. Fit or fill the frame, go full screen, or turn the phone sideways for edge-to-edge landscape. Video quality goes from 480p up to 1440p in Playback & sound.
 - **Sound.** 10-band equalizer with presets, bass boost, loudness normalization (uses YouTube's own loudness data, works offline), Prism Spatial for any headphones, skip silence, and a lossless mode that plays matching FLAC files on the phone.
@@ -139,6 +141,7 @@ Prism doesn't ship artwork, fonts or code copied from other apps, but several id
 - **Signatures** use fonts already on the phone, such as Android's own Dancing Script for the Autograph style.
 - **BitChord** (itself modelled on Apple Music) inspired the Now Playing screen.
 - **Spotify Wrapped** inspired the Replay story, including its "what's playing" card.
+- **Spotify's Mix** inspired Mix, the beat-matched blends between songs.
 - **Lyrics:** [Better Lyrics](https://betterlyrics.org) (Apple Music TTML and QQ Music "Portato"), NetEase, KuGou, LyricsPlus, Bini, [LRCLIB](https://lrclib.net), Unison, Genius and YouTube Music. Lyrics belong to their rights holders.
 - **Animated covers** come from Apple Music, Tidal and the ViVi Music canvas list.
 - **Playlist import** hands off to [TuneMyMusic](https://www.tunemymusic.com), the transfer service YouTube Music's own app uses. It's a separate service; Prism shares nothing with it.
@@ -148,7 +151,7 @@ Prism doesn't ship artwork, fonts or code copied from other apps, but several id
 
 ## Privacy
 
-Prism talks to YouTube Music and the lyric services directly from your phone. There is no Prism server and no telemetry. Listening history, Replay stats, downloads and settings stay on the device; if you sign in, your session is stored only in the app's private storage. Listen Together only ever talks to the other phones in your session, on your local network, and only while it's open.
+Prism talks to YouTube Music and the lyric services directly from your phone. There is no Prism server and no telemetry. Listening history, Replay stats, downloads and settings stay on the device; if you sign in, your session is stored only in the app's private storage. Listen Together only ever talks to the other phones in your session, on your local network, and only while it's open. Lyrics translation (off unless you turn it on) sends the lyrics' text to Google Translate.
 
 ## Support Prism
 
@@ -185,6 +188,10 @@ Unit tests (some call live lyric and YouTube Music endpoints, so they need a net
 | Compose UI and design kit | `ui/` |
 
 Stack: Kotlin, Jetpack Compose (Material 3), Media3 ExoPlayer and MediaSession, Room, DataStore, OkHttp, kotlinx.serialization, Coil, WorkManager, NewPipe Extractor.
+
+## Changelog
+
+What's new in each release is in [CHANGELOG.md](CHANGELOG.md) and on the [Releases page](https://github.com/Yigder/Prism/releases).
 
 ## Contributing
 

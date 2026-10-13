@@ -266,7 +266,7 @@ private fun ShareCard(target: ShareTarget, frost: FrostImage?, palette: ArtPalet
             )
             Spacer(Modifier.weight(1f))
             Text(
-                if (target.url != null) "Listen on YouTube Music" else "${target.songs.size} songs", color = Color.White.copy(alpha = 0.7f),
+                if (target.url != null) "Listen on YouTube Music" else com.prism.music.data.model.songCount(target.songs.size), color = Color.White.copy(alpha = 0.7f),
                 style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp),
             )
             Spacer(Modifier.height(2.dp))

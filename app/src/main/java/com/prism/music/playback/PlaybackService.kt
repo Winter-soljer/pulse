@@ -1,5 +1,6 @@
 package com.prism.music.playback
 
+import com.prism.music.data.friendlyMessage
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
@@ -175,6 +176,8 @@ class PlaybackService : MediaLibraryService(), Player.Listener {
         scope.launch { c.settings.flow.map { it.eq }.distinctUntilChanged().collect { effects.apply(it) } }
         scope.launch { c.settings.flow.map { it.skipSilence }.distinctUntilChanged().collect { player.skipSilenceEnabled = it } }
         scope.launch { c.settings.flow.map { it.autoplay }.distinctUntilChanged().drop(1).collect { onAutoplayChanged(it) } }
+        // "Keep playing videos" switched off: songs already lined up as their videos go back to songs.
+        scope.launch { c.settings.flow.map { it.videoContinues }.distinctUntilChanged().drop(1).collect { if (it) armNextVideo() else disarmVideos() } }
         scope.launch { c.settings.flow.map { it.spatial to it.spatialAmount }.distinctUntilChanged().collect { (on, amount) -> spatial.configure(on, amount) } }
         scope.launch { c.settings.flow.map { it.normalize }.distinctUntilChanged().collect { applyNormalization() } }
         scope.launch { c.library.likedIds.collect { updateButtons() } }
@@ -193,8 +196,73 @@ class PlaybackService : MediaLibraryService(), Player.Listener {
                 )
             }
         }
+        mix = MixEngine(
+            main = player,
+            scope = scope,
+            tempo = c.mixTempo,
+            mixMs = { c.settings.current.let { s -> if (s.mix) s.mixSeconds * 1000L else null } },
+            beatMatch = { c.settings.current.mixBeatMatch },
+            allowed = ::mayBlend,
+            unmetered = { getSystemService(android.net.ConnectivityManager::class.java)?.isActiveNetworkMetered == false },
+            buildTail = ::buildTailPlayer,
+        ).also { it.start() }
         restoreQueue()
         c.player.attach(this)
+    }
+
+    private lateinit var mix: MixEngine
+
+    /**
+     * Whether Mix may blend these two: not an album running into its own next track (albums are made to flow on
+     * as they are), not live streams or music videos, and not while playing along with others (Listen Together
+     * keeps everyone on the same song).
+     */
+    private fun mayBlend(from: MediaItem, to: MediaItem): Boolean {
+        val a = from.toSong() ?: return false
+        val b = to.toSong() ?: return false
+        if (a.isLive || b.isLive || from.videoModeId != null || to.videoModeId != null) return false
+        if (c.queue.followingHost || c.together.state.value !is com.prism.music.playback.together.TogetherState.Idle) return false
+        // Only while an album plays through (a radio or playlist that puts two of an album's songs side by side blends).
+        val album = a.album?.id
+        return !(album != null && album == b.album?.id && c.queue.source.value.kind == QueueKind.ALBUM)
+    }
+
+    /**
+     * The second player Mix plays a song's ending on while the next one fades in: the same sources, the same
+     * effects (spatial audio, the ending song's normalization, and the equalizer through the shared audio
+     * session), and no audio focus of its own.
+     */
+    private fun buildTailPlayer(shift: ShiftProcessor): ExoPlayer {
+        val s = c.settings.current
+        val tailSpatial = SpatialAudioProcessor().apply { configure(s.spatial, s.spatialAmount) }
+        val tailNormalizer = NormalizerProcessor().apply { setGainDb(normalizeGainDb) }
+        val renderers = object : DefaultRenderersFactory(this) {
+            override fun buildAudioSink(context: Context, enableFloatOutput: Boolean, enableAudioTrackPlaybackParams: Boolean): AudioSink =
+                DefaultAudioSink.Builder(context)
+                    .setEnableFloatOutput(enableFloatOutput || s.lossless)
+                    .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
+                    .setAudioProcessors(arrayOf(shift, tailSpatial, tailNormalizer))
+                    .build()
+        }
+        return ExoPlayer.Builder(this, renderers)
+            .setMediaSourceFactory(
+                PrismMediaSourceFactory(
+                    c.playbackDataSourceFactory(), c.videoDataSourceFactory(),
+                    androidx.media3.datasource.DefaultDataSource.Factory(this),
+                    localAudio = { item -> losslessFileFor(item) },
+                    liveDsf = c.liveDataSourceFactory(),
+                )
+            )
+            .setLoadControl(androidx.media3.exoplayer.DefaultLoadControl.Builder().setBufferDurationsMs(4_000, 15_000, 500, 500).build())
+            .setAudioAttributes(
+                AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MUSIC).build(),
+                false,
+            )
+            .build()
+            .also {
+                it.skipSilenceEnabled = false
+                it.setAudioSessionId(player.audioSessionId)
+            }
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaLibrarySession = session
@@ -207,6 +275,7 @@ class PlaybackService : MediaLibraryService(), Player.Listener {
     override fun onDestroy() {
         flushPlayTime()
         saveQueue()
+        mix.release()
         c.player.detach()
         carLyrics.stop()
         effects.release()
@@ -218,7 +287,26 @@ class PlaybackService : MediaLibraryService(), Player.Listener {
 
     // ------------------------------------------------------------ Player events
 
+    /** Id of the song being swapped in place (song ↔ video, audio ↔ live): the same listen goes on. */
+    private var swappingInPlace: String? = null
+
+    /** Replaces the item at [idx] with another form of the same song, without counting a new play. */
+    private fun swapInPlace(idx: Int, item: MediaItem) {
+        swappingInPlace = item.mediaId
+        try { player.replaceMediaItem(idx, item) } finally { swappingInPlace = null }
+    }
+
     override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+        // Song ↔ video and the like swap the item but it's still the same listen: the play time
+        // keeps adding up, and nothing that starts a new song (history, lyrics, prefetch) runs again.
+        if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED && mediaItem != null &&
+            mediaItem.mediaId == swappingInPlace && mediaItem.mediaId == trackedSong?.id
+        ) {
+            applyLiveVideo()
+            updateButtons()
+            scheduleSave()
+            return
+        }
         flushPlayTime()
         applyLiveVideo()
         val song = mediaItem?.toSong() ?: return
@@ -228,7 +316,11 @@ class PlaybackService : MediaLibraryService(), Player.Listener {
             return
         }
         trackedSong = song
+        // Already playing: a seamless move on (gapless, or a Mix blend); nothing to time.
+        startedLoading = if (player.isPlaying) null else song.id to SystemClock.elapsedRealtime()
         retries.remove(song.id)
+        // A queued song that's playing now isn't "next in queue" any more.
+        if (song.id in c.queue.userQueued.value) c.queue.userQueued.value = c.queue.userQueued.value - song.id
         if (player.isPlaying) playStartedAt = SystemClock.elapsedRealtime()
         c.nerdStats.value = NerdStats(videoId = song.id, outputDevice = AudioEffects.outputDevice(this))
         c.streamDetails[song.id]?.let { applyStreamStats(song.id) }
@@ -251,8 +343,15 @@ class PlaybackService : MediaLibraryService(), Player.Listener {
         scheduleSave()
     }
 
+    /** The song that just came up and when, until it's heard: how long starting a song takes (logcat tag PrismStream). */
+    private var startedLoading: Pair<String, Long>? = null
+
     override fun onIsPlayingChanged(isPlaying: Boolean) {
         val now = SystemClock.elapsedRealtime()
+        if (isPlaying) startedLoading?.let { (id, at) ->
+            if (id == player.currentMediaItem?.mediaId) android.util.Log.i("PrismStream", "$id playing ${now - at} ms after it came up (${c.streamDetails[id]?.first ?: "?"})")
+            startedLoading = null
+        }
         if (isPlaying) playStartedAt = now
         else if (playStartedAt > 0) {
             accumulatedMs += now - playStartedAt
@@ -261,7 +360,38 @@ class PlaybackService : MediaLibraryService(), Player.Listener {
         }
     }
 
-    override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) = updateButtons()
+    /** The song [prefetchNext] last got ready. */
+    private var warmedNext: String? = null
+
+    /**
+     * The queue changed under the current song (autoplay's suggestions landed, something was queued or moved):
+     * if a different song is next now, get that one ready instead. Playing a single song used to leave its first
+     * radio song cold, since the suggestions arrive after the song has started.
+     */
+    override fun onTimelineChanged(timeline: androidx.media3.common.Timeline, reason: Int) {
+        if (reason != Player.TIMELINE_CHANGE_REASON_PLAYLIST_CHANGED) return
+        val i = player.nextMediaItemIndex
+        val next = if (i == C.INDEX_UNSET) null else player.getMediaItemAt(i).mediaId
+        if (next != null && next != warmedNext && player.currentMediaItem != null) prefetchNext()
+    }
+
+    /** When playback stalled waiting for data (logged with how long, tag PrismStream). */
+    private var stalledAt = 0L
+
+    override fun onPlaybackStateChanged(playbackState: Int) {
+        val now = SystemClock.elapsedRealtime()
+        if (playbackState == Player.STATE_BUFFERING && player.playWhenReady && startedLoading == null) stalledAt = now
+        else if (playbackState == Player.STATE_READY && stalledAt > 0) {
+            android.util.Log.i("PrismStream", "${player.currentMediaItem?.mediaId} stalled ${now - stalledAt} ms at ${player.currentPosition} ms")
+            stalledAt = 0
+        }
+    }
+
+    override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
+        updateButtons()
+        // Shuffling picks a different next song.
+        prefetchNext()
+    }
 
     override fun onRepeatModeChanged(repeatMode: Int) = updateButtons()
 
@@ -277,7 +407,7 @@ class PlaybackService : MediaLibraryService(), Player.Listener {
             val idx = player.currentMediaItemIndex
             val song = player.currentMediaItem?.toSong()
             if (song != null && !song.isLive) {
-                player.replaceMediaItem(idx, song.copy(isLive = true).toMediaItem())
+                swapInPlace(idx, song.copy(isLive = true).toMediaItem())
                 applyLiveVideo()
                 player.seekToDefaultPosition(idx)
                 player.prepare()
@@ -304,7 +434,7 @@ class PlaybackService : MediaLibraryService(), Player.Listener {
             player.play()
             return
         }
-        c.player.reportError(error.cause?.message ?: error.message ?: "Playback failed")
+        c.player.reportError((error.cause ?: error).friendlyMessage("Playback failed"))
         if (player.hasNextMediaItem()) {
             scope.launch {
                 delay(1500)
@@ -322,10 +452,14 @@ class PlaybackService : MediaLibraryService(), Player.Listener {
      * sits from its reference level, so loud songs come down and quiet ones go up (by up to 6 dB;
      * the limiter in [NormalizerProcessor] keeps those from clipping).
      */
+    /** The normalization gain now applied (the ending song's, when a Mix blend's tail takes it over). */
+    private var normalizeGainDb = 0f
+
     private fun applyNormalization() {
         val loud = songLoudness
         val gain = if (c.settings.current.normalize && loud != null) (-loud).coerceIn(-12f, 6f) else 0f
         normalizer.setGainDb(gain)
+        normalizeGainDb = gain
         c.nerdStats.value = c.nerdStats.value.copy(loudnessDb = loud?.toDouble(), normalizationGainDb = gain)
         android.util.Log.i("PrismNormalize", "loudness ${loud ?: "unknown"} dB -> gain %.1f dB (normalize ${c.settings.current.normalize})".format(gain))
     }
@@ -428,9 +562,12 @@ class PlaybackService : MediaLibraryService(), Player.Listener {
         val i = player.nextMediaItemIndex
         if (i == C.INDEX_UNSET) return
         val next = player.getMediaItemAt(i).mediaId.takeIf { it.isNotBlank() } ?: return
+        warmedNext = next
+        // Mix lines the two up by their beats: measured now, well ahead of the blend.
+        if (::mix.isInitialized) mix.analyzeAhead(player.currentMediaItem?.mediaId, next)
         if (c.downloads.isDownloaded(next)) { armNextVideo(); return }
         scope.launch(Dispatchers.IO) {
-            c.streams.prefetch(next)
+            c.warmUp(next)
             // A live stream coming up is lined up as one, so it starts without a failed attempt first.
             if (runCatching { c.streams.isLive(next) }.getOrDefault(false)) withContext(Dispatchers.Main) {
                 val at = (0 until player.mediaItemCount).firstOrNull { player.getMediaItemAt(it).mediaId == next && it != player.currentMediaItemIndex }
@@ -509,7 +646,7 @@ class PlaybackService : MediaLibraryService(), Player.Listener {
         if (enabled == (item.videoModeId != null)) return null
         if (song.isLive) {
             // The picture is already in the stream: same item, video track on (or off), no seeking about.
-            player.replaceMediaItem(idx, song.toMediaItem(if (enabled) song.id else null))
+            swapInPlace(idx, song.toMediaItem(if (enabled) song.id else null))
             applyLiveVideo()
             if (player.playbackState == Player.STATE_IDLE) player.prepare()
             videoWatchdog?.cancel()
@@ -532,7 +669,7 @@ class PlaybackService : MediaLibraryService(), Player.Listener {
         val now = player.currentPosition
         val pos = (now + (known ?: 0L)).coerceAtLeast(0)
         val playWhenReady = player.playWhenReady
-        player.replaceMediaItem(idx, song.toMediaItem(vid))
+        swapInPlace(idx, song.toMediaItem(vid))
         player.seekTo(idx, pos)
         player.playWhenReady = playWhenReady
         if (player.playbackState == Player.STATE_IDLE) player.prepare()
@@ -583,7 +720,7 @@ class PlaybackService : MediaLibraryService(), Player.Listener {
         val current = player.currentMediaItem ?: return
         val song = current.toSong() ?: return
         if (song.isLive) {
-            player.replaceMediaItem(idx, song.toMediaItem(null))
+            swapInPlace(idx, song.toMediaItem(null))
             applyLiveVideo()
             if (player.playbackState == Player.STATE_IDLE) { player.prepare(); player.play() }
             c.player.onVideoFailed(songId)
@@ -593,7 +730,7 @@ class PlaybackService : MediaLibraryService(), Player.Listener {
         current.videoModeId?.let { failedVideos += it; prefetched -= it }
         val lag = current.videoModeId?.takeIf { it != song.id }?.let { c.videoSync.cached(song.id, it) } ?: 0L
         val pos = (player.currentPosition - lag).coerceAtLeast(0)
-        player.replaceMediaItem(idx, song.toMediaItem(null))
+        swapInPlace(idx, song.toMediaItem(null))
         player.seekTo(idx, pos)
         player.prepare()
         player.play()
@@ -733,6 +870,10 @@ class PlaybackService : MediaLibraryService(), Player.Listener {
         if (q.songs.isEmpty()) return
         c.queue.source.value = QueueSource(QueueKind.OTHER, q.title)
         player.setMediaItems(q.songs.map { it.toMediaItem() }, q.index.coerceIn(0, q.songs.lastIndex), q.positionMs)
+        // The mini player shows this song: get it ready, so Play starts it straight away.
+        player.currentMediaItem?.mediaId?.takeIf { it.isNotBlank() }?.let { id -> scope.launch(Dispatchers.IO) { c.warmUp(id) } }
+        // And the one after it (otherwise only a song coming up warms its successor).
+        prefetchNext()
     }
 
     // ------------------------------------------------------------ Session

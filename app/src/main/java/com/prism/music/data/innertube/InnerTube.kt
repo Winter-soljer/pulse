@@ -59,6 +59,27 @@ class InnerTube(
 
     private val locale: Locale get() = Locale.getDefault()
 
+    /**
+     * Set when YouTube refused a request as "Request contains an invalid argument" and the plain version of it went
+     * through: from then on requests leave out the parts that can trip it (the brand-account delegation, a stale
+     * visitor id, an unusual region), for this session.
+     */
+    @Volatile
+    private var plainContext = false
+
+    /** The phone's language as YouTube takes it. */
+    private val hl: String get() = if (plainContext) "en" else locale.language.lowercase().takeIf { it.matches(Regex("[a-z]{2,3}")) } ?: "en"
+
+    /** The phone's country. Regions that aren't countries ("419" in es-419, Latin America) make YouTube refuse requests. */
+    private val gl: String get() = if (plainContext) "US" else locale.country.uppercase().takeIf { it.matches(Regex("[A-Z]{2}")) } ?: "US"
+
+    /** A brand account's id when the signed-in session is one (DATASYNC_ID "brand||user"), else null. */
+    private fun onBehalfOfUser(): String? {
+        if (plainContext) return null
+        val parts = current.dataSyncId.split("||")
+        return parts[0].takeIf { parts.size > 1 && parts[1].isNotBlank() && it.isNotBlank() }
+    }
+
     private fun cookieMap(): Map<String, String> = current.cookie.split(";")
         .mapNotNull { part ->
             val i = part.indexOf('=')
@@ -81,15 +102,14 @@ class InnerTube(
         putJsonObject("client") {
             put("clientName", "WEB_REMIX")
             put("clientVersion", clientVersion)
-            put("hl", locale.language.ifBlank { "en" })
-            put("gl", locale.country.ifBlank { "US" })
+            put("hl", hl)
+            put("gl", gl)
             put("platform", "DESKTOP")
             put("userAgent", USER_AGENT)
-            if (visitorData.isNotBlank()) put("visitorData", visitorData)
+            if (visitorData.isNotBlank() && !plainContext) put("visitorData", visitorData)
         }
         putJsonObject("user") {
-            val parts = s.dataSyncId.split("||")
-            if (s.isLoggedIn && parts.size > 1 && parts[1].isNotBlank()) put("onBehalfOfUser", parts[0])
+            if (s.isLoggedIn) onBehalfOfUser()?.let { put("onBehalfOfUser", it) }
         }
     }
 
@@ -101,7 +121,7 @@ class InnerTube(
         header("X-Origin", ORIGIN)
         header("X-YouTube-Client-Name", "67")
         header("X-YouTube-Client-Version", clientVersion)
-        if (visitorData.isNotBlank()) header("X-Goog-Visitor-Id", visitorData)
+        if (visitorData.isNotBlank() && !plainContext) header("X-Goog-Visitor-Id", visitorData)
         if (s.isLoggedIn) {
             header("Cookie", s.cookie)
             authorization()?.let { header("Authorization", it) }
@@ -153,24 +173,42 @@ class InnerTube(
     suspend fun post(endpoint: String, body: JsonObject = JsonObject(emptyMap()), query: String = ""): JsonObject =
         withContext(Dispatchers.IO) {
             ensureClientVersion()
-            val payload = buildJsonObject {
-                put("context", context())
-                body.forEach { (k, v) -> put(k, v) }
-            }
-            val req = Request.Builder()
-                .url("$BASE$endpoint?prettyPrint=false$query")
-                .post(payload.toString().toRequestBody(JSON_TYPE))
-                .applyHeaders()
-                .build()
-            http.newCall(req).execute().use { resp ->
-                val text = resp.body.string()
-                if (!resp.isSuccessful) {
-                    val msg = runCatching { json.parseToJsonElement(text).str("error", "message") }.getOrNull()
-                    throw InnerTubeException(msg ?: "YouTube Music returned HTTP ${resp.code}", resp.code)
+            try {
+                postOnce(endpoint, body, query)
+            } catch (e: InnerTubeException) {
+                // "Request contains an invalid argument": seen right after signing in (a brand-account delegation or
+                // visitor id YouTube won't take, or an odd region). The plain request usually goes through; keep to it.
+                if (e.code != 400 || plainContext) throw e
+                plainContext = true
+                android.util.Log.w("InnerTube", "$endpoint refused (${e.message}); retrying with a plain context")
+                try {
+                    postOnce(endpoint, body, query)
+                } catch (again: InnerTubeException) {
+                    plainContext = false
+                    throw e
                 }
-                json.parseToJsonElement(text).jsonObject
             }
         }
+
+    private fun postOnce(endpoint: String, body: JsonObject, query: String): JsonObject {
+        val payload = buildJsonObject {
+            put("context", context())
+            body.forEach { (k, v) -> put(k, v) }
+        }
+        val req = Request.Builder()
+            .url("$BASE$endpoint?prettyPrint=false$query")
+            .post(payload.toString().toRequestBody(JSON_TYPE))
+            .applyHeaders()
+            .build()
+        return http.newCall(req).execute().use { resp ->
+            val text = resp.body.string()
+            if (!resp.isSuccessful) {
+                val msg = runCatching { json.parseToJsonElement(text).str("error", "message") }.getOrNull()
+                throw InnerTubeException(msg ?: "YouTube Music returned HTTP ${resp.code}", resp.code)
+            }
+            json.parseToJsonElement(text).jsonObject
+        }
+    }
 
     /**
      * Asks youtube.com itself (the WEB client, anonymously) rather than YouTube Music. Used for what
@@ -182,8 +220,8 @@ class InnerTube(
                 putJsonObject("client") {
                     put("clientName", "WEB")
                     put("clientVersion", WEB_CLIENT_VERSION)
-                    put("hl", locale.language.ifBlank { "en" })
-                    put("gl", locale.country.ifBlank { "US" })
+                    put("hl", hl)
+                    put("gl", gl)
                     put("platform", "DESKTOP")
                     put("userAgent", USER_AGENT)
                 }
@@ -206,7 +244,11 @@ class InnerTube(
         }
     }
 
-    /** A client the player endpoint can be asked as, for streams anonymous playback can't get. */
+    /**
+     * A client the player endpoint can be asked as (signed in), for streams NewPipe's anonymous playback can't get.
+     * Tried and dropped as anonymous fallbacks (2026-10): ANDROID_VR answers, but googlevideo refuses its streams past
+     * the first megabyte; TV without cookies answers "The page needs to be reloaded".
+     */
     enum class PlayerClient(val clientName: String, val nameId: Int, val userAgent: String, val origin: String) {
         /** YouTube on TVs: takes the signed-in cookies, plays age-restricted and Premium-only songs, needs no PO token. */
         TV("TVHTML5", 7, "Mozilla/5.0 (ChromiumStylePlatform) Cobalt/Version", "https://www.youtube.com"),
@@ -227,14 +269,13 @@ class InnerTube(
                 putJsonObject("client") {
                     put("clientName", client.clientName)
                     put("clientVersion", version)
-                    put("hl", locale.language.ifBlank { "en" })
-                    put("gl", locale.country.ifBlank { "US" })
+                    put("hl", hl)
+                    put("gl", gl)
                     put("userAgent", client.userAgent)
-                    if (s.visitorData.isNotBlank()) put("visitorData", s.visitorData)
+                    if (visitorData.isNotBlank()) put("visitorData", visitorData)
                 }
                 putJsonObject("user") {
-                    val parts = s.dataSyncId.split("||")
-                    if (parts.size > 1 && parts[1].isNotBlank()) put("onBehalfOfUser", parts[0])
+                    onBehalfOfUser()?.let { put("onBehalfOfUser", it) }
                 }
             }
             put("videoId", videoId)
@@ -258,7 +299,7 @@ class InnerTube(
             .header("X-YouTube-Client-Name", client.nameId.toString())
             .header("X-YouTube-Client-Version", version)
             .apply {
-                if (s.visitorData.isNotBlank()) header("X-Goog-Visitor-Id", s.visitorData)
+                if (visitorData.isNotBlank()) header("X-Goog-Visitor-Id", visitorData)
                 header("Cookie", s.cookie)
                 authorization(client.origin)?.let { header("Authorization", it) }
                 header("X-Goog-AuthUser", "0")

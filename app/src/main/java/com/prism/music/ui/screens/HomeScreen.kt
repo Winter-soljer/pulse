@@ -167,7 +167,10 @@ fun HomeScreen(bottomPadding: androidx.compose.ui.unit.Dp) {
                         HomeSections.GREETING -> GreetingSection(recent)
                         HomeSections.QUICK_PICKS -> {
                             val qp = shelves.firstOrNull { it.title.equals("Quick picks", true) }
-                            val items = qp?.items?.filterIsInstance<SongItem>()?.map { it.song } ?: recent.take(16)
+                            // Recent plays stand in only once YouTube's picks are known to be missing: while Home is
+                            // still loading they flashed up (a lone, stale row) and were then swapped out.
+                            val items = qp?.items?.filterIsInstance<SongItem>()?.map { it.song }
+                                ?: if (home.state is Load.Loading) emptyList() else recent.take(16)
                             if (items.isNotEmpty()) SongSection(cfg, "Quick picks", qp?.strapline, items)
                         }
                         HomeSections.RECENT -> if (recent.isNotEmpty()) SongSection(cfg, cfg.title, null, recent.take(20))
@@ -523,7 +526,7 @@ private fun TopGenresSection() {
                     .clickable { nav.go(Routes.liked(g)) }.padding(12.dp),
             ) {
                 Text(g, color = Color.White, style = MaterialTheme.typography.titleMedium, modifier = Modifier.align(Alignment.TopStart))
-                Text("$n songs", color = Color.White.copy(alpha = 0.8f), style = MaterialTheme.typography.labelSmall, modifier = Modifier.align(Alignment.BottomStart))
+                Text(com.prism.music.data.model.songCount(n), color = Color.White.copy(alpha = 0.8f), style = MaterialTheme.typography.labelSmall, modifier = Modifier.align(Alignment.BottomStart))
             }
         }
     }

@@ -195,6 +195,10 @@ data class AppSettings(
     val preferSynced: Boolean = true,
     /** Pass over sources whose lyrics star out swear words when another has them in full. */
     val skipCensored: Boolean = true,
+    /** A translation under each lyric line (machine translation, asked of Google Translate), when the song isn't in it. */
+    val lyricsTranslate: Boolean = false,
+    /** Language code to translate lyrics into; blank means the phone's language. */
+    val lyricsTranslateTo: String = "",
     val lyricsScale: Float = 1f,
     /** Lyrics on Android Auto's player (the car's Lyrics button flips this too). */
     val carLyrics: Boolean = true,
@@ -214,6 +218,12 @@ data class AppSettings(
     val losslessLocal: Boolean = false,
     val normalize: Boolean = true,
     val skipSilence: Boolean = false,
+    /** Mix: songs blend into each other when one runs into the next (after Spotify's Mix), instead of stopping and starting. */
+    val mix: Boolean = false,
+    /** How long a Mix blend lasts, in seconds. */
+    val mixSeconds: Int = 6,
+    /** Mix lines up the songs' beats and plays the incoming song at the outgoing one's tempo during the blend. */
+    val mixBeatMatch: Boolean = true,
     val videoMaxHeight: Int = 1080,
     // Storage & downloads
     val cacheSizeMb: Int = 4096,
@@ -314,6 +324,8 @@ class SettingsRepository(private val context: Context, scope: CoroutineScope) {
         val lyricsOrder = stringPreferencesKey("lyrics_order")
         val preferSynced = booleanPreferencesKey("prefer_synced")
         val skipCensored = booleanPreferencesKey("skip_censored")
+        val lyricsTranslate = booleanPreferencesKey("lyrics_translate")
+        val lyricsTranslateTo = stringPreferencesKey("lyrics_translate_to")
         val lyricsScale = floatPreferencesKey("lyrics_scale")
         val carLyrics = booleanPreferencesKey("car_lyrics")
         val carLyricsStyle = stringPreferencesKey("car_lyrics_style")
@@ -327,6 +339,9 @@ class SettingsRepository(private val context: Context, scope: CoroutineScope) {
         val losslessLocal = booleanPreferencesKey("lossless_local")
         val normalize = booleanPreferencesKey("normalize")
         val skipSilence = booleanPreferencesKey("skip_silence")
+        val mix = booleanPreferencesKey("mix")
+        val mixSeconds = intPreferencesKey("mix_seconds")
+        val mixBeatMatch = booleanPreferencesKey("mix_beat_match")
         val videoMaxHeight = intPreferencesKey("video_max_height")
         val cacheSizeMb = intPreferencesKey("cache_size_mb")
         val downloadWifiOnly = booleanPreferencesKey("download_wifi_only")
@@ -425,6 +440,8 @@ class SettingsRepository(private val context: Context, scope: CoroutineScope) {
             } ?: d.lyricsOrder,
             preferSynced = p[K.preferSynced] ?: d.preferSynced,
             skipCensored = p[K.skipCensored] ?: d.skipCensored,
+            lyricsTranslate = p[K.lyricsTranslate] ?: d.lyricsTranslate,
+            lyricsTranslateTo = p[K.lyricsTranslateTo] ?: d.lyricsTranslateTo,
             lyricsScale = p[K.lyricsScale] ?: d.lyricsScale,
             carLyrics = p[K.carLyrics] ?: d.carLyrics,
             carLyricsStyle = p.enum(K.carLyricsStyle, d.carLyricsStyle),
@@ -437,6 +454,9 @@ class SettingsRepository(private val context: Context, scope: CoroutineScope) {
             lossless = p[K.lossless] ?: d.lossless,
             losslessLocal = p[K.losslessLocal] ?: d.losslessLocal,
             normalize = p[K.normalize] ?: d.normalize,
+            mix = p[K.mix] ?: d.mix,
+            mixSeconds = (p[K.mixSeconds] ?: d.mixSeconds).coerceIn(2, 12),
+            mixBeatMatch = p[K.mixBeatMatch] ?: d.mixBeatMatch,
             skipSilence = p[K.skipSilence] ?: d.skipSilence,
             videoMaxHeight = p[K.videoMaxHeight] ?: d.videoMaxHeight,
             cacheSizeMb = p[K.cacheSizeMb] ?: d.cacheSizeMb,
@@ -551,6 +571,8 @@ class SettingsRepository(private val context: Context, scope: CoroutineScope) {
     fun setLyricsOrder(v: List<LyricsSource>) = edit { it[K.lyricsOrder] = v.joinToString(",") { s -> s.name } }
     fun setPreferSynced(v: Boolean) = edit { it[K.preferSynced] = v }
     fun setSkipCensored(v: Boolean) = edit { it[K.skipCensored] = v }
+    fun setLyricsTranslate(v: Boolean) = edit { it[K.lyricsTranslate] = v }
+    fun setLyricsTranslateTo(v: String) = edit { it[K.lyricsTranslateTo] = v }
     fun setLyricsScale(v: Float) = edit { it[K.lyricsScale] = v }
     fun setCarLyrics(v: Boolean) = edit { it[K.carLyrics] = v }
     fun setCarLyricsStyle(v: CarLyricsStyle) = edit { it[K.carLyricsStyle] = v.name }
@@ -563,6 +585,9 @@ class SettingsRepository(private val context: Context, scope: CoroutineScope) {
     fun setLossless(v: Boolean) = edit { it[K.lossless] = v }
     fun setLosslessLocal(v: Boolean) = edit { it[K.losslessLocal] = v }
     fun setNormalize(v: Boolean) = edit { it[K.normalize] = v }
+    fun setMix(v: Boolean) = edit { it[K.mix] = v }
+    fun setMixSeconds(v: Int) = edit { it[K.mixSeconds] = v.coerceIn(2, 12) }
+    fun setMixBeatMatch(v: Boolean) = edit { it[K.mixBeatMatch] = v }
     fun setSkipSilence(v: Boolean) = edit { it[K.skipSilence] = v }
     fun setVideoMaxHeight(v: Int) = edit { it[K.videoMaxHeight] = v }
     fun setCacheSizeMb(v: Int) = edit { it[K.cacheSizeMb] = v }

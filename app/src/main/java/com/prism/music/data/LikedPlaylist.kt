@@ -56,7 +56,7 @@ class LikedPlaylist(private val c: AppContainer) {
                 save(id, name, ids.toSet())
                 c.library.refreshCollections()
                 id
-            }.onFailure { lastError.value = it.message }
+            }.onFailure { lastError.value = it.friendlyMessage() }
         }
     }
 
@@ -114,7 +114,7 @@ class LikedPlaylist(private val c: AppContainer) {
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Exception) {
-                lastError.value = e.message ?: "Couldn't update the playlist"
+                lastError.value = e.friendlyMessage("Couldn't update the playlist")
             } finally {
                 syncing.value = false
             }

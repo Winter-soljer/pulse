@@ -214,6 +214,9 @@ fun hiRes(url: String?, size: Int = 1080): String? {
     }
 }
 
+/** "1 song", "12 songs". */
+fun songCount(n: Int): String = if (n == 1) "1 song" else "$n songs"
+
 fun formatDuration(sec: Int): String {
     if (sec <= 0) return ""
     val h = sec / 3600
