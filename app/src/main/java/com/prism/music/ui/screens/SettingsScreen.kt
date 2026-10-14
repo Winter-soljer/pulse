@@ -135,7 +135,7 @@ enum class SettingsSection(val key: String, val title: String, val icon: ImageVe
         INTERFACE -> listOf(s.navStyle.label + " bar", "${s.navTabs.size} tabs", s.miniPlayerStyle.label + " mini player").joinToString(" · ")
         PLAYER -> listOfNotNull(s.playerBackground.label, if (s.fullBleedArtwork) "Full-bleed artwork" else "Framed artwork", if (s.canvasEnabled) "Animated covers" else null).joinToString(" · ")
         SOUND -> listOfNotNull(if (s.lossless) "Lossless" else s.audioQuality.label + " quality", if (s.spatial) "Prism Spatial" else null, if (s.eq.enabled) "EQ ${s.eq.preset}" else null, if (s.normalize) "Normalized" else null).joinToString(" · ")
-        LYRICS -> "${s.lyricsOrder.first().label} first · ${if (s.preferSynced) "synced preferred" else "any lyrics"}"
+        LYRICS -> "${s.lyricsOrder.first().label} first · ${if (s.preferSynced) "karaoke preferred" else "any lyrics"}"
         DOWNLOADS -> listOfNotNull(if (s.smartDownloads) "Smart downloads ${formatGb(s.smartDownloadGb)}" else null, if (s.downloadWifiOnly) "Wi-Fi only" else "Any network").joinToString(" · ")
         HOME -> "Sections, order and styles" + if (s.contentCountry.isNotBlank()) " · ${countryName(s.contentCountry)}" else ""
         LIBRARY -> "${s.libraryView.label} view · ${if (s.replayHours) "hours" else "minutes"}"
@@ -737,7 +737,7 @@ private fun LyricsSettings() {
     val prefs = LocalContainer.current.settings
     Column(verticalArrangement = Arrangement.spacedBy(22.dp)) {
         Group("Display") {
-            Toggle("Prefer synced lyrics", "Skip plain-text results when a later source has time-synced lines", s.preferSynced) { prefs.setPreferSynced(it) }
+            Toggle("Prefer karaoke & synced lyrics", "Karaoke lyrics (lit up word by word) first, from any source that has them, then time-synced lines, then plain text", s.preferSynced) { prefs.setPreferSynced(it) }
             Toggle("Uncensor lyrics", "Fill starred-out swear words (f**k) back in from Genius, keeping word timings, and pass over a source that still stars them out", s.skipCensored) { prefs.setSkipCensored(it) }
             Toggle("Focus blur", "Lines further from the one being sung fall out of focus", s.lyricsBlur) { prefs.setLyricsBlur(it) }
             Toggle(

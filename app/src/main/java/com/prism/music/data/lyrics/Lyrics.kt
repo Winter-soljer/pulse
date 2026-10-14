@@ -9,6 +9,7 @@ import com.prism.music.data.model.Song
 import com.prism.music.data.prefs.AppSettings
 import com.prism.music.data.prefs.LyricsSource
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -847,24 +848,39 @@ class LyricsRepository(
     /**
      * The listener's own pick for this song if they made one, else whatever's
      * already saved (so downloaded songs have lyrics offline, instantly), else
-     * sources in the user's order, preferring synced lyrics when enabled.
+     * sources in the user's order, preferring karaoke (word by word), then time-synced lines, when enabled.
      */
     suspend fun auto(song: Song, force: Boolean = false): Lyrics? {
         if (song.isEpisode) return null
+        val s = settings()
+        var savedBest: Lyrics? = null
         if (!force) {
             chosen(song)?.let { src -> fetch(song, src)?.let { return it } }
-            saved(song)?.let { return it }
+            // Saved karaoke is as good as it gets. Saved line-synced lyrics used to be kept for good, so a song never
+            // found the karaoke a later source had; now the sources are asked (their own saved answers come back
+            // instantly), and the saved copy is the fallback, offline too.
+            savedBest = saved(song)
+            savedBest?.takeIf { it.wordSynced || !s.preferSynced }?.let { return it }
         }
-        val s = settings()
         var plainFallback: Lyrics? = null
         var censored: Lyrics? = null
-        for (src in s.lyricsOrder) {
+        for ((i, src) in s.lyricsOrder.withIndex()) {
             val l = fetch(song, src, force) ?: continue
             if (unwanted(l)) { if (censored == null || (l.synced && !censored.synced)) censored = l; continue }
-            if (l.synced || !s.preferSynced) return l
+            if (l.wordSynced || !s.preferSynced) return l
+            if (l.synced) {
+                // Karaoke beats time-synced lines, even from a source further down the list: those that can have it
+                // are asked as well, all at once so it stays quick, and the first in the listener's order wins.
+                val rest = s.lyricsOrder.drop(i + 1).filter { it in WORD_SOURCES }
+                val karaoke = kotlinx.coroutines.coroutineScope {
+                    rest.map { r -> async { runCatching { fetch(song, r, force) }.getOrNull() } }
+                        .map { it.await() }
+                }.firstOrNull { it != null && it.wordSynced && !unwanted(it) }
+                return karaoke ?: l
+            }
             if (plainFallback == null) plainFallback = l
         }
-        // Censored words beat no words at all.
-        return plainFallback ?: censored
+        // Saved lyrics beat what's left (offline, say); censored words beat no words at all.
+        return savedBest?.takeIf { it.synced } ?: plainFallback ?: savedBest ?: censored
     }
 }

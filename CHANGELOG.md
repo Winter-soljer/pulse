@@ -26,6 +26,7 @@ Everything since 1.6.0 (1.6.1 was tagged but never released).
   - lyric files that shift their own timing (an `[offset]` line) were read without the shift, so every line was early or late;
   - some sources used an extended or radio edit's lyrics, which ran early or late; versions more than 8 seconds off are now turned down, and lyrics saved from those sources are checked again once;
   - while paused, lyrics no longer creep ahead and jump back.
+- **Karaoke lyrics first.** Lyrics that light up word by word are now called **Karaoke** (Lyrics source shows "Karaoke", "Time-synced lines" or "Plain text"). They win over time-synced lines even when a source earlier in your order only has lines, and songs whose time-synced lyrics were saved before look for karaoke again.
 - **Uncensored lyrics:** words starred out whole (`****`, as Apple Music's lyrics do) are filled in now, as in Childish Gambino's "IV. Sweatpants". Songs with a guest in the title find their full words again, and YouTube Music's or LRCLIB's lyrics fill in when Genius doesn't have the song.
 - **Menus:** swiping a menu down (like the player's ⋯) could stutter, or pop back up after being flung away.
 - **Player:** an interrupted swipe down could leave the player stuck part of the way down.

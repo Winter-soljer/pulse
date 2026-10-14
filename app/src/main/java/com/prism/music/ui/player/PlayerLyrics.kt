@@ -117,7 +117,7 @@ private val FALLOFF_ALPHA = floatArrayOf(1f, 0.8f, 0.7f, 0.58f, 0.46f)
 private val FALLOFF_BLUR = arrayOf(0.dp, 1.dp, 1.dp, 1.7.dp, 2.4.dp)
 private const val UNSUNG_ALPHA = 0.38f
 
-enum class ProviderState { UNKNOWN, LOADING, FOUND_SYNCED, FOUND_PLAIN, NONE }
+enum class ProviderState { UNKNOWN, LOADING, FOUND_KARAOKE, FOUND_SYNCED, FOUND_PLAIN, NONE }
 
 @Stable
 class LyricsState(
@@ -225,6 +225,7 @@ class LyricsState(
         if (this != null) censoredSources[source] = censored
         return when {
             this == null -> ProviderState.NONE
+            wordSynced -> ProviderState.FOUND_KARAOKE
             synced -> ProviderState.FOUND_SYNCED
             else -> ProviderState.FOUND_PLAIN
         }
@@ -731,7 +732,8 @@ fun LyricsProviderSheet(state: LyricsState, onDismiss: () -> Unit) {
                         Text(
                             when (st) {
                                 ProviderState.LOADING, ProviderState.UNKNOWN -> "Checking…"
-                                ProviderState.FOUND_SYNCED -> "Time-synced"
+                                ProviderState.FOUND_KARAOKE -> "Karaoke · lights up word by word"
+                                ProviderState.FOUND_SYNCED -> "Time-synced lines"
                                 ProviderState.FOUND_PLAIN -> "Plain text"
                                 ProviderState.NONE -> "Not available for this song"
                             } + if (starred && st != ProviderState.NONE) " · Censored" else "",

@@ -947,7 +947,7 @@ private fun DownloadsInfo(songs: List<Song>, ask: (String, () -> Unit) -> Unit) 
             val withLyrics = ids.count { (levels[it] ?: 0) > 0 }
             val karaoke = ids.count { (levels[it] ?: 0) >= 3 }
             Text(
-                "Lyrics for $withLyrics · $karaoke word by word" + if (working > 0) " · getting more…" else "",
+                "Lyrics for $withLyrics · $karaoke karaoke" + if (working > 0) " · getting more…" else "",
                 style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant, textAlign = TextAlign.Center,
             )
         }
