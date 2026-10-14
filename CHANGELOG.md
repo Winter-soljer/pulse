@@ -2,6 +2,29 @@
 
 What changed in each release. Older releases are described on the [Releases page](https://github.com/Yigder/Prism/releases).
 
+## 1.6.3
+
+### New
+- **Your music files.** Library → **On this phone** lists the music on your phone (MP3, M4A, FLAC, OGG, WAV…) with its own tags and album art, sorted by date added, title, artist or album, with Play and Shuffle. Songs play from the file, with normalization, EQ, Mix, lyrics and Replay. Prism asks once for access and only reads the files.
+- **Smart Downloads is one storage space.** It now covers both the songs you stream (the old song cache) and the songs it downloads ahead, under one size (your old two sizes added together). When it's full, the songs you're least likely to play again make room, and liked songs are kept longest. **Smart Downloads on mobile data** lets it download without Wi-Fi, and **Clear Smart Downloads** empties it (songs you downloaded yourself stay).
+- **Prism's own icons** everywhere: minimal, rounded line icons in place of Google's.
+- **Search:** better top results. Abbreviations work ("adtr" finds A Day to Remember, also "rhcp", "mcr"), YouTube's own top pick is used unless it's a cover or remix you didn't ask for, a song wins over its music video, and suggestions start with your artists and recent searches.
+- **Replay** lists your top 100 songs.
+- Settings → About → tapping the version opens Prism's GitHub page.
+
+### Fixed
+- **Normalize volume** really evens songs out now: each song's loudness is measured on your phone (LUFS, as Spotify and YouTube use) and brought to the same level. YouTube's own figure, used before, hardly differed between loud and quiet songs. The next song's level is ready before it starts. Stats for nerds shows the measured loudness.
+- **Mix** blended into silence, or not at all, on songs whose music ends before the file does (a fade-out or a silent tail): blends are now timed from where the music ends, the next song comes straight in if the ending one goes quiet, silence at the start of the next song is skipped, and a slow-loading ending gets more time. "Measure songs on mobile data" (Settings → Playback & sound → Sound) covers Mix and normalization; songs already on your phone are measured without data.
+- **Scrubbing** after changing songs could jump too far (it used the first song's length).
+- **The player's ⋯ menu** stuck or stuttered when pulled down on songs with animated covers.
+- **"Alright" (Kendrick Lamar)** and other long explicit songs froze the player for a moment as they opened, while starred-out words were filled in; songs with long music videos also opened sluggishly.
+- **Music videos with a long intro** (like "Alright") have their lyrics lined up again.
+- **After a podcast,** music plays as the song again, not its video.
+- **Live streams** load again when signed in.
+- **Home's frosted background** follows the song that's playing (#3).
+- **Search:** the search box has its background back, and a top result's play button turns into pause (#5).
+- **Replay:** genre names are readable with a white accent in light mode.
+
 ## 1.6.2
 
 Everything since 1.6.0 (1.6.1 was tagged but never released).

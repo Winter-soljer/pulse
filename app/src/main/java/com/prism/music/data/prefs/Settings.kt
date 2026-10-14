@@ -236,9 +236,17 @@ data class AppSettings(
     val cacheSizeMb: Int = 4096,
     val downloadWifiOnly: Boolean = true,
     val downloadLikes: Boolean = true,
+    /** Smart Downloads' picks: the songs you're most likely to play are downloaded ahead. */
     val smartDownloads: Boolean = true,
-    /** Space smart downloads may fill, in GB. */
+    /** Space smart downloads may fill, in GB (before 1.6.3; now part of [offlineGb]). */
     val smartDownloadGb: Float = 1f,
+    /**
+     * Smart Downloads' space, in GB: its picks plus the songs you've streamed (the song cache), which used to be two
+     * settings. Phones that had them start with their sum.
+     */
+    val offlineGb: Float = 5f,
+    /** Smart Downloads may download its picks on mobile data too. */
+    val smartDownloadsCellular: Boolean = false,
     // Audio effects
     val eq: EqSettings = EqSettings(bassBoost = 32, virtualizer = 6, loudnessGainMb = 39),
     /** Prism Spatial, the software spatializer. */
@@ -359,6 +367,8 @@ class SettingsRepository(private val context: Context, scope: CoroutineScope) {
         val downloadLikes = booleanPreferencesKey("download_likes")
         val smartDownloads = booleanPreferencesKey("smart_downloads")
         val smartDownloadGb = floatPreferencesKey("smart_download_gb")
+        val offlineGb = floatPreferencesKey("offline_gb")
+        val smartDownloadsCellular = booleanPreferencesKey("smart_downloads_cellular")
         val eq = stringPreferencesKey("eq")
         val homeLayout = stringPreferencesKey("home_layout")
         val autoAddSections = booleanPreferencesKey("auto_add_sections")
@@ -478,6 +488,12 @@ class SettingsRepository(private val context: Context, scope: CoroutineScope) {
             downloadLikes = p[K.downloadLikes] ?: d.downloadLikes,
             smartDownloads = p[K.smartDownloads] ?: d.smartDownloads,
             smartDownloadGb = p[K.smartDownloadGb] ?: d.smartDownloadGb,
+            offlineGb = p[K.offlineGb] ?: run {
+                // The old smart downloads space and song cache add up to the new one (an unlimited cache counts as 20 GB).
+                val cacheMb = p[K.cacheSizeMb] ?: d.cacheSizeMb
+                (p[K.smartDownloadGb] ?: d.smartDownloadGb) + if (cacheMb <= 0) 20f else cacheMb / 1024f
+            },
+            smartDownloadsCellular = p[K.smartDownloadsCellular] ?: d.smartDownloadsCellular,
             eq = p[K.eq]?.let { runCatching { json.decodeFromString<EqSettings>(it) }.getOrNull() } ?: d.eq,
             homeLayout = p[K.homeLayout]?.let {
                 runCatching { json.decodeFromString<List<HomeSectionConfig>>(it) }.getOrNull()
@@ -612,6 +628,8 @@ class SettingsRepository(private val context: Context, scope: CoroutineScope) {
     fun setDownloadLikes(v: Boolean) = edit { it[K.downloadLikes] = v }
     fun setSmartDownloads(v: Boolean) = edit { it[K.smartDownloads] = v }
     fun setSmartDownloadGb(v: Float) = edit { it[K.smartDownloadGb] = v }
+    fun setOfflineGb(v: Float) = edit { it[K.offlineGb] = v }
+    fun setSmartDownloadsCellular(v: Boolean) = edit { it[K.smartDownloadsCellular] = v }
     fun setEq(v: EqSettings) = edit { it[K.eq] = json.encodeToString(EqSettings.serializer(), v) }
     fun setHomeLayout(v: List<HomeSectionConfig>) = edit {
         it[K.homeLayout] = json.encodeToString(kotlinx.serialization.builtins.ListSerializer(HomeSectionConfig.serializer()), v)

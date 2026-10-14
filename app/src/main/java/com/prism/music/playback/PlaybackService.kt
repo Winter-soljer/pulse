@@ -208,10 +208,7 @@ class PlaybackService : MediaLibraryService(), Player.Listener {
             mixMs = { c.settings.current.let { s -> if (s.mix) s.mixSeconds * 1000L else null } },
             beatMatch = { c.settings.current.mixBeatMatch },
             allowed = ::mayBlend,
-            mayDownload = {
-                c.settings.current.mixTempoOnCellular ||
-                    getSystemService(android.net.ConnectivityManager::class.java)?.isActiveNetworkMetered == false
-            },
+            scanFromPhone = { id -> scope.launch { c.mixTempo.measure(id, network = false) } },
             buildTail = ::buildTailPlayer,
         ).also { it.start() }
         restoreQueue()
@@ -335,7 +332,11 @@ class PlaybackService : MediaLibraryService(), Player.Listener {
             val resume = c.episodes.positionOf(song.id)
             if (resume > 0 && player.currentPosition < 5_000) player.seekTo(resume)
             if (player.playbackParameters.speed != episodeSpeed) player.setPlaybackSpeed(episodeSpeed)
-        } else if (lastWasEpisode && player.playbackParameters.speed != 1f) player.setPlaybackSpeed(1f)
+        } else if (lastWasEpisode) {
+            if (player.playbackParameters.speed != 1f) player.setPlaybackSpeed(1f)
+            // Watching a podcast isn't a wish for music videos: music after it starts as the song.
+            videoWanted = false
+        }
         lastWasEpisode = song.isEpisode
         // Already playing: a seamless move on (gapless, or a Mix blend); nothing to time.
         startedLoading = if (player.isPlaying) null else song.id to SystemClock.elapsedRealtime()
@@ -493,12 +494,47 @@ class PlaybackService : MediaLibraryService(), Player.Listener {
     private var normalizeGainDb = 0f
 
     private fun applyNormalization() {
-        val loud = songLoudness
-        val gain = if (c.settings.current.normalize && loud != null) (-loud).coerceIn(-12f, 6f) else 0f
+        // The song's own measured loudness (integrated LUFS, from [MixTempo]'s scan) is the real figure. YouTube's
+        // loudnessDb hardly differs between a loud master and a quiet one, so it only stands in until the song is
+        // measured.
+        val measured = trackedSong?.id?.let { c.mixTempo.loudness(it) }
+        val yt = songLoudness
+        val gain = when {
+            !c.settings.current.normalize -> 0f
+            measured != null -> (TARGET_LUFS - measured).coerceIn(-12f, 6f)
+            yt != null -> (-yt).coerceIn(-12f, 6f)
+            else -> 0f
+        }
         normalizer.setGainDb(gain)
         normalizeGainDb = gain
-        c.nerdStats.value = c.nerdStats.value.copy(loudnessDb = loud?.toDouble(), normalizationGainDb = gain)
-        android.util.Log.i("PrismNormalize", "loudness ${loud ?: "unknown"} dB -> gain %.1f dB (normalize ${c.settings.current.normalize})".format(gain))
+        c.nerdStats.value = c.nerdStats.value.copy(
+            loudnessDb = (measured ?: yt)?.toDouble(), loudnessMeasured = measured != null, normalizationGainDb = gain,
+        )
+        android.util.Log.i(
+            "PrismNormalize",
+            (if (measured != null) "measured %.1f LUFS".format(measured) else "YouTube's figure ${yt ?: "unknown"} dB") +
+                " -> gain %.1f dB (normalize ${c.settings.current.normalize})".format(gain),
+        )
+    }
+
+    /**
+     * Scans the playing and next songs ([MixTempo]): where their music starts and ends and their beat, for Mix, and
+     * their loudness, for normalization. From the phone when the song's there (downloaded, cached, a local file),
+     * else a small download, on Wi-Fi unless mobile data is allowed. Each song is scanned once.
+     */
+    private fun scanAhead(vararg items: MediaItem?) {
+        val s = c.settings.current
+        if (!s.mix && !s.normalize) return
+        val network = s.mixTempoOnCellular || getSystemService(android.net.ConnectivityManager::class.java)?.isActiveNetworkMetered == false
+        val songs = items.mapNotNull { it?.toSong() }.filter { !it.isLive && !it.isEpisode }.distinctBy { it.id }
+        if (songs.isEmpty()) return
+        scope.launch {
+            for (song in songs) {
+                c.mixTempo.measure(song.id, network)
+                // Measured while it's just begun: its own figure takes over (later in the song, a jump would be heard).
+                if (trackedSong?.id == song.id && player.currentPosition < 4_000) applyNormalization()
+            }
+        }
     }
 
     private fun loadExtras(song: Song) {
@@ -506,6 +542,8 @@ class PlaybackService : MediaLibraryService(), Player.Listener {
         // Remembered loudness applies straight away (and offline); the network refreshes it.
         songLoudness = c.loudness.getFloat(song.id, Float.NaN).takeIf { !it.isNaN() }
         applyNormalization()
+        // A file on the phone has nothing on YouTube to fetch or report.
+        if (song.isLocal) return
         extrasJob = scope.launch {
             val ex = runCatching { withContext(Dispatchers.IO) { c.ytm.playerExtras(song.id, c.streams.signatureTimestamp()) } }.getOrNull()
             ex?.loudnessDb?.toFloat()?.let { loud ->
@@ -531,6 +569,8 @@ class PlaybackService : MediaLibraryService(), Player.Listener {
         if (src.kind != QueueKind.SINGLE && player.repeatMode != Player.REPEAT_MODE_OFF) return
         if (player.mediaItemCount - player.currentMediaItemIndex > 3 || c.queue.autoplayLoading) return
         val seed = src.seedId ?: player.getMediaItemAt(player.mediaItemCount - 1).mediaId.takeIf { it.isNotBlank() } ?: return
+        // YouTube Music's radio can't start from a file on the phone.
+        if (seed.startsWith(Song.LOCAL_PREFIX)) return
         c.queue.autoplayLoading = true
         scope.launch {
             val r = runCatching {
@@ -569,6 +609,8 @@ class PlaybackService : MediaLibraryService(), Player.Listener {
     suspend fun videoIdFor(song: Song): VideoLookup {
         // An episode is a YouTube video already: its video is itself.
         if (song.isVideo || song.isEpisode) return VideoLookup(song.id)
+        // A file on the phone has no music video.
+        if (song.isLocal) return VideoLookup(null)
         // A saved video plays offline, so it's known without asking YouTube.
         c.downloads.downloadedVideoId(song.id)?.let { return VideoLookup(it) }
         c.queue.counterparts[song.id]?.let { return VideoLookup(it) }
@@ -585,12 +627,25 @@ class PlaybackService : MediaLibraryService(), Player.Listener {
      * offset is measured, so the video button switches straight away.
      */
     fun prefetchVideo(song: Song, videoId: String) {
-        if (videoId in prefetched) return
+        if (song.isLocal || videoId in prefetched) return
         prefetched += videoId
         scope.launch(Dispatchers.IO) {
             runCatching { c.streams.resolve(videoId, withVideo = true) }.onFailure { prefetched -= videoId }
             val metered = getSystemService(android.net.ConnectivityManager::class.java)?.isActiveNetworkMetered != false
-            if (!metered && videoId != song.id) runCatching { c.videoSync.lagMs(song.id, videoId) }
+            if (metered || videoId == song.id || c.videoSync.cached(song.id, videoId) != null) return@launch
+            // Measured once the song is under way: a long video ("Alright" runs three minutes past its song) means
+            // minutes of audio to fetch and analyse, which slowed the song's own start when it ran at once.
+            withContext(Dispatchers.Main) { untilUnderWay(song.id) }
+            runCatching { c.videoSync.lagMs(song.id, videoId) }
+        }
+    }
+
+    /** Returns once [songId] has played ~10 s (or something else is playing: it was lined up as the next song). */
+    private suspend fun untilUnderWay(songId: String) {
+        delay(3_000)
+        repeat(60) {
+            if (player.currentMediaItem?.mediaId != songId || (player.isPlaying && player.currentPosition > 10_000)) return
+            delay(1_000)
         }
     }
 
@@ -603,8 +658,14 @@ class PlaybackService : MediaLibraryService(), Player.Listener {
         if (i == C.INDEX_UNSET) return
         val next = player.getMediaItemAt(i).mediaId.takeIf { it.isNotBlank() } ?: return
         warmedNext = next
-        // Mix lines the two up by their beats: measured now, well ahead of the blend.
-        if (::mix.isInitialized) mix.analyzeAhead(player.currentMediaItem?.mediaId, next)
+        // Mix's song edges and beats, and normalization's loudness: measured now, well ahead of the song.
+        scanAhead(player.currentMediaItem, player.getMediaItemAt(i))
+        if (next.startsWith(Song.LOCAL_PREFIX)) return
+        // YouTube's own loudness figure, until the song has been measured (so it's right from the first second).
+        if (c.settings.current.normalize && !c.loudness.contains(next) && c.mixTempo.loudness(next) == null) scope.launch(Dispatchers.IO) {
+            runCatching { c.ytm.playerExtras(next, c.streams.signatureTimestamp()).loudnessDb }.getOrNull()
+                ?.let { c.loudness.edit().putFloat(next, it.toFloat()).apply() }
+        }
         if (c.downloads.isDownloaded(next)) { armNextVideo(); return }
         scope.launch(Dispatchers.IO) {
             c.warmUp(next)
@@ -892,6 +953,14 @@ class PlaybackService : MediaLibraryService(), Player.Listener {
 
     /** The lossless add-on: a matching FLAC / WAV / AIFF on the phone, when lossless mode and the add-on are on. */
     private fun losslessFileFor(item: MediaItem): android.net.Uri? {
+        // Local music always plays from its file.
+        if (item.mediaId.startsWith(Song.LOCAL_PREFIX)) {
+            val uri = c.localMusic.uriFor(item.mediaId) ?: return null
+            val format = c.localMusic.track(item.mediaId)?.mime?.substringAfter('/')?.removePrefix("x-")?.uppercase()
+            c.streamDetails[item.mediaId] = "On this phone" + (format?.let { " · $it" } ?: "") to null
+            scope.launch { applyStreamStats(item.mediaId) }
+            return uri
+        }
         val s = c.settings.current
         if (!s.lossless || !s.losslessLocal) return null
         val song = item.toSong() ?: return null
@@ -1190,3 +1259,6 @@ class PlaybackService : MediaLibraryService(), Player.Listener {
         ) = update { copy(underruns = underruns + 1) }
     }
 }
+
+/** Normalization's level: songs are brought to this loudness (integrated LUFS, as Spotify and YouTube use). */
+private const val TARGET_LUFS = -14f

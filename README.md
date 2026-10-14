@@ -41,7 +41,7 @@ Updating works the same way: install the new APK over the old one, and your down
 | 🎬 **Music videos** | Switch any song to its music video in one tap, with lyrics in sync and full-screen landscape. |
 | 🎧 **Listen together** | Phones on the same Wi-Fi play in step, or friends add songs to your queue. No account, no server. |
 | 🔗 **Share anything** | Story cards and links for songs, albums, playlists and artists, plus "Play in Prism" for YouTube links. |
-| 📥 **Offline** | Downloads and smart downloads, with lyrics saved alongside every song. |
+| 📥 **Offline** | Downloads, Smart Downloads and your own music files, with lyrics saved alongside every song. |
 | 🎚️ **Sound** | 10-band EQ, loudness normalization, Prism Spatial, skip silence and lossless playback. |
 | 🎛️ **Mix** | Songs blend into each other like a DJ set, with tempos matched and beats lined up. |
 | 🚗 **Android Auto** | Shuffle play, extra player buttons and lyrics on the car screen. |
@@ -53,7 +53,7 @@ Updating works the same way: install the new APK over the old one, and your down
 - **Mix.** When a song runs into the next, the two blend instead of stopping and starting. Prism measures each song's tempo on the phone (on Wi-Fi), starts the next song on the beat and plays it at the same tempo while they overlap, then eases it back to its own. Blends last 2 to 12 seconds, and an album's own tracks still play straight through.
 - **Player.** Full-bleed artwork and animated covers. Shows the codec and bitrate (or Lossless / Downloaded), with stats in an in-player panel.
 - **Music videos.** Tap the video toggle under the player to switch any song to its official music video. Playback carries on from the same spot, and the lyrics stay in sync. Fit or fill the frame, go full screen, or turn the phone sideways for edge-to-edge landscape. Video quality goes from 480p up to 1440p in Playback & sound.
-- **Sound.** 10-band equalizer with presets, bass boost, loudness normalization (uses YouTube's own loudness data, works offline), Prism Spatial for any headphones, skip silence, and a lossless mode that plays matching FLAC files on the phone.
+- **Sound.** 10-band equalizer with presets, bass boost, loudness normalization (each song measured on the phone, to -14 LUFS; works offline), Prism Spatial for any headphones, skip silence, and a lossless mode that plays matching FLAC files on the phone.
 - **Autoplay and radio.** The queue keeps going with similar music after an album or playlist ends. Shuffle makes a fresh order every time. Save the queue as a playlist, or clear what's up next.
 - **Sleep timer** for a set time or until the current song ends.
 
@@ -64,7 +64,7 @@ Updating works the same way: install the new APK over the old one, and your down
 
 ### Your library
 - **Home your way.** Custom greeting, shortcut tiles and pinned playlists.
-- **Downloads** work like a playlist, with counts, size, saved lyrics, sorting and bulk delete. Smart downloads keep a chosen amount of your favourites on the phone.
+- **Downloads** work like a playlist, with counts, size, saved lyrics, sorting and bulk delete. Smart Downloads is one space for music on the phone: the songs you stream, plus the ones you're likely to play next, downloaded ahead (on Wi-Fi, or mobile data if you allow it). Library → On this phone plays the music files already on your phone.
 - **Replay.** Minutes, top songs, artists and genres. Play or shuffle your top 250.
 - **Custom playlist pictures** and **backgrounds** for Home, Search, Library, Replay and Settings.
 - Signed in, likes, playlists, albums and artists sync both ways. **Add albums and playlists to your library**, **star your favourite artists** (they lead Library → Artists and are subscribed on YouTube Music), **make new playlists**, and add songs to them from a searchable sheet.

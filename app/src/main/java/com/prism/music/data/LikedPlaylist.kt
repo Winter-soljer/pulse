@@ -41,7 +41,8 @@ class LikedPlaylist(private val c: AppContainer) {
     /** Oldest like first (any just-liked song the ordered list hasn't caught up with goes last). */
     private fun likedOldestFirst(): List<String> {
         val ordered = c.library.liked.value.asReversed().map { it.id }
-        return (ordered + c.library.likedIds.value).distinct()
+        // Files on the phone aren't on YouTube, so they can't go in a YouTube playlist.
+        return (ordered + c.library.likedIds.value).distinct().filterNot { it.startsWith(com.prism.music.data.model.Song.LOCAL_PREFIX) }
     }
 
     /** Makes the playlist from every liked song and starts keeping it up to date. */

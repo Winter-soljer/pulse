@@ -1,28 +1,6 @@
 package com.prism.music.ui.player
 
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.PlaylistAdd
-import androidx.compose.material.icons.rounded.Album
-import androidx.compose.material.icons.rounded.Animation
-import androidx.compose.material.icons.rounded.AvTimer
-import androidx.compose.material.icons.rounded.Bedtime
-import androidx.compose.material.icons.rounded.DataUsage
-import androidx.compose.material.icons.rounded.Download
-import androidx.compose.material.icons.rounded.DownloadDone
-import androidx.compose.material.icons.rounded.Favorite
-import androidx.compose.material.icons.rounded.FavoriteBorder
-import androidx.compose.material.icons.rounded.FormatQuote
-import androidx.compose.material.icons.rounded.Groups
-import androidx.compose.material.icons.rounded.Person
-import androidx.compose.material.icons.rounded.Radio
-import androidx.compose.material.icons.rounded.Refresh
-import androidx.compose.material.icons.rounded.Translate
-import androidx.compose.material.icons.rounded.SaveAlt
-import androidx.compose.material.icons.rounded.Share
-import androidx.compose.material.icons.rounded.Speed
-import androidx.compose.material.icons.rounded.Podcasts
-import androidx.compose.material.icons.rounded.ThumbDown
-import androidx.compose.material.icons.rounded.ThumbDownOffAlt
+import com.prism.music.ui.theme.PrismIcons
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -89,15 +67,15 @@ fun PlayerOptionsSheet(
     val inSession = together !is com.prism.music.playback.together.TogetherState.Idle
 
     val quick = listOfNotNull(
-        ActionItem(Icons.Rounded.Radio, "Radio") { c.player.playRadio(song) },
+        ActionItem(PrismIcons.Radio, "Radio") { c.player.playRadio(song) },
         ActionItem(
-            if (downloaded) Icons.Rounded.DownloadDone else Icons.Rounded.Download, "Download",
+            if (downloaded) PrismIcons.DownloadDone else PrismIcons.Download, "Download",
             value = when { downloaded -> "Downloaded"; dl != null -> "${dl.percent.toInt().coerceAtLeast(0)}%"; else -> null },
             active = downloaded, keepOpen = true,
         ) { if (dl != null) c.downloads.remove(song.id) else c.downloads.download(song) },
-        if (c.settings.current.isLoggedIn) ActionItem(Icons.AutoMirrored.Rounded.PlaylistAdd, "Playlist", keepOpen = true) { pickPlaylist = true } else null,
+        if (c.settings.current.isLoggedIn) ActionItem(PrismIcons.PlaylistAdd, "Playlist", keepOpen = true) { pickPlaylist = true } else null,
         ActionItem(
-            Icons.Rounded.Bedtime, "Sleep",
+            PrismIcons.Moon, "Sleep",
             value = when { sleepEnd -> "Song end"; sleepAt > 0 -> "${sleepMin} min"; else -> null },
             active = sleeping, onClick = onSleepTimer,
         ),
@@ -107,14 +85,14 @@ fun PlayerOptionsSheet(
         val speeds = listOf(1f, 1.25f, 1.5f, 1.75f, 2f, 0.75f)
         val episode = listOfNotNull(
             ActionItem(
-                Icons.Rounded.Speed, "Playback speed", value = "${speed.toString().removeSuffix(".0")}×", active = speed != 1f, keepOpen = true,
+                PrismIcons.Speed, "Playback speed", value = "${speed.toString().removeSuffix(".0")}×", active = speed != 1f, keepOpen = true,
             ) { c.player.setEpisodeSpeed(speeds[(speeds.indexOf(speed) + 1) % speeds.size]) },
-            song.podcastId?.let { id -> ActionItem(Icons.Rounded.Podcasts, "Go to podcast") { onCollapse(); nav.go(Routes.podcast(id)) } },
-            ActionItem(Icons.Rounded.DataUsage, "Stats for nerds", active = statsShown, onClick = onToggleStats),
+            song.podcastId?.let { id -> ActionItem(PrismIcons.Podcasts, "Go to podcast") { onCollapse(); nav.go(Routes.podcast(id)) } },
+            ActionItem(PrismIcons.Stats, "Stats for nerds", active = statsShown, onClick = onToggleStats),
         )
         ActionSheet(song.thumbnail, onDismiss) { close ->
             ActionHeader(song.thumbnail, song.title, song.artistText) {
-                SheetIconButton(Icons.Rounded.Share, "Share") { sharing = true }
+                SheetIconButton(PrismIcons.Share, "Share") { sharing = true }
             }
             QuickActions(quick.filter { it.label != "Radio" && it.label != "Playlist" }) { runAction(it, close) }
             ActionGroup("Episode", episode) { runAction(it, close) }
@@ -123,30 +101,30 @@ fun PlayerOptionsSheet(
     }
     val translating = c.settings.flow.collectAsState().value.lyricsTranslate
     val lyrics = listOf(
-        ActionItem(Icons.Rounded.FormatQuote, "Lyrics source", onClick = onLyricsSource),
-        ActionItem(Icons.Rounded.AvTimer, "Lyrics timing", onClick = onLyricsTiming),
+        ActionItem(PrismIcons.Lyrics, "Lyrics source", onClick = onLyricsSource),
+        ActionItem(PrismIcons.Timer, "Lyrics timing", onClick = onLyricsTiming),
         ActionItem(
-            Icons.Rounded.Translate, "Translate lyrics", value = if (translating) "On" else "Off", active = translating, keepOpen = true,
+            PrismIcons.Translate, "Translate lyrics", value = if (translating) "On" else "Off", active = translating, keepOpen = true,
         ) { c.settings.setLyricsTranslate(!translating) },
-        ActionItem(Icons.Rounded.Refresh, "Download lyrics again") { onRedownloadLyrics(); toast("Downloading lyrics again") },
+        ActionItem(PrismIcons.Refresh, "Download lyrics again") { onRedownloadLyrics(); toast("Downloading lyrics again") },
     )
     val cover = com.prism.music.data.canvas.CanvasRepository.albumKey(song)
     val player = listOfNotNull(
         com.prism.music.ui.components.videoDownloadAction(song, videos[song.id]),
-        ActionItem(Icons.Rounded.Groups, "Listen together", value = if (inSession) "On" else null, active = inSession) { onCollapse(); nav.go(Routes.TOGETHER) },
-        ActionItem(Icons.Rounded.DataUsage, "Stats for nerds", active = statsShown, onClick = onToggleStats),
-        if (hasCanvas) ActionItem(Icons.Rounded.Animation, "Animated cover", active = song.id !in hidden, keepOpen = true) { c.canvas.setHidden(song.id, song.id !in hidden) } else null,
-        if (!hasCanvas) null else if (saved.has(song.id, cover)) ActionItem(Icons.Rounded.SaveAlt, "Animated cover saved", active = true, keepOpen = true) { c.canvasStore.unsave(song) }
-        else ActionItem(Icons.Rounded.SaveAlt, "Save animated cover", keepOpen = true) {
+        ActionItem(PrismIcons.Groups, "Listen together", value = if (inSession) "On" else null, active = inSession) { onCollapse(); nav.go(Routes.TOGETHER) },
+        ActionItem(PrismIcons.Stats, "Stats for nerds", active = statsShown, onClick = onToggleStats),
+        if (hasCanvas) ActionItem(PrismIcons.AnimatedCover, "Animated cover", active = song.id !in hidden, keepOpen = true) { c.canvas.setHidden(song.id, song.id !in hidden) } else null,
+        if (!hasCanvas) null else if (saved.has(song.id, cover)) ActionItem(PrismIcons.Download, "Animated cover saved", active = true, keepOpen = true) { c.canvasStore.unsave(song) }
+        else ActionItem(PrismIcons.Download, "Save animated cover", keepOpen = true) {
             c.canvasStore.save(song)
             toast("Saving animated covers for this album")
         },
     )
     val go = listOfNotNull(
-        song.album?.id?.let { id -> ActionItem(Icons.Rounded.Album, "Go to album") { onCollapse(); nav.go(Routes.album(id)) } },
-        song.artists.firstOrNull { it.id != null }?.let { a -> ActionItem(Icons.Rounded.Person, "Go to ${a.name}") { onCollapse(); nav.go(Routes.artist(a.id!!)) } },
-        if (song.id in disliked) ActionItem(Icons.Rounded.ThumbDown, "Not for me", active = true, keepOpen = true) { c.library.setDisliked(song, false) }
-        else ActionItem(Icons.Rounded.ThumbDownOffAlt, "Not for me") {
+        song.album?.id?.let { id -> ActionItem(PrismIcons.Album, "Go to album") { onCollapse(); nav.go(Routes.album(id)) } },
+        song.artists.firstOrNull { it.id != null }?.let { a -> ActionItem(PrismIcons.Person, "Go to ${a.name}") { onCollapse(); nav.go(Routes.artist(a.id!!)) } },
+        if (song.id in disliked) ActionItem(PrismIcons.ThumbDownFilled, "Not for me", active = true, keepOpen = true) { c.library.setDisliked(song, false) }
+        else ActionItem(PrismIcons.ThumbDown, "Not for me") {
             c.library.setDisliked(song, true)
             toast("Got it — Prism will steer clear of this song")
             if (hasNext) c.player.next()
@@ -155,14 +133,15 @@ fun PlayerOptionsSheet(
 
     ActionSheet(song.thumbnail, onDismiss) { close ->
         ActionHeader(song.thumbnail, song.title, song.artistText) {
-            SheetIconButton(if (isLiked) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder, if (isLiked) "Remove from liked" else "Like", active = isLiked) {
+            SheetIconButton(if (isLiked) PrismIcons.HeartFilled else PrismIcons.Heart, if (isLiked) "Remove from liked" else "Like", active = isLiked) {
                 c.library.toggleLike(song)
             }
-            SheetIconButton(Icons.Rounded.Share, "Share") { sharing = true }
+            if (!song.isLocal) SheetIconButton(PrismIcons.Share, "Share") { sharing = true }
         }
-        QuickActions(quick) { runAction(it, close) }
+        // A file on the phone: no radio, download, YouTube playlist or music video.
+        QuickActions(if (song.isLocal) quick.filter { it.label == "Sleep" } else quick) { runAction(it, close) }
         ActionGroup("Lyrics", lyrics) { runAction(it, close) }
-        ActionGroup("Player", player) { runAction(it, close) }
+        ActionGroup("Player", if (song.isLocal) player.filter { it.label == "Stats for nerds" } else player) { runAction(it, close) }
         ActionGroup("More", go) { runAction(it, close) }
     }
 }

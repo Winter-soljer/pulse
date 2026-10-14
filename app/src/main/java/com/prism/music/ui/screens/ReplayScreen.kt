@@ -1,5 +1,6 @@
 package com.prism.music.ui.screens
 
+import com.prism.music.ui.theme.PrismIcons
 import android.widget.Toast
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
@@ -25,13 +26,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.PlaylistAdd
-import androidx.compose.material.icons.rounded.AutoAwesome
-import androidx.compose.material.icons.rounded.Person
-import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.runtime.collectAsState
-import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
@@ -50,6 +45,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -176,7 +173,7 @@ fun ReplayScreen(bottomPadding: Dp) {
         val d = data
         if (d == null) { item { LoadingState() }; return@LazyColumn }
         if (d.plays == 0) {
-            item { EmptyState(Icons.Rounded.AutoAwesome, "Nothing to replay yet", "Listen for a while — songs you play for 10 seconds or more count toward your Replay.") }
+            item { EmptyState(PrismIcons.ReplayFilled, "Nothing to replay yet", "Listen for a while — songs you play for 10 seconds or more count toward your Replay.") }
             return@LazyColumn
         }
         item { HeroCard(d, period, year, storyLoading, openStory) }
@@ -185,10 +182,10 @@ fun ReplayScreen(bottomPadding: Dp) {
                 val songs = remember(d) { d.top250.map { it.toSong() } }
                 val replaySource = QueueSource(QueueKind.REPLAY, "Replay · ${period.label}")
                 Button(onClick = { c.player.playQueue(songs, 0, replaySource) }, Modifier.weight(1f).height(48.dp)) {
-                    Icon(Icons.Rounded.PlayArrow, null); Spacer(Modifier.width(6.dp)); Text("Play")
+                    Icon(PrismIcons.Play, null); Spacer(Modifier.width(6.dp)); Text("Play")
                 }
                 FilledTonalButton(onClick = { c.player.playQueue(songs, 0, replaySource, shuffle = true) }, Modifier.weight(1f).height(48.dp)) {
-                    Icon(Icons.Rounded.Shuffle, null); Spacer(Modifier.width(6.dp)); Text("Shuffle")
+                    Icon(PrismIcons.Shuffle, null); Spacer(Modifier.width(6.dp)); Text("Shuffle")
                 }
                 if (c.settings.current.isLoggedIn) androidx.compose.material3.FilledTonalIconButton(
                     onClick = {
@@ -200,7 +197,7 @@ fun ReplayScreen(bottomPadding: Dp) {
                         }
                     },
                     modifier = Modifier.size(48.dp),
-                ) { Icon(Icons.AutoMirrored.Rounded.PlaylistAdd, "Save as a playlist") }
+                ) { Icon(PrismIcons.PlaylistAdd, "Save as a playlist") }
             }
         }
         if (d.months.size > 1) item {
@@ -221,7 +218,7 @@ fun ReplayScreen(bottomPadding: Dp) {
                         Box {
                             Artwork(
                                 c.library.artistPhoto(thumbs, a.artistId, a.artistName), Modifier.size(104.dp), CircleShape, size = 300,
-                                placeholderIcon = Icons.Rounded.Person,
+                                placeholderIcon = PrismIcons.Person,
                             )
                             Text(
                                 "${i + 1}", color = inkOn(MaterialTheme.colorScheme.primary), fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleMedium,
@@ -247,16 +244,19 @@ fun ReplayScreen(bottomPadding: Dp) {
                     LaunchedEffect(g, period) { anim.animateTo(ms / max.toFloat(), tween(900, delayMillis = i * 90)) }
                     Box(Modifier.fillMaxWidth().height(40.dp).clip(com.prism.music.ui.theme.LocalUi.current.shape(12.dp)).background(com.prism.music.ui.components.quietFill())) {
                         Box(Modifier.fillMaxWidth(anim.value).height(40.dp).background(Brush.horizontalGradient(listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.tertiary))))
-                        // On the bar's colour unless the bar is too short to sit under the name.
-                        Text(g, style = MaterialTheme.typography.labelLarge, color = if (anim.value > 0.3f) barInk else Color.Unspecified, modifier = Modifier.align(Alignment.CenterStart).padding(start = 12.dp))
-                        // Over the bar once it reaches the time (the top genre's fills the row).
-                        Text(listenTime(ms), style = MaterialTheme.typography.labelMedium, color = if (anim.value > 0.8f) endInk else Color.Unspecified, modifier = Modifier.align(Alignment.CenterEnd).padding(end = 12.dp))
+                        // The labels twice: in the page's ink, then in the bar's ink clipped to the bar, so a name
+                        // that runs past the end of a short bar changes colour where the bar stops.
+                        GenreLabels(g, listenTime(ms), Color.Unspecified, Color.Unspecified, Modifier)
+                        GenreLabels(
+                            g, listenTime(ms), barInk, endInk,
+                            Modifier.drawWithContent { clipRect(right = size.width * anim.value) { this@drawWithContent.drawContent() } },
+                        )
                     }
                 }
             }
         }
         item { SectionHeader("Top songs") }
-        itemsIndexed(d.songs.take(50), key = { _, s -> s.songId }) { i, s ->
+        itemsIndexed(d.songs, key = { _, s -> s.songId }) { i, s ->
             val songs = remember(d) { d.songs.map { it.toSong() } }
             val ui = com.prism.music.ui.theme.LocalUi.current
             Row(
@@ -341,7 +341,7 @@ private fun HeroCard(d: ReplayData, period: Period, year: Int, loading: Boolean,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 if (loading) androidx.compose.material3.CircularProgressIndicator(Modifier.size(18.dp), color = Color.Black, strokeWidth = 2.dp)
-                else Icon(Icons.Rounded.PlayArrow, null, Modifier.size(20.dp), tint = Color.Black)
+                else Icon(PrismIcons.Play, null, Modifier.size(20.dp), tint = Color.Black)
                 Spacer(Modifier.width(8.dp))
                 Text("Watch your Replay", color = Color.Black, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
             }
@@ -408,11 +408,22 @@ fun replayGradient(): List<Color> {
     else listOf(Color(0xFFFF3B5C), Color(0xFF7C5CFF), Color(0xFF00B4D8))
 }
 
-/** White text on [bg], or near-black when [bg] is pale (the white accent). */
-private fun inkOn(bg: Color): Color = if (bg.luminance() > 0.5f) Color(0xFF111111) else Color.White
+/**
+ * White text on [bg], or near-black when that reads better. 0.18 is where the two contrasts cross; the
+ * old 0.5 cut put white on mid greys (the white accent's tertiary, g 0.70), which was hard to read.
+ */
+private fun inkOn(bg: Color): Color = if (bg.luminance() > 0.18f) Color(0xFF111111) else Color.White
 
 /** Darkens a colour towards black by [amount] (0 = as is), so white sits on it comfortably. */
 private fun Color.compositeDark(amount: Float = 0.7f): Color = Color(red * (1 - amount), green * (1 - amount), blue * (1 - amount), 1f)
+
+@Composable
+private fun GenreLabels(name: String, time: String, nameInk: Color, timeInk: Color, modifier: Modifier) {
+    Box(modifier.fillMaxSize()) {
+        Text(name, style = MaterialTheme.typography.labelLarge, color = nameInk, modifier = Modifier.align(Alignment.CenterStart).padding(start = 12.dp))
+        Text(time, style = MaterialTheme.typography.labelMedium, color = timeInk, modifier = Modifier.align(Alignment.CenterEnd).padding(end = 12.dp))
+    }
+}
 
 @Composable
 private fun Stat(value: String, label: String) {

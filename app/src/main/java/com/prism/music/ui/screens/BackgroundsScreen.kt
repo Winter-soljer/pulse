@@ -1,5 +1,6 @@
 package com.prism.music.ui.screens
 
+import com.prism.music.ui.theme.PrismIcons
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
@@ -29,10 +30,6 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items as rowItems
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.rounded.AddPhotoAlternate
-import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
@@ -172,11 +169,11 @@ fun BackgroundsScreen(bottomPadding: Dp) {
                             Box(Modifier.fillMaxWidth(0.6f).height(8.dp).clip(CircleShape).background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)))
                             repeat(3) { Box(Modifier.fillMaxWidth().height(22.dp).clip(RoundedCornerShape(6.dp)).background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.10f))) }
                         }
-                        if (style == Backdrop.PHOTO && photo == null) Icon(Icons.Rounded.AddPhotoAlternate, null, Modifier.size(30.dp), tint = MaterialTheme.colorScheme.onSurface)
+                        if (style == Backdrop.PHOTO && photo == null) Icon(PrismIcons.Photo, null, Modifier.size(30.dp), tint = MaterialTheme.colorScheme.onSurface)
                         if (selected) Box(
                             Modifier.align(Alignment.TopEnd).padding(6.dp).size(22.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary),
                             contentAlignment = Alignment.Center,
-                        ) { Icon(Icons.Rounded.Check, null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onPrimary) }
+                        ) { Icon(PrismIcons.Check, null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onPrimary) }
                     }
                     Spacer(Modifier.height(6.dp))
                     Text(style.label, style = MaterialTheme.typography.labelLarge)

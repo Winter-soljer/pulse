@@ -1,5 +1,6 @@
 package com.prism.music.ui.screens
 
+import com.prism.music.ui.theme.PrismIcons
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -14,16 +15,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Groups
-import androidx.compose.material.icons.rounded.Headphones
-import androidx.compose.material.icons.rounded.Pause
-import androidx.compose.material.icons.rounded.PlayArrow
-import androidx.compose.material.icons.rounded.Search
-import androidx.compose.material.icons.rounded.SkipNext
-import androidx.compose.material.icons.rounded.SkipPrevious
-import androidx.compose.material.icons.rounded.Sync
-import androidx.compose.material.icons.rounded.WifiTethering
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -106,7 +97,7 @@ private fun Idle() {
     }
     Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
         BigCard(
-            Icons.Rounded.WifiTethering, "Start a session",
+            PrismIcons.Radio, "Start a session",
             "Friends on this Wi-Fi join with a code. They can listen along on their phones or add songs to your queue.",
             "Start", onClick = { c.together.host() },
         )
@@ -117,7 +108,7 @@ private fun Idle() {
                 Text("Looking on this network…", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             nearby.forEach { n ->
-                Item(n.name, "Tap to join with their code", onClick = { joinTarget = n }, icon = Icons.Rounded.Groups)
+                Item(n.name, "Tap to join with their code", onClick = { joinTarget = n }, icon = PrismIcons.Groups)
             }
             Item("Join with an address", "If a session doesn't show up here", onClick = { manual = true })
         }
@@ -202,12 +193,12 @@ private fun Hosting(s: TogetherState.Hosting) {
         NowPlayingCard(song, if (song == null) "Play something and everyone hears it" else "Everyone in the session hears this")
         Group("Listening (${s.guests.size})") {
             if (s.guests.isEmpty()) Note("No one yet.")
-            s.guests.forEach { g -> Item(g, null, onClick = {}, icon = Icons.Rounded.Headphones) }
+            s.guests.forEach { g -> Item(g, null, onClick = {}, icon = PrismIcons.Headphones) }
             Toggle("Guests can control playback", "Play, pause and skip from their phones too. They can always add songs.", s.guestsControl) { c.together.setGuestsControl(it) }
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             FilledTonalButton(onClick = { nav.go(Routes.SEARCH) }, Modifier.weight(1f)) {
-                Icon(Icons.Rounded.Search, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Find songs")
+                Icon(PrismIcons.Search, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Find songs")
             }
             OutlinedButton(onClick = { c.together.leave() }, Modifier.weight(1f)) { Text("End session") }
         }
@@ -229,7 +220,7 @@ private fun GuestView(s: TogetherState.Guest) {
             ) { c.together.setListenHere(it) }
             if (s.listenHere && !s.inSync) Item(
                 "Out of step", "You paused or played something else here. Tap to catch up with ${s.hostName}.",
-                onClick = { c.together.resync() }, icon = Icons.Rounded.Sync,
+                onClick = { c.together.resync() }, icon = PrismIcons.Sync,
             )
         }
         val upcoming = now?.songs?.drop(1).orEmpty()
@@ -240,7 +231,7 @@ private fun GuestView(s: TogetherState.Guest) {
         Note("Add songs from any song's ⋯ menu: they go to ${s.hostName}'s queue.")
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Button(onClick = { nav.go(Routes.SEARCH) }, Modifier.weight(1f)) {
-                Icon(Icons.Rounded.Search, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Add songs")
+                Icon(PrismIcons.Search, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Add songs")
             }
             OutlinedButton(onClick = { c.together.leave() }, Modifier.weight(1f)) { Text("Leave") }
         }
@@ -252,17 +243,17 @@ private fun GuestView(s: TogetherState.Guest) {
 private fun HostControls(now: Msg.State) {
     val c = LocalContainer.current
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
-        IconButton(onClick = { c.together.control("previous") }) { Icon(Icons.Rounded.SkipPrevious, "Previous", Modifier.size(30.dp)) }
+        IconButton(onClick = { c.together.control("previous") }) { Icon(PrismIcons.Previous, "Previous", Modifier.size(30.dp)) }
         Spacer(Modifier.width(18.dp))
         Box(
             Modifier.size(58.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary)
                 .clickable { c.together.control(if (now.playing) "pause" else "play") },
             contentAlignment = Alignment.Center,
         ) {
-            Icon(if (now.playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, if (now.playing) "Pause" else "Play", Modifier.size(32.dp), tint = MaterialTheme.colorScheme.onPrimary)
+            Icon(if (now.playing) PrismIcons.Pause else PrismIcons.Play, if (now.playing) "Pause" else "Play", Modifier.size(32.dp), tint = MaterialTheme.colorScheme.onPrimary)
         }
         Spacer(Modifier.width(18.dp))
-        IconButton(onClick = { c.together.control("next") }) { Icon(Icons.Rounded.SkipNext, "Next", Modifier.size(30.dp)) }
+        IconButton(onClick = { c.together.control("next") }) { Icon(PrismIcons.Next, "Next", Modifier.size(30.dp)) }
     }
 }
 

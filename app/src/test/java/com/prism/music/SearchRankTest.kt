@@ -27,6 +27,41 @@ class SearchRankTest {
         assertEquals("MPREb_ep", SearchRank.rank("A Day", results).top?.id)
     }
 
+    @Test fun abbreviationsFindTheArtist() {
+        // "adtr": a playlist and a single literally called ADTR used to beat A Day to Remember.
+        val r = SearchRank.rank("adtr", listOf(
+            SearchFilter.PLAYLISTS to listOf(com.prism.music.data.model.PlaylistItem("PLx", "ADTR", "Playlist • someone", null)),
+            SearchFilter.ALBUMS to listOf(AlbumItem("MPREb_x", "ADTR", "Single • Nobody • 2024", null)),
+            SearchFilter.ARTISTS to listOf(adtr),
+        ))
+        assertEquals("UCadtr", r.top?.id)
+    }
+
+    @Test fun youTubesTopCardBeatsALiteralNearMiss() {
+        // "rhcp": YouTube's card is the band; an unknown artist's single titled "RHCP" mustn't take the top.
+        val band = ArtistItem("UCrhcp", "Red Hot Chili Peppers", "Artist • 40.8M monthly audience", null)
+        val single = AlbumItem("MPREb_s", "RHCP", "Single • 100% Studio • 2024", null)
+        assertEquals("UCrhcp", SearchRank.rank("rhcp", listOf(SearchFilter.ALBUMS to listOf(single)), card = band).top?.id)
+        // A typo the per-kind searches miss entirely.
+        val swift = ArtistItem("UCts", "Taylor Swift", "Artist • 440M monthly audience", null)
+        assertEquals("UCts", SearchRank.rank("taylor swfit", listOf(SearchFilter.SONGS to listOf(song)), card = swift).top?.id)
+    }
+
+    @Test fun aKnockOffCardDoesntWin() {
+        // Signed out, YouTube's card for "blinding lights" can be a reggae flip; the real song is in the Songs results.
+        val flip = SongItem(Song("flip", "Blinding Lights (Reggae Flip)", listOf(ArtistRef("FlipVersion"))))
+        val real = SongItem(Song("real", "Blinding Lights", listOf(ArtistRef("The Weeknd"))))
+        val r = SearchRank.rank("blinding lights", listOf(SearchFilter.SONGS to listOf(flip, real)), card = flip)
+        assertEquals("real", r.top?.id)
+    }
+
+    @Test fun aVideoCardGivesWayToItsSong() {
+        val video = SongItem(Song("vid", "HUMBLE.", listOf(ArtistRef("Kendrick Lamar")), isVideo = true))
+        val track = SongItem(Song("trk", "HUMBLE.", listOf(ArtistRef("Kendrick Lamar"))))
+        val r = SearchRank.rank("humble kendrick", listOf(SearchFilter.SONGS to listOf(track), SearchFilter.VIDEOS to listOf(video)), card = video)
+        assertEquals("trk", r.top?.id)
+    }
+
     @Test fun anArtistTheListenerPlaysComesFirst() {
         assertEquals("UCadtr", SearchRank.rank("A Day", results, fan).top?.id)
     }

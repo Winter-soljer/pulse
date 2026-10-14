@@ -422,7 +422,8 @@ class PlayerConnection(private val context: Context, private val c: AppContainer
     fun setVideoMode(enabled: Boolean) {
         val s = service ?: return
         _videoLoading.value = enabled
-        s.videoWanted = enabled
+        // An episode's picture is that episode's own choice; only music turns "keep playing videos" on.
+        if (s.player.currentMediaItem?.toSong()?.isEpisode != true || !enabled) s.videoWanted = enabled
         scope.launch {
             s.setVideoMode(enabled)?.let { _errors.tryEmit(it); _videoLoading.value = false }
             if (!enabled) _videoLoading.value = false

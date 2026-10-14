@@ -70,8 +70,10 @@ private fun String.allStars() = length >= 3 && all { it == '*' || it == '#' }
  */
 object Uncensor {
     private val wordRe = Regex("[\\p{L}\\p{N}'’*#]+")
+    private val apostropheRe = Regex("['’]")
+    private val ingRe = Regex("(?<=\\p{L}{2})ing$")
     /** A word for matching: no case or apostrophes, and "doing" / "doin'" alike. */
-    private fun key(w: String) = w.lowercase().replace(Regex("['’]"), "").replace(Regex("(?<=\\p{L}{2})ing$"), "in")
+    private fun key(w: String) = w.lowercase().replace(apostropheRe, "").replace(ingRe, "in")
     /** Whether [text] still has a starred-out word. */
     fun isStarred(text: String) = censorMark.containsMatchIn(text)
     private fun isCensored(w: String) = w.allStars() || (w.any { it.isLetter() } && censorMark.containsMatchIn(w))
@@ -84,18 +86,26 @@ object Uncensor {
         if (single.isEmpty()) return lyrics
         // Sources break long lines in different places: a line may be two of the reference's, run together.
         val ref = single + single.zipWithNext { a, b -> a + b }
-        return lyrics.copy(lines = lyrics.lines.map { if (it.isGap || !censorMark.containsMatchIn(it.text)) it else fillLine(it, ref) })
+        // Each reference line's keys are worked out once, not again for every starred line (a long explicit song froze the player).
+        val refKeys = ref.map { r -> r.map(::key) }
+        val refSets = refKeys.map { it.toSet() }
+        return lyrics.copy(lines = lyrics.lines.map { if (it.isGap || !censorMark.containsMatchIn(it.text)) it else fillLine(it, ref, refKeys, refSets) })
     }
 
-    internal fun fillLine(line: LyricLine, ref: List<List<String>>): LyricLine {
+    internal fun fillLine(
+        line: LyricLine,
+        ref: List<List<String>>,
+        refKeys: List<List<String>> = ref.map { r -> r.map(::key) },
+        refSets: List<Set<String>> = refKeys.map { it.toSet() },
+    ): LyricLine {
         val words = wordRe.findAll(line.text).map { it.value }.toList()
         val clean = words.filterNot(::isCensored).map(::key)
         if (clean.isEmpty()) return line
-        val best = ref.maxByOrNull { r ->
-            val keys = r.map(::key).toSet()
-            clean.count { it in keys } - abs(r.size - words.size) * 0.01
+        val bestAt = ref.indices.maxByOrNull { j ->
+            clean.count { it in refSets[j] } - abs(ref[j].size - words.size) * 0.01
         } ?: return line
-        val bestKeys = best.map(::key)
+        val best = ref[bestAt]
+        val bestKeys = refKeys[bestAt]
         // Most of the line's other words have to be there, or it's a different line.
         if (clean.count { it in bestKeys } < maxOf(1, (clean.size * 0.6).roundToInt())) return line
         val swaps = ArrayList<Pair<String, String>>()
@@ -718,7 +728,8 @@ class LyricsRepository(
         for (src in REFERENCE_SOURCES) {
             if (src == l.source) continue
             val reference = runCatching { fetchRaw(song, src) }.getOrNull()?.takeIf { !it.censored } ?: continue
-            val filled = Uncensor.fill(best, reference.plain)
+            // Off the main thread: the player's lyrics are loaded from a UI scope.
+            val filled = withContext(Dispatchers.Default) { Uncensor.fill(best, reference.plain) }
             if (!filled.censored) return filled
             if (starred(filled) < starred(best)) best = filled
         }

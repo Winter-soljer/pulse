@@ -119,9 +119,12 @@ private suspend fun decodeSmall(context: android.content.Context, url: String, p
 @Composable
 fun rememberArtPalette(url: String?): ArtPalette? {
     val context = LocalContext.current
+    // The state outlives a change of [url] (produceState isn't reset by its keys), so each picture is looked up
+    // afresh: checking `value != null` here kept the previous song's colours on Home (issue #3). The old colours
+    // stay up until the new ones are ready, so nothing flashes.
     val palette by produceState(url?.let { synchronized(paletteCache) { paletteCache[it] } }, url) {
         val u = url ?: return@produceState
-        if (value != null) return@produceState
+        synchronized(paletteCache) { paletteCache[u] }?.let { value = it; return@produceState }
         value = withContext(Dispatchers.Default) {
             runCatching {
                 val bmp = decodeSmall(context, u, 160) ?: return@runCatching null
@@ -138,9 +141,10 @@ fun rememberArtPalette(url: String?): ArtPalette? {
 @Composable
 fun rememberFrost(url: String?): FrostImage? {
     val context = LocalContext.current
+    // As [rememberArtPalette]: looked up for every new picture, the old frost held until the new one is ready.
     val frost by produceState(url?.let { synchronized(frostCache) { frostCache[it] } }, url) {
         val u = url ?: return@produceState
-        if (value != null) return@produceState
+        synchronized(frostCache) { frostCache[u] }?.let { value = it; return@produceState }
         value = withContext(Dispatchers.Default) {
             runCatching {
                 val bmp = decodeSmall(context, u, 96) ?: return@runCatching null

@@ -1,5 +1,6 @@
 package com.prism.music.ui.screens
 
+import com.prism.music.ui.theme.PrismIcons
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -7,11 +8,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.OpenInNew
-import androidx.compose.material.icons.automirrored.rounded.PlaylistAdd
-import androidx.compose.material.icons.rounded.CloudSync
-import androidx.compose.material.icons.rounded.Login
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -76,8 +72,8 @@ fun ImportScreen(bottomPadding: Dp) {
         if (!settings.isLoggedIn) {
             item {
                 Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-                    EmptyState(Icons.AutoMirrored.Rounded.PlaylistAdd, "Sign in to import playlists", "Imported playlists go to your YouTube Music account, then show up in Prism.")
-                    Button(onClick = { nav.go(Routes.LOGIN) }) { Icon(Icons.Rounded.Login, null); Spacer(Modifier.width(8.dp)); Text("Sign in") }
+                    EmptyState(PrismIcons.PlaylistAdd, "Sign in to import playlists", "Imported playlists go to your YouTube Music account, then show up in Prism.")
+                    Button(onClick = { nav.go(Routes.LOGIN) }) { Icon(PrismIcons.Login, null); Spacer(Modifier.width(8.dp)); Text("Sign in") }
                 }
             }
             return@SubPage
@@ -92,7 +88,7 @@ fun ImportScreen(bottomPadding: Dp) {
                 Button(onClick = { open("/spotify-to-youtube-music") }, Modifier.fillMaxWidth()) { Text("From Spotify") }
                 Button(onClick = { open("/apple-music-to-youtube-music") }, Modifier.fillMaxWidth()) { Text("From Apple Music") }
                 OutlinedButton(onClick = { open("") }, Modifier.fillMaxWidth()) {
-                    Text("From another service or a file"); Spacer(Modifier.width(8.dp)); Icon(Icons.AutoMirrored.Rounded.OpenInNew, null, Modifier.size(18.dp))
+                    Text("From another service or a file"); Spacer(Modifier.width(8.dp)); Icon(PrismIcons.OpenInNew, null, Modifier.size(18.dp))
                 }
                 Spacer(Modifier.size(4.dp))
                 Text("How it works", style = MaterialTheme.typography.titleSmall)
@@ -105,7 +101,7 @@ fun ImportScreen(bottomPadding: Dp) {
                 )
                 TextButton(onClick = { scope.launch { c.library.sync() } }, enabled = sync != SyncState.SYNCING) {
                     if (sync == SyncState.SYNCING) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
-                    else Icon(Icons.Rounded.CloudSync, null, Modifier.size(18.dp))
+                    else Icon(PrismIcons.Sync, null, Modifier.size(18.dp))
                     Spacer(Modifier.width(8.dp))
                     Text(if (sync == SyncState.SYNCING) "Syncing…" else "Sync library now")
                 }

@@ -10,8 +10,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
@@ -91,7 +89,9 @@ fun NerdStatsPanel(modifier: Modifier = Modifier) {
             "Output" to "${stats.outputEncoding} @ ${stats.outputSampleRate} Hz" + if (stats.offload) " · offload" else "",
             "Device" to stats.outputDevice,
             "Spatializer" to stats.spatializer,
-            "Loudness" to (stats.loudnessDb?.let { "%.1f dB · gain %.1f dB".format(it, stats.normalizationGainDb) } ?: "—"),
+            "Loudness" to (stats.loudnessDb?.let {
+                (if (stats.loudnessMeasured) "%.1f LUFS".format(it) else "%.1f dB (YouTube)".format(it)) + " · gain %.1f dB".format(stats.normalizationGainDb)
+            } ?: "—"),
             "Effects" to stats.effects,
             "Buffer" to "%.1f s · %d kbps est.".format(stats.bufferMs / 1000f, stats.bandwidthKbps),
             "Session" to "${stats.audioSessionId} · underruns ${stats.underruns}",

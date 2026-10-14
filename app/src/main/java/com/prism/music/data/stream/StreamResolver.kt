@@ -457,6 +457,8 @@ class StreamResolver(
             null
         }
         var reason: String? = null
+        // A live answer without an HLS manifest is kept only until a client gives one ([liveManifest] fills it in).
+        var liveWithoutHls: Formats? = null
         for (client in InnerTube.PlayerClient.entries) {
             val res = try {
                 innerTube.signedInPlayer(client, videoId, player?.second)
@@ -469,8 +471,10 @@ class StreamResolver(
                 continue
             }
             val f = parsePlayer(res, player?.first)
+            if (f.live && f.hlsUrl == null) { liveWithoutHls = liveWithoutHls ?: f; continue }
             if (f.audio.isNotEmpty() || (f.live && f.hlsUrl != null)) return f
         }
+        liveWithoutHls?.let { return it }
         throw StreamException(reason ?: "Couldn't load this track")
     }
 
@@ -530,7 +534,18 @@ class StreamResolver(
     /** A live stream's HLS manifest, fresh enough to play. Blocking; called from ExoPlayer loader threads. */
     fun liveManifest(videoId: String): String {
         val f = formats(videoId)
-        return f.hlsUrl ?: throw StreamException("This live stream can't be played")
+        f.hlsUrl?.let { return it }
+        // The account's clients (signed in, while NewPipe is backed off) can answer a live stream with its DASH
+        // formats and no HLS manifest, which left live streams unplayable in song and video mode alike. The
+        // anonymous web player always has the manifest.
+        val anon = try {
+            anonymousFormats(videoId)
+        } catch (e: Exception) {
+            throw StreamException("This live stream can't be played", e)
+        }
+        val url = anon.hlsUrl ?: throw StreamException("This live stream can't be played")
+        cache[videoId] = Formats(f.audio, f.videoOnly, f.muxed, f.durationSec, minOf(f.expiresAtMs, anon.expiresAtMs), live = true, hlsUrl = url)
+        return url
     }
 
     /**

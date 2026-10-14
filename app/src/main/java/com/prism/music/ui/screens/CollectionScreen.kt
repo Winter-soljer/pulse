@@ -1,5 +1,6 @@
 package com.prism.music.ui.screens
 
+import com.prism.music.ui.theme.PrismIcons
 import com.prism.music.data.friendlyMessage
 import android.widget.Toast
 import androidx.compose.animation.animateContentSize
@@ -29,34 +30,6 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.automirrored.rounded.Sort
-import androidx.compose.material.icons.automirrored.rounded.PlaylistAdd
-import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material.icons.rounded.Delete
-import androidx.compose.material.icons.rounded.DeleteOutline
-import androidx.compose.material.icons.rounded.DeleteSweep
-import androidx.compose.material.icons.rounded.Download
-import androidx.compose.material.icons.rounded.DownloadDone
-import androidx.compose.material.icons.rounded.Edit
-import androidx.compose.material.icons.rounded.Favorite
-import androidx.compose.material.icons.rounded.LibraryAdd
-import androidx.compose.material.icons.rounded.LibraryAddCheck
-import androidx.compose.material.icons.rounded.Lock
-import androidx.compose.material.icons.rounded.Lyrics
-import androidx.compose.material.icons.rounded.MoreHoriz
-import androidx.compose.material.icons.rounded.Person
-import androidx.compose.material.icons.rounded.PhotoLibrary
-import androidx.compose.material.icons.rounded.PlayArrow
-import androidx.compose.material.icons.rounded.PlaylistRemove
-import androidx.compose.material.icons.rounded.Public
-import androidx.compose.material.icons.rounded.Radio
-import androidx.compose.material.icons.rounded.Restore
-import androidx.compose.material.icons.rounded.Search
-import androidx.compose.material.icons.rounded.Share
-import androidx.compose.material.icons.rounded.Shuffle
-import androidx.compose.material.icons.rounded.Link
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -354,7 +327,7 @@ private fun CollectionContent(type: CollectionType, live: LiveCollection, initia
     fun removeAction(s: Song): List<SheetItem> {
         val slot = slots[s.id]
         if (type != CollectionType.PLAYLIST || !live.page.owned || slot == null) return emptyList()
-        return listOf(SheetItem(Icons.Rounded.PlaylistRemove, "Remove from this playlist") {
+        return listOf(SheetItem(PrismIcons.PlaylistRemove, "Remove from this playlist") {
             val before = live.songs.value
             live.songs.value = before.filterNot { it.id == s.id }
             scope.launch {
@@ -435,16 +408,16 @@ private fun CollectionContent(type: CollectionType, live: LiveCollection, initia
                         if (showGenres) Box {
                             IconButton(onClick = { sortMenu = true }) {
                                 Icon(
-                                    Icons.AutoMirrored.Rounded.Sort, "Sort",
+                                    PrismIcons.Sort, "Sort",
                                     tint = if (sort != SortMode.DEFAULT || groupByGenre) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                             }
                             DropdownMenu(sortMenu, { sortMenu = false }) {
                                 SortMode.entries.forEach { m ->
-                                    DropdownMenuItem({ Text(sortLabel(m, type)) }, { sort = m; sortMenu = false }, trailingIcon = { if (m == sort) Icon(Icons.Rounded.Check, null) })
+                                    DropdownMenuItem({ Text(sortLabel(m, type)) }, { sort = m; sortMenu = false }, trailingIcon = { if (m == sort) Icon(PrismIcons.Check, null) })
                                 }
                                 HorizontalDivider()
-                                DropdownMenuItem({ Text("Group by genre") }, { groupByGenre = !groupByGenre; sortMenu = false }, trailingIcon = { if (groupByGenre) Icon(Icons.Rounded.Check, null) })
+                                DropdownMenuItem({ Text("Group by genre") }, { groupByGenre = !groupByGenre; sortMenu = false }, trailingIcon = { if (groupByGenre) Icon(PrismIcons.Check, null) })
                             }
                         }
                     }
@@ -458,8 +431,8 @@ private fun CollectionContent(type: CollectionType, live: LiveCollection, initia
                     }
                 }
                 if (visible.isEmpty()) item {
-                    if (query.isNotBlank()) EmptyState(Icons.Rounded.Search, "No matches", "Nothing in $title matches \"${query.trim()}\"" + if (loadingMore) " yet — more songs are still loading." else ".")
-                    else EmptyState(Icons.Rounded.Favorite, if (genreFilter != null) "No $genreFilter songs" else "Nothing here yet",
+                    if (query.isNotBlank()) EmptyState(PrismIcons.Search, "No matches", "Nothing in $title matches \"${query.trim()}\"" + if (loadingMore) " yet — more songs are still loading." else ".")
+                    else EmptyState(PrismIcons.HeartFilled, if (genreFilter != null) "No $genreFilter songs" else "Nothing here yet",
                         if (type == CollectionType.LIKED) "Like songs from the player and they'll show up here." else "Songs you add will show up here.")
                 }
                 if (groupByGenre && showGenres) {
@@ -516,33 +489,33 @@ private fun CollectionContent(type: CollectionType, live: LiveCollection, initia
                 title, { solid },
                 downloadIcon = when {
                     type == CollectionType.DOWNLOADS -> null
-                    allDownloaded -> Icons.Rounded.DownloadDone
-                    else -> Icons.Rounded.Download
+                    allDownloaded -> PrismIcons.DownloadDone
+                    else -> PrismIcons.Download
                 },
                 downloading = downloadingCount > 0,
                 onDownload = toggleDownloads,
                 onShare = { sharing = true },
             ) { close ->
-                if (radioId != null) DropdownMenuItem({ Text("Start radio") }, { close(); startRadio() }, leadingIcon = { Icon(Icons.Rounded.Radio, null) })
+                if (radioId != null) DropdownMenuItem({ Text("Start radio") }, { close(); startRadio() }, leadingIcon = { Icon(PrismIcons.Radio, null) })
                 if (savableId != null && saved != null) DropdownMenuItem(
                     { Text(if (saved == true) "Remove from library" else "Add to library") }, { close(); toggleSaved() },
-                    leadingIcon = { Icon(if (saved == true) Icons.Rounded.LibraryAddCheck else Icons.Rounded.LibraryAdd, null) },
+                    leadingIcon = { Icon(if (saved == true) PrismIcons.LibraryAdded else PrismIcons.LibraryAdd, null) },
                 )
                 if (type != CollectionType.DOWNLOADS) DropdownMenuItem(
                     { Text(if (allDownloaded) "Remove downloads" else "Download all") }, { close(); toggleDownloads() },
-                    leadingIcon = { Icon(if (allDownloaded) Icons.Rounded.DeleteOutline else Icons.Rounded.Download, null) },
+                    leadingIcon = { Icon(if (allDownloaded) PrismIcons.Delete else PrismIcons.Download, null) },
                 )
                 live.page.artists.firstOrNull { it.id != null }?.let { a ->
-                    DropdownMenuItem({ Text("Go to ${a.name}") }, { close(); nav.go(Routes.artist(a.id!!)) }, leadingIcon = { Icon(Icons.Rounded.Person, null) })
+                    DropdownMenuItem({ Text("Go to ${a.name}") }, { close(); nav.go(Routes.artist(a.id!!)) }, leadingIcon = { Icon(PrismIcons.Person, null) })
                 }
                 if (type == CollectionType.LIKED) DropdownMenuItem(
                     { Text(if (likedPlaylistId != null) "Playlist · kept up to date" else "Make it a playlist") }, { close(); likedPlaylistSheet = true },
-                    leadingIcon = { Icon(Icons.AutoMirrored.Rounded.PlaylistAdd, null) },
+                    leadingIcon = { Icon(PrismIcons.PlaylistAdd, null) },
                 )
-                if (coverKey != null) DropdownMenuItem({ Text("Change picture") }, { close(); coverSheet = true }, leadingIcon = { Icon(Icons.Rounded.PhotoLibrary, null) })
+                if (coverKey != null) DropdownMenuItem({ Text("Change picture") }, { close(); coverSheet = true }, leadingIcon = { Icon(PrismIcons.Photo, null) })
                 if (type == CollectionType.PLAYLIST && live.page.owned) {
-                    DropdownMenuItem({ Text("Edit details") }, { close(); editing = true }, leadingIcon = { Icon(Icons.Rounded.Edit, null) })
-                    DropdownMenuItem({ Text("Delete playlist") }, { close(); deleting = true }, leadingIcon = { Icon(Icons.Rounded.Delete, null) })
+                    DropdownMenuItem({ Text("Edit details") }, { close(); editing = true }, leadingIcon = { Icon(PrismIcons.Edit, null) })
+                    DropdownMenuItem({ Text("Delete playlist") }, { close(); deleting = true }, leadingIcon = { Icon(PrismIcons.Delete, null) })
                 }
                 if (type == CollectionType.DOWNLOADS) DownloadsMenuItems(close) { text, action -> confirm = text to action }
             }
@@ -608,8 +581,8 @@ private fun durationText(sec: Int): String {
 @Composable
 private fun PlayShufflePills(enabled: Boolean, onPlay: () -> Unit, onShuffle: () -> Unit) {
     Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 14.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        Pill(Icons.Rounded.PlayArrow, "Play", primary = true, enabled = enabled, modifier = Modifier.weight(1f), onClick = onPlay)
-        Pill(Icons.Rounded.Shuffle, "Shuffle", primary = false, enabled = enabled, modifier = Modifier.weight(1f), onClick = onShuffle)
+        Pill(PrismIcons.Play, "Play", primary = true, enabled = enabled, modifier = Modifier.weight(1f), onClick = onPlay)
+        Pill(PrismIcons.Shuffle, "Shuffle", primary = false, enabled = enabled, modifier = Modifier.weight(1f), onClick = onShuffle)
     }
 }
 
@@ -644,7 +617,7 @@ private fun CollectionTopBar(
     var menu by remember { mutableStateOf(false) }
     Box(Modifier.fillMaxWidth()) {
         Row(Modifier.fillMaxWidth().statusBarsPadding().height(60.dp).padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-            com.prism.music.ui.components.RoundAction(Icons.AutoMirrored.Rounded.ArrowBack, "Back", glass = true) { nav.back() }
+            com.prism.music.ui.components.RoundAction(PrismIcons.ArrowBack, "Back", glass = true) { nav.back() }
             Text(
                 title, Modifier.weight(1f).padding(horizontal = 12.dp).graphicsLayer { alpha = solid() },
                 style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis,
@@ -655,11 +628,11 @@ private fun CollectionTopBar(
                         Box(Modifier.fillMaxSize().clickable(onClickLabel = "Downloading", onClick = onDownload), contentAlignment = Alignment.Center) {
                             CircularProgressIndicator(Modifier.size(20.dp), color = ink, strokeWidth = 2.dp)
                         }
-                    } else com.prism.music.ui.components.RoundAction(downloadIcon, if (downloadIcon == Icons.Rounded.DownloadDone) "Downloaded" else "Download all", glass = true, onClick = onDownload)
+                    } else com.prism.music.ui.components.RoundAction(downloadIcon, if (downloadIcon == PrismIcons.DownloadDone) "Downloaded" else "Download all", glass = true, onClick = onDownload)
                 }
-                com.prism.music.ui.components.RoundAction(Icons.Rounded.Share, "Share", glass = true, onClick = onShare)
+                com.prism.music.ui.components.RoundAction(PrismIcons.Share, "Share", glass = true, onClick = onShare)
                 Box {
-                    com.prism.music.ui.components.RoundAction(Icons.Rounded.MoreHoriz, "More", glass = true) { menu = true }
+                    com.prism.music.ui.components.RoundAction(PrismIcons.More, "More", glass = true) { menu = true }
                     DropdownMenu(menu, { menu = false }) { menuItems { menu = false } }
                 }
             }
@@ -685,11 +658,11 @@ private fun Header(type: CollectionType, page: CollectionPage, art: String?, cov
                         .background(Brush.linearGradient(listOf(scheme.primary, scheme.tertiary)), cover),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Icon(if (type == CollectionType.DOWNLOADS) Icons.Rounded.DownloadDone else Icons.Rounded.Favorite, null, Modifier.size(96.dp), tint = scheme.onPrimary)
+                    Icon(if (type == CollectionType.DOWNLOADS) PrismIcons.DownloadDone else PrismIcons.HeartFilled, null, Modifier.size(96.dp), tint = scheme.onPrimary)
                 }
             }
-            if (coverKey != null) GlassSurface(Modifier.align(Alignment.BottomEnd).padding(10.dp).size(40.dp), shape = RoundedCornerShape(50)) {
-                Box(contentAlignment = Alignment.Center) { Icon(Icons.Rounded.Edit, "Change picture", Modifier.size(20.dp)) }
+            if (coverKey != null) GlassSurface(Modifier.align(Alignment.BottomEnd).padding(10.dp).size(40.dp), shape = RoundedCornerShape(50), onMedia = true, inPage = true) {
+                Box(contentAlignment = Alignment.Center) { Icon(PrismIcons.Edit, "Change picture", Modifier.size(20.dp)) }
             }
         }
         Spacer(Modifier.height(20.dp))
@@ -717,7 +690,7 @@ private fun HeaderDetails(page: CollectionPage, centred: Boolean, privacy: Strin
         if (linked.isNotEmpty()) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 page.artistThumbnail?.let {
-                    Artwork(it, Modifier.size(22.dp), CircleShape, size = 120, placeholderIcon = Icons.Rounded.Person)
+                    Artwork(it, Modifier.size(22.dp), CircleShape, size = 120, placeholderIcon = PrismIcons.Person)
                     Spacer(Modifier.width(6.dp))
                 }
                 linked.forEachIndexed { i, a ->
@@ -742,7 +715,7 @@ private fun HeaderDetails(page: CollectionPage, centred: Boolean, privacy: Strin
         val privacyLabel = when (privacy) { "PRIVATE" -> "Private"; "UNLISTED" -> "Unlisted"; "PUBLIC" -> "Public"; else -> null }
         if (facts.isNotEmpty() || privacyLabel != null) Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 2.dp)) {
             if (privacyLabel != null) {
-                Icon(if (privacy == "PUBLIC") Icons.Rounded.Public else if (privacy == "UNLISTED") Icons.Rounded.Link else Icons.Rounded.Lock, null, Modifier.size(14.dp), tint = scheme.onSurfaceVariant)
+                Icon(if (privacy == "PUBLIC") PrismIcons.Globe else if (privacy == "UNLISTED") PrismIcons.Link else PrismIcons.Lock, null, Modifier.size(14.dp), tint = scheme.onSurfaceVariant)
                 Spacer(Modifier.width(4.dp))
             }
             Text(
@@ -756,7 +729,7 @@ private fun HeaderDetails(page: CollectionPage, centred: Boolean, privacy: Strin
                     .padding(horizontal = 14.dp, vertical = 7.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(if (saved) Icons.Rounded.LibraryAddCheck else Icons.Rounded.LibraryAdd, null, Modifier.size(18.dp), tint = scheme.primary)
+                Icon(if (saved) PrismIcons.LibraryAdded else PrismIcons.LibraryAdd, null, Modifier.size(18.dp), tint = scheme.primary)
                 Spacer(Modifier.width(6.dp))
                 Text(if (saved) "In your library" else "Add to library", style = MaterialTheme.typography.labelLarge, color = scheme.onSurface)
             }
@@ -788,7 +761,7 @@ private fun HeroHeader(type: CollectionType, page: CollectionPage, art: String?,
                 Modifier.fillMaxSize().background(Brush.linearGradient(listOf(scheme.primary, scheme.tertiary))),
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(if (type == CollectionType.DOWNLOADS) Icons.Rounded.DownloadDone else Icons.Rounded.Favorite, null, Modifier.size(120.dp), tint = scheme.onPrimary.copy(alpha = 0.85f))
+                Icon(if (type == CollectionType.DOWNLOADS) PrismIcons.DownloadDone else PrismIcons.HeartFilled, null, Modifier.size(120.dp), tint = scheme.onPrimary.copy(alpha = 0.85f))
             }
         }
         Box(Modifier.fillMaxWidth().height(130.dp).background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.32f), Color.Transparent))))
@@ -871,7 +844,7 @@ private fun CoverSheet(key: String, songs: List<Song>, onDismiss: () -> Unit) {
             androidx.compose.material3.ListItem(
                 headlineContent = { Text("Choose a photo") },
                 supportingContent = { Text("From your phone's photos") },
-                leadingContent = { Icon(Icons.Rounded.PhotoLibrary, null) },
+                leadingContent = { Icon(PrismIcons.Photo, null) },
                 colors = androidx.compose.material3.ListItemDefaults.colors(containerColor = Color.Transparent),
                 modifier = Modifier.clickable {
                     picker.launch(androidx.activity.result.PickVisualMediaRequest(androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly))
@@ -893,7 +866,7 @@ private fun CoverSheet(key: String, songs: List<Song>, onDismiss: () -> Unit) {
             }
             if (c.covers.custom(key) != null) androidx.compose.material3.ListItem(
                 headlineContent = { Text("Use the original picture") },
-                leadingContent = { Icon(Icons.Rounded.Restore, null) },
+                leadingContent = { Icon(PrismIcons.History, null) },
                 colors = androidx.compose.material3.ListItemDefaults.colors(containerColor = Color.Transparent),
                 modifier = Modifier.padding(top = 8.dp).clickable { c.covers.reset(key); onDismiss() },
             )
@@ -968,16 +941,16 @@ private fun DownloadsMenuItems(close: () -> Unit, ask: (String, () -> Unit) -> U
         smartIds = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { c.db.songs().smartDownloads().map { it.id }.toSet() }
     }
     val smart = all.filter { it.value.state == Download.STATE_COMPLETED && it.key in smartIds }.keys
-    DropdownMenuItem({ Text("Get missing lyrics") }, { close(); c.downloads.backfillLyrics(force = true) }, leadingIcon = { Icon(Icons.Rounded.Lyrics, null) })
+    DropdownMenuItem({ Text("Get missing lyrics") }, { close(); c.downloads.backfillLyrics(force = true) }, leadingIcon = { Icon(PrismIcons.Lyrics, null) })
     if (smart.isNotEmpty()) DropdownMenuItem({ Text("Delete smart downloads (${smart.size})") }, {
         close()
         ask("Delete the ${com.prism.music.data.model.songCount(smart.size)} smart downloads added? They may come back later if smart downloads stays on.") { c.downloads.removeMany(smart) }
-    }, leadingIcon = { Icon(Icons.Rounded.DeleteSweep, null) })
+    }, leadingIcon = { Icon(PrismIcons.Delete, null) })
     val videos by c.downloads.videos.collectAsState()
     if (videos.isNotEmpty()) DropdownMenuItem({ Text("Delete music videos (${sizeText(videos.values.sumOf { it.bytes })})") }, {
         close()
         ask("Delete the ${videos.size} saved music videos? The songs stay downloaded.") { videos.keys.forEach(c.downloads::removeVideo) }
-    }, leadingIcon = { Icon(Icons.Rounded.DeleteSweep, null) })
+    }, leadingIcon = { Icon(PrismIcons.Delete, null) })
     DropdownMenuItem({ Text("Delete all downloads") }, {
         close()
         val lossless = all.count { it.value.lossless }
@@ -985,5 +958,5 @@ private fun DownloadsMenuItems(close: () -> Unit, ask: (String, () -> Unit) -> U
             "Delete all ${all.size} downloads (${sizeText(c.downloads.totalBytes)})? This frees the space straight away." +
                 if (lossless > 0) " Your $lossless lossless files stay on the phone; they just leave Downloads." else ""
         ) { c.downloads.removeAll() }
-    }, leadingIcon = { Icon(Icons.Rounded.DeleteOutline, null) })
+    }, leadingIcon = { Icon(PrismIcons.Delete, null) })
 }

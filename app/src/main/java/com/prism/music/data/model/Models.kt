@@ -27,6 +27,13 @@ data class Song(
 ) {
     val artistText: String get() = artists.joinToString(", ") { it.name }.ifBlank { "Unknown artist" }
     val primaryArtist: String get() = artists.firstOrNull()?.name ?: ""
+    /** A music file on the phone (Library → Local music), not a YouTube Music song: it plays from the file. */
+    val isLocal: Boolean get() = id.startsWith(LOCAL_PREFIX)
+
+    companion object {
+        /** Local songs' ids: this, then the file's MediaStore id. */
+        const val LOCAL_PREFIX = "local:"
+    }
 }
 
 sealed interface BrowseItem {

@@ -1,8 +1,6 @@
 package com.prism.music.ui.components
 
-import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material.icons.rounded.SmartDisplay
-import androidx.compose.material.icons.automirrored.rounded.Sort
+import com.prism.music.ui.theme.PrismIcons
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -33,37 +31,6 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.PlaylistAdd
-import androidx.compose.material.icons.automirrored.rounded.QueueMusic
-import androidx.compose.material.icons.rounded.Add
-import androidx.compose.material.icons.rounded.Album
-import androidx.compose.material.icons.rounded.ArrowForward
-import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.ChevronRight
-import androidx.compose.material.icons.rounded.CloudOff
-import androidx.compose.material.icons.rounded.Search
-import androidx.compose.material.icons.rounded.Download
-import androidx.compose.material.icons.rounded.DownloadDone
-import androidx.compose.material.icons.rounded.Explicit
-import androidx.compose.material.icons.rounded.Favorite
-import androidx.compose.material.icons.rounded.FavoriteBorder
-import androidx.compose.material.icons.rounded.GroupAdd
-import androidx.compose.material.icons.rounded.Groups
-import androidx.compose.material.icons.rounded.MoreVert
-import androidx.compose.material.icons.rounded.MoreHoriz
-import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
-import androidx.compose.material.icons.rounded.MusicNote
-import androidx.compose.material.icons.rounded.Person
-import androidx.compose.material.icons.rounded.Podcasts
-import androidx.compose.material.icons.rounded.DoneAll
-import androidx.compose.material.icons.rounded.Refresh
-import androidx.compose.material.icons.rounded.PlaylistPlay
-import androidx.compose.material.icons.rounded.Radio
-import androidx.compose.material.icons.rounded.Share
-import androidx.compose.material.icons.rounded.Star
-import androidx.compose.material.icons.rounded.ThumbDown
-import androidx.compose.material.icons.rounded.ThumbDownOffAlt
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -119,7 +86,7 @@ fun Artwork(
     modifier: Modifier = Modifier,
     shape: Shape = RoundedCornerShape(12.dp),
     size: Int = 544,
-    placeholderIcon: ImageVector = Icons.Rounded.MusicNote,
+    placeholderIcon: ImageVector = PrismIcons.Song,
 ) {
     val scheme = MaterialTheme.colorScheme
     Box(
@@ -162,7 +129,7 @@ fun SectionHeader(title: String, modifier: Modifier = Modifier, strapline: Strin
                 title, Modifier.weight(1f, fill = false), style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.ExtraBold),
                 maxLines = 1, overflow = TextOverflow.Ellipsis,
             )
-            if (onMore != null) Icon(Icons.Rounded.ChevronRight, "See all", Modifier.size(26.dp), tint = scheme.onSurfaceVariant)
+            if (onMore != null) Icon(PrismIcons.ChevronRight, "See all", Modifier.size(26.dp), tint = scheme.onSurfaceVariant)
         }
     }
 }
@@ -199,7 +166,7 @@ fun SongRow(
     ) {
         if (index != null) {
             Row(Modifier.width(38.dp), verticalAlignment = Alignment.CenterVertically) {
-                if (starred) Icon(Icons.Rounded.Star, "Popular", Modifier.size(12.dp), tint = scheme.primary)
+                if (starred) Icon(PrismIcons.StarFilled, "Popular", Modifier.size(12.dp), tint = scheme.primary)
                 else Spacer(Modifier.width(12.dp))
                 Spacer(Modifier.width(3.dp))
                 Text(
@@ -223,12 +190,12 @@ fun SongRow(
                 color = if (playing) scheme.primary else scheme.onSurface,
             )
             Row(verticalAlignment = Alignment.CenterVertically) {
-                if (song.explicit) Icon(Icons.Rounded.Explicit, null, Modifier.size(14.dp).padding(end = 2.dp), tint = scheme.onSurfaceVariant)
+                if (song.explicit) Icon(PrismIcons.Explicit, null, Modifier.size(14.dp).padding(end = 2.dp), tint = scheme.onSurfaceVariant)
                 if (downloads[song.id]?.state == androidx.media3.exoplayer.offline.Download.STATE_COMPLETED) {
-                    Icon(Icons.Rounded.DownloadDone, null, Modifier.size(14.dp).padding(end = 3.dp), tint = scheme.primary)
+                    Icon(PrismIcons.DownloadDone, null, Modifier.size(14.dp).padding(end = 3.dp), tint = scheme.primary)
                 }
                 if (videos[song.id]?.state == androidx.media3.exoplayer.offline.Download.STATE_COMPLETED) {
-                    Icon(Icons.Rounded.SmartDisplay, "Video saved", Modifier.size(14.dp).padding(end = 3.dp), tint = scheme.primary)
+                    Icon(PrismIcons.Video, "Video saved", Modifier.size(14.dp).padding(end = 3.dp), tint = scheme.primary)
                 }
                 Text(
                     listOfNotNull(song.artistText, trailingInfo ?: song.album?.title).joinToString(" • "),
@@ -237,8 +204,8 @@ fun SongRow(
                 )
             }
         }
-        if (song.id in liked) Icon(Icons.Rounded.Favorite, null, Modifier.size(15.dp), tint = scheme.primary)
-        IconButton(onClick = { menu = true }) { Icon(Icons.Rounded.MoreHoriz, "More", tint = scheme.onSurfaceVariant.copy(alpha = 0.8f)) }
+        if (song.id in liked) Icon(PrismIcons.HeartFilled, null, Modifier.size(15.dp), tint = scheme.primary)
+        IconButton(onClick = { menu = true }) { Icon(PrismIcons.More, "More", tint = scheme.onSurfaceVariant.copy(alpha = 0.8f)) }
     }
     if (menu) SongActionsSheet(song, extraActions) { menu = false }
 }
@@ -276,11 +243,11 @@ fun ItemCard(item: BrowseItem, modifier: Modifier = Modifier, width: Dp = Dp.Uns
                     Modifier.fillMaxWidth().aspectRatio(if (video) 16f / 9f else 1f),
                     if (round) CircleShape else ui.art,
                     placeholderIcon = when (item) {
-                        is ArtistItem -> Icons.Rounded.Person
-                        is AlbumItem -> Icons.Rounded.Album
-                        is PlaylistItem -> Icons.AutoMirrored.Rounded.QueueMusic
-                        is com.prism.music.data.model.PodcastItem -> Icons.Rounded.Podcasts
-                        else -> Icons.Rounded.MusicNote
+                        is ArtistItem -> PrismIcons.Person
+                        is AlbumItem -> PrismIcons.Album
+                        is PlaylistItem -> PrismIcons.QueueMusic
+                        is com.prism.music.data.model.PodcastItem -> PrismIcons.Podcasts
+                        else -> PrismIcons.Song
                     },
                 )
                 Spacer(Modifier.height(8.dp))
@@ -343,7 +310,7 @@ fun ErrorState(message: String, modifier: Modifier = Modifier, onRetry: (() -> U
         Box(
             Modifier.size(64.dp).clip(CircleShape).background(quietFill()),
             contentAlignment = Alignment.Center,
-        ) { Icon(Icons.Rounded.CloudOff, null, Modifier.size(30.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant) }
+        ) { Icon(PrismIcons.CloudOff, null, Modifier.size(30.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant) }
         Spacer(Modifier.height(14.dp))
         Text(
             message, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -389,7 +356,7 @@ fun SearchField(query: String, hint: String, onChange: (String) -> Unit, modifie
             .background(if (container != Color.Unspecified) container else quietFill()).padding(start = 14.dp, end = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(Icons.Rounded.Search, null, Modifier.size(20.dp), tint = scheme.onSurfaceVariant)
+        Icon(PrismIcons.Search, null, Modifier.size(20.dp), tint = scheme.onSurfaceVariant)
         Spacer(Modifier.width(10.dp))
         Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
             if (query.isEmpty()) Text(hint, style = MaterialTheme.typography.bodyLarge, color = scheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -403,7 +370,7 @@ fun SearchField(query: String, hint: String, onChange: (String) -> Unit, modifie
             )
         }
         if (query.isNotEmpty()) IconButton(onClick = { onChange(""); focus.clearFocus() }) {
-            Icon(Icons.Rounded.Close, "Clear search", Modifier.size(20.dp), tint = scheme.onSurfaceVariant)
+            Icon(PrismIcons.Close, "Clear search", Modifier.size(20.dp), tint = scheme.onSurfaceVariant)
         }
     }
 }
@@ -466,7 +433,7 @@ fun videoDownloadAction(song: Song, video: com.prism.music.download.VideoDownloa
     val done = video?.state == androidx.media3.exoplayer.offline.Download.STATE_COMPLETED
     val failed = video?.state == androidx.media3.exoplayer.offline.Download.STATE_FAILED
     return ActionItem(
-        Icons.Rounded.SmartDisplay, if (done) "Remove downloaded video" else "Download video",
+        PrismIcons.Video, if (done) "Remove downloaded video" else "Download video",
         value = when {
             done -> "Saved"
             failed -> "Failed: tap to remove"
@@ -496,7 +463,9 @@ fun SongActionsSheet(song: Song, extra: List<SheetItem> = emptyList(), onDismiss
     val dl = downloads[song.id]
     val downloaded = dl?.state == androidx.media3.exoplayer.offline.Download.STATE_COMPLETED
     val together by c.together.state.collectAsState()
-    val guest = together as? com.prism.music.playback.together.TogetherState.Guest
+    // A file on the phone isn't on YouTube: no radio, download, sharing, YouTube playlists, or sending it to a session.
+    val local = song.isLocal
+    val guest = (together as? com.prism.music.playback.together.TogetherState.Guest)?.takeIf { !local }
     fun toast(text: String) = android.widget.Toast.makeText(context, text, android.widget.Toast.LENGTH_SHORT).show()
 
     // The playlist picker and the share sheet take over from the sheet.
@@ -505,42 +474,42 @@ fun SongActionsSheet(song: Song, extra: List<SheetItem> = emptyList(), onDismiss
 
     // In someone's Listen Together session, songs go into their queue.
     val quick = listOf(
-        if (guest != null) ActionItem(Icons.Rounded.Groups, "Play next") { c.together.suggest(song, next = true); toast("Sent to ${guest.hostName}") }
-        else ActionItem(Icons.Rounded.PlaylistPlay, "Play next") { c.player.playNext(song) },
-        if (guest != null) ActionItem(Icons.Rounded.GroupAdd, "Add to queue") { c.together.suggest(song, next = false); toast("Sent to ${guest.hostName}") }
-        else ActionItem(Icons.AutoMirrored.Rounded.QueueMusic, "Add to queue") { c.player.addToQueue(song) },
+        if (guest != null) ActionItem(PrismIcons.Groups, "Play next") { c.together.suggest(song, next = true); toast("Sent to ${guest.hostName}") }
+        else ActionItem(PrismIcons.PlaylistPlay, "Play next") { c.player.playNext(song) },
+        if (guest != null) ActionItem(PrismIcons.PersonAdd, "Add to queue") { c.together.suggest(song, next = false); toast("Sent to ${guest.hostName}") }
+        else ActionItem(PrismIcons.QueueMusic, "Add to queue") { c.player.addToQueue(song) },
         // A radio of a podcast episode is music radio: not offered for episodes.
-        if (song.isEpisode) null else ActionItem(Icons.Rounded.Radio, "Radio") { c.player.playRadio(song) },
-        ActionItem(
-            if (downloaded) Icons.Rounded.DownloadDone else Icons.Rounded.Download, "Download",
+        if (song.isEpisode || local) null else ActionItem(PrismIcons.Radio, "Radio") { c.player.playRadio(song) },
+        if (local) null else ActionItem(
+            if (downloaded) PrismIcons.DownloadDone else PrismIcons.Download, "Download",
             value = when { downloaded -> "Downloaded"; dl != null -> "${dl.percent.toInt().coerceAtLeast(0)}%"; else -> null },
             active = downloaded, keepOpen = true,
         ) { if (dl != null) c.downloads.remove(song.id) else c.downloads.download(song) },
     ).filterNotNull()
     val go = listOfNotNull(
-        song.podcastId?.let { id -> ActionItem(Icons.Rounded.Podcasts, "Go to podcast") { nav.go(Routes.podcast(id)) } },
-        if (song.isEpisode && song.id in c.episodes.played.value) ActionItem(Icons.Rounded.Refresh, "Mark as unplayed") { c.episodes.forget(song.id); c.episodes.unmarkPlayed(song.id) }
-        else if (song.isEpisode) ActionItem(Icons.Rounded.DoneAll, "Mark as played") { c.episodes.markPlayed(song.id) } else null,
-        if (c.settings.current.isLoggedIn) ActionItem(Icons.AutoMirrored.Rounded.PlaylistAdd, "Add to playlist", keepOpen = true) { pickPlaylist = true } else null,
-        song.album?.id?.let { id -> ActionItem(Icons.Rounded.Album, "Go to album", value = song.album?.title?.takeIf { it.length <= 22 }) { nav.go(Routes.album(id)) } },
-        song.artists.firstOrNull { it.id != null }?.let { a -> ActionItem(Icons.Rounded.Person, "Go to ${a.name}") { nav.go(Routes.artist(a.id!!)) } },
+        song.podcastId?.let { id -> ActionItem(PrismIcons.Podcasts, "Go to podcast") { nav.go(Routes.podcast(id)) } },
+        if (song.isEpisode && song.id in c.episodes.played.value) ActionItem(PrismIcons.Refresh, "Mark as unplayed") { c.episodes.forget(song.id); c.episodes.unmarkPlayed(song.id) }
+        else if (song.isEpisode) ActionItem(PrismIcons.DoneAll, "Mark as played") { c.episodes.markPlayed(song.id) } else null,
+        if (c.settings.current.isLoggedIn && !local) ActionItem(PrismIcons.PlaylistAdd, "Add to playlist", keepOpen = true) { pickPlaylist = true } else null,
+        song.album?.id?.let { id -> ActionItem(PrismIcons.Album, "Go to album", value = song.album?.title?.takeIf { it.length <= 22 }) { nav.go(Routes.album(id)) } },
+        song.artists.firstOrNull { it.id != null }?.let { a -> ActionItem(PrismIcons.Person, "Go to ${a.name}") { nav.go(Routes.artist(a.id!!)) } },
     )
     val more = extra.map { it.toAction() } + listOfNotNull(
-        if (song.isEpisode) null else videoDownloadAction(song, videos[song.id]),
-        if (song.isEpisode) null else if (song.id in disliked) ActionItem(Icons.Rounded.ThumbDown, "Not for me", active = true, keepOpen = true) { c.library.setDisliked(song, false) }
-        else ActionItem(Icons.Rounded.ThumbDownOffAlt, "Not for me") { c.library.setDisliked(song, true); toast("Got it — Prism will steer clear of this song") },
+        if (song.isEpisode || local) null else videoDownloadAction(song, videos[song.id]),
+        if (song.isEpisode) null else if (song.id in disliked) ActionItem(PrismIcons.ThumbDownFilled, "Not for me", active = true, keepOpen = true) { c.library.setDisliked(song, false) }
+        else ActionItem(PrismIcons.ThumbDown, "Not for me") { c.library.setDisliked(song, true); toast("Got it — Prism will steer clear of this song") },
     )
 
     ActionSheet(song.thumbnail, onDismiss) { close ->
         ActionHeader(
             song.thumbnail, song.title,
             listOfNotNull(song.artistText, formatDuration(song.durationSec).takeIf { it.isNotEmpty() }).joinToString(" · "),
-            placeholderIcon = Icons.Rounded.MusicNote,
+            placeholderIcon = PrismIcons.Song,
         ) {
-            SheetIconButton(if (isLiked) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder, if (isLiked) "Remove from liked songs" else "Add to liked songs", active = isLiked) {
+            SheetIconButton(if (isLiked) PrismIcons.HeartFilled else PrismIcons.Heart, if (isLiked) "Remove from liked songs" else "Add to liked songs", active = isLiked) {
                 c.library.toggleLike(song)
             }
-            SheetIconButton(Icons.Rounded.Share, "Share") { sharing = true }
+            if (!local) SheetIconButton(PrismIcons.Share, "Share") { sharing = true }
         }
         if (guest != null) Text(
             "Adding to ${guest.hostName}'s session", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary,
@@ -599,7 +568,7 @@ fun PlaylistPicker(song: Song, onDismiss: () -> Unit) {
             Text("Add to playlist", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 20.dp))
             Text(song.title, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 20.dp))
             Spacer(Modifier.height(10.dp))
-            SheetAction(Icons.Rounded.Add, "New playlist") { creating = true }
+            SheetAction(PrismIcons.Add, "New playlist") { creating = true }
             if (mine.size > 8) SearchField(query, "Find a playlist", { query = it }, Modifier.padding(horizontal = 20.dp, vertical = 6.dp))
             if (mine.isEmpty()) Text(
                 "Your playlists show up here once your library has synced.", style = MaterialTheme.typography.bodyMedium,
@@ -618,7 +587,7 @@ fun PlaylistPicker(song: Song, onDismiss: () -> Unit) {
                         }.padding(horizontal = 20.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Artwork(c.covers.art(p), Modifier.size(46.dp), com.prism.music.ui.theme.LocalUi.current.smallArt, size = 120, placeholderIcon = Icons.AutoMirrored.Rounded.QueueMusic)
+                        Artwork(c.covers.art(p), Modifier.size(46.dp), com.prism.music.ui.theme.LocalUi.current.smallArt, size = 120, placeholderIcon = PrismIcons.QueueMusic)
                         Spacer(Modifier.width(14.dp))
                         Column(Modifier.weight(1f)) {
                             Text(p.title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -683,7 +652,7 @@ fun <T> SortButton(options: List<T>, selected: T, label: (T) -> String, modifier
             Modifier.clip(CircleShape).clickable { open = true }.padding(horizontal = 12.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(Icons.AutoMirrored.Rounded.Sort, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            Icon(PrismIcons.Sort, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.width(6.dp))
             Text(label(selected), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurface)
         }
@@ -692,7 +661,7 @@ fun <T> SortButton(options: List<T>, selected: T, label: (T) -> String, modifier
                 androidx.compose.material3.DropdownMenuItem(
                     text = { Text(label(o), fontWeight = if (o == selected) FontWeight.SemiBold else FontWeight.Normal) },
                     onClick = { onSelect(o); open = false },
-                    trailingIcon = if (o == selected) ({ Icon(Icons.Rounded.Check, null, tint = MaterialTheme.colorScheme.primary) }) else null,
+                    trailingIcon = if (o == selected) ({ Icon(PrismIcons.Check, null, tint = MaterialTheme.colorScheme.primary) }) else null,
                 )
             }
         }

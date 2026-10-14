@@ -81,9 +81,10 @@ class PlayLikelihood(events: List<PlayEventEntity>, songs: Map<String, Song>, pr
 
 /**
  * Smart downloads, like YouTube Music's: songs you're most likely to play are
- * kept offline, ranked by [PlayLikelihood]. It fills the space you allow
- * gradually — a slice each run (twice a day on Wi-Fi), never all at once —
- * and slowly rotates out songs you've moved on from.
+ * kept offline, ranked by [PlayLikelihood]. It fills its share of the space you allow
+ * gradually — a slice each run (twice a day, on Wi-Fi unless mobile data is allowed),
+ * never all at once — and slowly rotates out songs you've moved on from. The rest of
+ * the space holds the songs you stream ([SmartCacheEvictor]).
  */
 class SmartDownloadWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result {
@@ -104,7 +105,7 @@ class SmartDownloadWorker(context: Context, params: WorkerParameters) : Coroutin
         // Candidates: what you play and like, plus recommendations seeded from your strongest favourites.
         val scored = HashMap<String, Pair<Song, Double>>()
         fun consider(song: Song, score: Double) {
-            if (song.durationSec > 1200 || song.isVideo || c.library.isDisliked(song.id)) return
+            if (song.durationSec > 1200 || song.isVideo || song.isLocal || c.library.isDisliked(song.id)) return
             val prev = scored[song.id]
             if (prev == null || prev.second < score) scored[song.id] = song to score
         }
@@ -123,7 +124,8 @@ class SmartDownloadWorker(context: Context, params: WorkerParameters) : Coroutin
         val free = applicationContext.filesDir.usableSpace - 1_073_741_824L
         val smartIds = c.db.songs().smartDownloads().map { it.id }.toSet()
         val smartBytes = smartIds.sumOf { downloads[it]?.bytes ?: 0L }
-        val budget = minOf((s.smartDownloadGb * 1_073_741_824.0).toLong(), free + smartBytes).coerceAtLeast(0)
+        // Picks get up to three quarters of Smart Downloads' space; the songs you stream (the song cache) have the rest.
+        val budget = minOf((s.offlineGb * PICK_SHARE * 1_073_741_824.0).toLong(), free + smartBytes).coerceAtLeast(0)
         val target = LinkedHashMap<String, Pair<Song, Double>>()
         var total = 0L
         for ((song, score) in ranked) {
@@ -167,35 +169,41 @@ class SmartDownloadWorker(context: Context, params: WorkerParameters) : Coroutin
             c.downloads.download(song)
         }
         if (toAdd.isNotEmpty()) prefs.edit().putLong("last_added", now).apply()
+        c.downloads.refreshSmartIds()
         Log.i("SmartDownloads", "target ${target.size} songs (${total / 1_048_576} MB of ${budget / 1_048_576} MB); adding ${toAdd.size} (${added / 1_048_576} MB), cancelled $removed, rotated out $rotated")
         return Result.success()
     }
 
     companion object {
-        private val constraints = Constraints.Builder()
-            .setRequiredNetworkType(NetworkType.UNMETERED)
+        /** The share of Smart Downloads' space its picks may fill; the song cache keeps the rest. */
+        const val PICK_SHARE = 0.75
+
+        /** Wi-Fi only, unless Smart Downloads may use mobile data. */
+        private fun constraints(cellular: Boolean) = Constraints.Builder()
+            .setRequiredNetworkType(if (cellular) NetworkType.CONNECTED else NetworkType.UNMETERED)
             .setRequiresBatteryNotLow(true)
             .setRequiresStorageNotLow(true)
             .build()
 
-        fun schedule(context: Context, enabled: Boolean) {
+        /** [cellular]: whether it may run on mobile data (the setting, unless it's just been changed). */
+        fun schedule(context: Context, enabled: Boolean, cellular: Boolean = context.container.settings.current.smartDownloadsCellular) {
             val wm = WorkManager.getInstance(context)
             if (!enabled) {
                 wm.cancelUniqueWork("smart_downloads")
                 return
             }
-            val req = PeriodicWorkRequestBuilder<SmartDownloadWorker>(12, TimeUnit.HOURS).setConstraints(constraints).build()
+            val req = PeriodicWorkRequestBuilder<SmartDownloadWorker>(12, TimeUnit.HOURS).setConstraints(constraints(cellular)).build()
             wm.enqueueUniquePeriodicWork("smart_downloads", ExistingPeriodicWorkPolicy.UPDATE, req)
         }
 
         private const val KEY_FORCE = "force"
 
         /** [force] lets this run add a slice even if one was added recently (e.g. the size setting changed). */
-        fun runNow(context: Context, force: Boolean = true) {
+        fun runNow(context: Context, force: Boolean = true, cellular: Boolean = context.container.settings.current.smartDownloadsCellular) {
             WorkManager.getInstance(context).enqueueUniqueWork(
                 "smart_downloads_now", ExistingWorkPolicy.REPLACE,
                 OneTimeWorkRequestBuilder<SmartDownloadWorker>()
-                    .setConstraints(constraints)
+                    .setConstraints(constraints(cellular))
                     .setInputData(androidx.work.workDataOf(KEY_FORCE to force))
                     .build(),
             )

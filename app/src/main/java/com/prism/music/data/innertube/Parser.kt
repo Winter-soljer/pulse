@@ -173,6 +173,41 @@ object Parser {
         )
     }
 
+    /**
+     * The "Top result" card of YouTube Music's unfiltered search (`musicCardShelfRenderer`): an artist, album,
+     * playlist or song. It's YouTube's own best guess, good at abbreviations and typos ("adtr", "taylor swfit").
+     */
+    fun card(r: JsonObject): BrowseItem? {
+        val titleRun = r.obj("title").runs().firstOrNull() ?: return null
+        val title = r.obj("title").text()?.takeIf { it.isNotBlank() } ?: return null
+        val subtitleRuns = r.obj("subtitle").runs()
+        val subtitle = subtitleRuns.joinToString("") { it.str("text") ?: "" }
+        val thumb = r.obj("thumbnail").bestThumbnail()
+        val nav = titleRun.obj("navigationEndpoint") ?: r.obj("onTap")
+        nav.obj("watchEndpoint")?.let { watch ->
+            val id = watch.str("videoId") ?: return null
+            val vt = videoType(watch)
+            if (vt == EPISODE_VIDEO) return null
+            return SongItem(
+                Song(
+                    id = id, title = title,
+                    artists = artistsFromRuns(subtitleRuns),
+                    album = albumFromRuns(subtitleRuns),
+                    durationSec = parseDuration(subtitleRuns.map { it.str("text") ?: "" }.lastOrNull { durationRegex.matches(it.trim()) }),
+                    thumbnail = thumb,
+                    isVideo = vt != null && vt != "MUSIC_VIDEO_TYPE_ATV",
+                )
+            )
+        }
+        val browseId = nav.str("browseEndpoint", "browseId") ?: return null
+        return when (pageType(nav)) {
+            ALBUM -> AlbumItem(browseId, title, subtitle, thumb)
+            ARTIST, CHANNEL -> ArtistItem(browseId, title, subtitle, thumb)
+            PLAYLIST -> PlaylistItem(browseId.removePrefix("VL"), title, subtitle, thumb)
+            else -> null
+        }
+    }
+
     fun twoRow(r: JsonObject): BrowseItem? {
         val title = r.obj("title").text() ?: return null
         val subtitleRuns = r.obj("subtitle").runs()

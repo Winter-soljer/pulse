@@ -18,7 +18,9 @@ data class NerdStats(
     val offload: Boolean = false,
     val bandwidthKbps: Long = 0,
     val bufferMs: Long = 0,
+    /** The song's loudness: measured (LUFS) when [loudnessMeasured], else YouTube's figure (dB from its reference). */
     val loudnessDb: Double? = null,
+    val loudnessMeasured: Boolean = false,
     val normalizationGainDb: Float = 0f,
     val audioSessionId: Int = 0,
     val outputDevice: String = "",

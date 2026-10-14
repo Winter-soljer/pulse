@@ -42,12 +42,31 @@ fun GlassSurface(
     tint: Color = Color.Unspecified,
     onMedia: Boolean = false,
     elevation: Dp = 10.dp,
+    /**
+     * The surface is part of a page (inside the NavHost, which is the haze source itself). Haze can't draw glass
+     * that samples its own source, so the search box came out with no background at all with Liquid or Frosted
+     * Glass on (issue #5): in a page it's frosted with the page's own fill instead.
+     */
+    inPage: Boolean = false,
     content: @Composable BoxScope.() -> Unit,
 ) {
     val settings = LocalAppSettings.current
-    val haze = LocalHazeState.current
+    val haze = LocalHazeState.current.takeUnless { inPage }
     val dark = LocalIsDark.current
-    if (settings.liquidGlass && haze != null) {
+    if (inPage && com.prism.music.ui.components.LocalFrosted.current) {
+        Box(
+            modifier
+                .shadow(elevation * 0.5f, shape, ambientColor = Color.Black.copy(alpha = 0.22f), spotColor = Color.Black.copy(alpha = 0.22f))
+                .clip(shape)
+                .background(if (tint.isSpecified) tint else if (onMedia) Color.Black.copy(alpha = 0.35f) else com.prism.music.ui.components.frostFill(1.4f))
+                .border(
+                    0.6.dp,
+                    Brush.verticalGradient(listOf(Color.White.copy(alpha = if (dark || onMedia) 0.18f else 0.6f), Color.White.copy(alpha = 0.03f))),
+                    shape,
+                ),
+            content = content,
+        )
+    } else if (settings.liquidGlass && haze != null) {
         val clear = onMedia || settings.glassKind == GlassKind.CLEAR
         val style = remember(shape, tint, clear, dark) {
             val baseStyle = if (clear) GlassStyle.clear else GlassStyle.regular

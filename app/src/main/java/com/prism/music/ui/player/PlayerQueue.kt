@@ -1,5 +1,6 @@
 package com.prism.music.ui.player
 
+import com.prism.music.ui.theme.PrismIcons
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -20,11 +21,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.AllInclusive
-import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.DragHandle
-import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -171,7 +167,7 @@ private fun Heading(title: String, modifier: Modifier = Modifier) {
 @Composable
 private fun AutoplayHeading(hasTracks: Boolean) {
     Row(Modifier.fillMaxWidth().padding(vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-        Icon(Icons.Rounded.AllInclusive, null, tint = Color.White.copy(alpha = 0.75f), modifier = Modifier.size(18.dp))
+        Icon(PrismIcons.Autoplay, null, tint = Color.White.copy(alpha = 0.75f), modifier = Modifier.size(18.dp))
         Spacer(Modifier.width(8.dp))
         Column {
             Text("Autoplay", style = MaterialTheme.typography.titleMedium, color = Color.White)
@@ -197,7 +193,7 @@ private fun QueueRow(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (dragHandle != null) {
-            Icon(Icons.Rounded.DragHandle, "Drag to reorder", tint = Color.White.copy(alpha = 0.4f), modifier = Modifier.size(20.dp).offset(x = (-4).dp).then(dragHandle))
+            Icon(PrismIcons.DragHandle, "Drag to reorder", tint = Color.White.copy(alpha = 0.4f), modifier = Modifier.size(20.dp).offset(x = (-4).dp).then(dragHandle))
             Spacer(Modifier.width(4.dp))
         }
         AsyncImage(hiRes(song.thumbnail, 226), null, modifier = Modifier.size(44.dp).clip(RoundedCornerShape(6.dp)).background(Color.White.copy(alpha = 0.08f)))
@@ -207,11 +203,11 @@ private fun QueueRow(
             Text(song.artistText, style = MaterialTheme.typography.bodyMedium, color = Color.White.copy(alpha = 0.55f), maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         if (isCurrent) {
-            Icon(Icons.Rounded.GraphicEq, "Now playing", tint = Color.White, modifier = Modifier.size(18.dp))
+            Icon(PrismIcons.Equalizer, "Now playing", tint = Color.White, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(10.dp))
         }
         if (onRemove != null) Box(Modifier.size(32.dp).clip(CircleShape).clickable(onClick = onRemove), contentAlignment = Alignment.Center) {
-            Icon(Icons.Rounded.Close, "Remove", tint = Color.White.copy(alpha = 0.55f), modifier = Modifier.size(18.dp))
+            Icon(PrismIcons.Close, "Remove", tint = Color.White.copy(alpha = 0.55f), modifier = Modifier.size(18.dp))
         }
     }
 }

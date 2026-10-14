@@ -1,5 +1,6 @@
 package com.prism.music.ui.components
 
+import com.prism.music.ui.theme.PrismIcons
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -12,15 +13,14 @@ import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -87,7 +87,10 @@ fun ActionSheet(
             Box {
                 if (frosted) FrostedBackdrop(frost, palette, 200.dp, { 0f }, Modifier.matchParentSize(), parallax = 0f)
                 CompositionLocalProvider(LocalFrosted provides frosted) {
-                    Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
+                    // Never the whole screen tall: a menu that reached the top (the player's, with an animated cover's two
+                    // extra rows) didn't follow the finger when pulled down, and stuck. Longer menus scroll inside.
+                    val maxHeight = LocalConfiguration.current.screenHeightDp.dp * 0.86f
+                    Column(Modifier.fillMaxWidth().heightIn(max = maxHeight).verticalScroll(rememberScrollState())) {
                         Box(Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 12.dp), contentAlignment = Alignment.Center) {
                             Box(Modifier.size(36.dp, 4.dp).clip(CircleShape).background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)))
                         }
@@ -110,7 +113,7 @@ fun ActionHeader(
     title: String,
     subtitle: String?,
     shape: Shape = LocalUi.current.art,
-    placeholderIcon: ImageVector = Icons.Rounded.MusicNote,
+    placeholderIcon: ImageVector = PrismIcons.Song,
     actions: @Composable RowScope.() -> Unit = {},
 ) {
     Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 16.dp, bottom = 16.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -206,6 +209,6 @@ private fun ActionRow(a: ActionItem, onClick: () -> Unit) {
         if (a.value != null) Text(
             a.value, style = MaterialTheme.typography.bodyMedium, maxLines = 1,
             color = if (a.active) scheme.primary else scheme.onSurfaceVariant, modifier = Modifier.padding(start = 8.dp),
-        ) else if (a.active) Icon(Icons.Rounded.Check, null, Modifier.size(20.dp), tint = scheme.primary)
+        ) else if (a.active) Icon(PrismIcons.Check, null, Modifier.size(20.dp), tint = scheme.primary)
     }
 }

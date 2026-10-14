@@ -64,6 +64,8 @@ class LibraryRepository(private val c: AppContainer) {
         c.scope.launch(Dispatchers.IO) {
             val existing = songs.get(song.id)
             songs.upsert(song.toEntity(existing).copy(liked = liked, likedAt = if (liked) System.currentTimeMillis() else 0))
+            // A file on the phone is liked in Prism only: there's nothing to download or tell YouTube.
+            if (song.isLocal) return@launch
             if (liked && c.settings.current.downloadLikes) c.downloads.download(song)
             if (c.settings.current.isLoggedIn) {
                 runCatching { c.ytm.like(song.id, liked) }.onFailure { lastError.value = "Couldn't sync like: ${it.friendlyMessage()}" }
@@ -93,7 +95,8 @@ class LibraryRepository(private val c: AppContainer) {
             })
             if (remote.isNotEmpty()) {
                 val remoteIds = remote.map { it.id }.toSet()
-                (before - remoteIds).forEach { songs.setLiked(it, false, 0) }
+                // Local songs' likes are Prism's own; YouTube doesn't know them, so it can't take them away.
+                (before - remoteIds).filterNot { it.startsWith(Song.LOCAL_PREFIX) }.forEach { songs.setLiked(it, false, 0) }
             }
             if (c.settings.current.downloadLikes && before.isNotEmpty()) {
                 remote.filter { it.id !in before }.forEach { c.downloads.download(it) }

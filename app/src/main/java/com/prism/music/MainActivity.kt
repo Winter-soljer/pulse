@@ -43,18 +43,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.AutoAwesome
-import androidx.compose.material.icons.outlined.Home
-import androidx.compose.material.icons.outlined.LibraryMusic
-import androidx.compose.material.icons.outlined.Settings
-import androidx.compose.material.icons.rounded.AutoAwesome
-import androidx.compose.material.icons.rounded.Groups
-import androidx.compose.material.icons.rounded.Home
-import androidx.compose.material.icons.rounded.WifiTethering
-import androidx.compose.material.icons.rounded.LibraryMusic
-import androidx.compose.material.icons.rounded.Search
-import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -124,6 +112,7 @@ import com.prism.music.ui.theme.BackdropScreen
 import com.prism.music.ui.theme.GlassSurface
 import com.prism.music.ui.theme.LocalContainer
 import com.prism.music.ui.theme.LocalHazeState
+import com.prism.music.ui.theme.PrismIcons
 import com.prism.music.ui.theme.PrismTheme
 import com.prism.music.ui.theme.ScreenBackdrop
 import dev.chrisbanes.haze.hazeSource
@@ -221,11 +210,11 @@ class MainActivity : ComponentActivity() {
 private data class Tab(val route: String, val label: String, val icon: ImageVector, val selectedIcon: ImageVector)
 
 private fun NavTab.tab(): Tab = when (this) {
-    NavTab.HOME -> Tab(Routes.HOME, label, Icons.Outlined.Home, Icons.Rounded.Home)
-    NavTab.SEARCH -> Tab(Routes.SEARCH, label, Icons.Rounded.Search, Icons.Rounded.Search)
-    NavTab.LIBRARY -> Tab(Routes.LIBRARY, label, Icons.Outlined.LibraryMusic, Icons.Rounded.LibraryMusic)
-    NavTab.REPLAY -> Tab(Routes.REPLAY, label, Icons.Outlined.AutoAwesome, Icons.Rounded.AutoAwesome)
-    NavTab.SETTINGS -> Tab(Routes.SETTINGS, label, Icons.Outlined.Settings, Icons.Rounded.Settings)
+    NavTab.HOME -> Tab(Routes.HOME, label, PrismIcons.Home, PrismIcons.HomeFilled)
+    NavTab.SEARCH -> Tab(Routes.SEARCH, label, PrismIcons.Search, PrismIcons.SearchBold)
+    NavTab.LIBRARY -> Tab(Routes.LIBRARY, label, PrismIcons.Library, PrismIcons.LibraryFilled)
+    NavTab.REPLAY -> Tab(Routes.REPLAY, label, PrismIcons.Replay, PrismIcons.ReplayFilled)
+    NavTab.SETTINGS -> Tab(Routes.SETTINGS, label, PrismIcons.Settings, PrismIcons.SettingsFilled)
 }
 
 /** Heights of the floating chrome, so pages can leave room for it. */
@@ -488,9 +477,9 @@ private fun PrismRoot(deepLink: MutableStateFlow<Uri?>) {
 private fun TogetherPill(state: com.prism.music.playback.together.TogetherState, modifier: Modifier, onClick: () -> Unit) {
     val (icon, text) = when (state) {
         is com.prism.music.playback.together.TogetherState.Hosting ->
-            Icons.Rounded.WifiTethering to "Hosting · code ${state.code}" + when (state.guests.size) { 0 -> ""; 1 -> " · 1 listening"; else -> " · ${state.guests.size} listening" }
+            PrismIcons.Radio to "Hosting · code ${state.code}" + when (state.guests.size) { 0 -> ""; 1 -> " · 1 listening"; else -> " · ${state.guests.size} listening" }
         is com.prism.music.playback.together.TogetherState.Guest ->
-            Icons.Rounded.Groups to "With ${state.hostName}" + when {
+            PrismIcons.Groups to "With ${state.hostName}" + when {
                 !state.listenHere -> " · adding songs"
                 !state.inSync -> " · out of step"
                 else -> ""

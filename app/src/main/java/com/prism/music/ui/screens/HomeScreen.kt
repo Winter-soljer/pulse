@@ -1,5 +1,6 @@
 package com.prism.music.ui.screens
 
+import com.prism.music.ui.theme.PrismIcons
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -25,23 +26,7 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.AutoAwesome
-import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.SystemUpdate
-import androidx.compose.material.icons.rounded.Dashboard
-import androidx.compose.material.icons.rounded.Podcasts
-import androidx.compose.material.icons.rounded.DownloadDone
-import androidx.compose.material.icons.rounded.Favorite
-import androidx.compose.material.icons.rounded.GraphicEq
-import androidx.compose.material.icons.rounded.Groups
-import androidx.compose.material.icons.rounded.History
-import androidx.compose.material.icons.rounded.LibraryMusic
-import androidx.compose.material.icons.rounded.Mood
-import androidx.compose.material.icons.rounded.Search
 import com.prism.music.data.prefs.HomeShortcut
-import androidx.compose.material.icons.rounded.Person
-import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -213,7 +198,7 @@ fun HomeScreen(bottomPadding: androidx.compose.ui.unit.Dp) {
                             .clickable { nav.go(Routes.CATALOGUE) }.padding(horizontal = 18.dp, vertical = 11.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Icon(Icons.Rounded.Dashboard, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Icon(PrismIcons.Customize, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                         Spacer(Modifier.width(8.dp))
                         Text("Customize Home", style = MaterialTheme.typography.labelLarge)
                     }
@@ -248,10 +233,10 @@ private fun HomeTopBar() {
         }
         // Podcasts live a tap away from Home (as on Spotify's), in the same quiet round button as Customize.
         // With the top Customize button off, Podcasts moves over into its place, beside the account.
-        com.prism.music.ui.components.RoundAction(Icons.Rounded.Podcasts, "Podcasts") { nav.go(Routes.PODCASTS) }
+        com.prism.music.ui.components.RoundAction(PrismIcons.Podcasts, "Podcasts") { nav.go(Routes.PODCASTS) }
         if (settings.homeCustomizeTopButton) {
             Spacer(Modifier.width(8.dp))
-            com.prism.music.ui.components.RoundAction(Icons.Rounded.Dashboard, "Customize home") { nav.go(Routes.CATALOGUE) }
+            com.prism.music.ui.components.RoundAction(PrismIcons.Customize, "Customize home") { nav.go(Routes.CATALOGUE) }
         }
         Spacer(Modifier.width(8.dp))
         Box(
@@ -259,7 +244,7 @@ private fun HomeTopBar() {
             contentAlignment = Alignment.Center,
         ) {
             if (settings.accountAvatar.isNotBlank()) AsyncImage(settings.accountAvatar, "Account", Modifier.fillMaxSize())
-            else Icon(Icons.Rounded.Person, "Settings", tint = if (LocalFrosted.current) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onPrimaryContainer)
+            else Icon(PrismIcons.Person, "Settings", tint = if (LocalFrosted.current) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onPrimaryContainer)
         }
     }
 }
@@ -315,13 +300,13 @@ private fun UpdateBanner() {
             },
     ) {
         Row(Modifier.padding(start = 16.dp, top = 6.dp, bottom = 6.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Rounded.SystemUpdate, null, tint = if (frosted) scheme.primary else ink)
+            Icon(PrismIcons.Update, null, tint = if (frosted) scheme.primary else ink)
             Spacer(Modifier.width(14.dp))
             Column(Modifier.weight(1f).padding(vertical = if (busy) 10.dp else 0.dp)) {
                 Text(title, style = MaterialTheme.typography.titleSmall, color = ink)
                 Text(detail, style = MaterialTheme.typography.bodySmall, color = ink.copy(alpha = 0.8f))
             }
-            if (!busy) IconButton(onClick = { c.updates.dismiss() }) { Icon(Icons.Rounded.Close, "Dismiss", tint = ink) }
+            if (!busy) IconButton(onClick = { c.updates.dismiss() }) { Icon(PrismIcons.Close, "Dismiss", tint = ink) }
         }
         (progress as? com.prism.music.data.UpdateProgress.Downloading)?.let { p ->
             val color = if (frosted) scheme.primary else ink
@@ -342,14 +327,14 @@ private fun GreetingSection(recent: List<Song>) {
     val tiles = buildList {
         settings.homeShortcuts.forEach { sc ->
             val (icon, route) = when (sc) {
-                HomeShortcut.LIKED -> Icons.Rounded.Favorite to Routes.liked()
-                HomeShortcut.DOWNLOADS -> Icons.Rounded.DownloadDone to Routes.DOWNLOADS
-                HomeShortcut.REPLAY -> Icons.Rounded.History to Routes.REPLAY
-                HomeShortcut.LIBRARY -> Icons.Rounded.LibraryMusic to Routes.LIBRARY
-                HomeShortcut.MOODS -> Icons.Rounded.Mood to Routes.MOODS
-                HomeShortcut.SEARCH -> Icons.Rounded.Search to Routes.SEARCH
-                HomeShortcut.EQUALIZER -> Icons.Rounded.GraphicEq to Routes.EQ
-                HomeShortcut.TOGETHER -> Icons.Rounded.Groups to Routes.TOGETHER
+                HomeShortcut.LIKED -> PrismIcons.HeartFilled to Routes.liked()
+                HomeShortcut.DOWNLOADS -> PrismIcons.DownloadDone to Routes.DOWNLOADS
+                HomeShortcut.REPLAY -> PrismIcons.History to Routes.REPLAY
+                HomeShortcut.LIBRARY -> PrismIcons.LibraryFilled to Routes.LIBRARY
+                HomeShortcut.MOODS -> PrismIcons.Mood to Routes.MOODS
+                HomeShortcut.SEARCH -> PrismIcons.Search to Routes.SEARCH
+                HomeShortcut.EQUALIZER -> PrismIcons.Equalizer to Routes.EQ
+                HomeShortcut.TOGETHER -> PrismIcons.Groups to Routes.TOGETHER
             }
             val playable = when (sc) {
                 HomeShortcut.LIKED -> Playable.Liked
@@ -470,7 +455,7 @@ private fun HeroRow(items: List<BrowseItem>, open: (BrowseItem) -> Unit) {
                         Text(item.subtitle, color = Color.White.copy(alpha = 0.75f), style = MaterialTheme.typography.bodySmall, maxLines = 1)
                     }
                     Box(Modifier.size(44.dp).clip(CircleShape).background(Color.White), contentAlignment = Alignment.Center) {
-                        Icon(Icons.Rounded.PlayArrow, null, tint = Color.Black)
+                        Icon(PrismIcons.Play, null, tint = Color.Black)
                     }
                 }
             }
@@ -501,7 +486,7 @@ private fun ReplayTeaser() {
             Text(total.full,Modifier.toggleListenUnit(), color = Color.White, style = MaterialTheme.typography.displaySmall)
             Text("See your top songs, artists and genres", color = Color.White.copy(alpha = 0.85f), style = MaterialTheme.typography.bodyMedium)
         }
-        Icon(Icons.Rounded.AutoAwesome, null, tint = Color.White, modifier = Modifier.align(Alignment.TopEnd))
+        Icon(PrismIcons.ReplayFilled, null, tint = Color.White, modifier = Modifier.align(Alignment.TopEnd))
     }
 }
 

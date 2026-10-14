@@ -1,5 +1,6 @@
 package com.prism.music.ui.components
 
+import com.prism.music.ui.theme.PrismIcons
 import android.widget.Toast
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -9,17 +10,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.QueueMusic
-import androidx.compose.material.icons.rounded.Album
-import androidx.compose.material.icons.rounded.DownloadDone
-import androidx.compose.material.icons.rounded.Favorite
-import androidx.compose.material.icons.rounded.Person
-import androidx.compose.material.icons.rounded.PlayArrow
-import androidx.compose.material.icons.rounded.PlaylistPlay
-import androidx.compose.material.icons.rounded.Radio
-import androidx.compose.material.icons.rounded.Share
-import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -115,13 +105,13 @@ fun PlayActionsSheet(target: Playable, extra: List<SheetItem> = emptyList(), onD
         Toast.makeText(context, "${com.prism.music.data.model.songCount(loaded.first.size)} ${if (next) "playing next" else "added to the queue"}", Toast.LENGTH_SHORT).show()
     }
     val quick = if (item is ArtistItem) listOf(
-        ActionItem(Icons.Rounded.Shuffle, "Shuffle") { play(shuffle = true) },
-        ActionItem(Icons.Rounded.Radio, "Mix") { play(shuffle = false, mix = true) },
+        ActionItem(PrismIcons.Shuffle, "Shuffle") { play(shuffle = true) },
+        ActionItem(PrismIcons.Radio, "Mix") { play(shuffle = false, mix = true) },
     ) else listOf(
-        ActionItem(Icons.Rounded.PlayArrow, "Play") { play(shuffle = false) },
-        ActionItem(Icons.Rounded.Shuffle, "Shuffle") { play(shuffle = true) },
-        ActionItem(Icons.Rounded.PlaylistPlay, "Play next") { queue(next = true) },
-        ActionItem(Icons.AutoMirrored.Rounded.QueueMusic, "Add to queue") { queue(next = false) },
+        ActionItem(PrismIcons.Play, "Play") { play(shuffle = false) },
+        ActionItem(PrismIcons.Shuffle, "Shuffle") { play(shuffle = true) },
+        ActionItem(PrismIcons.PlaylistPlay, "Play next") { queue(next = true) },
+        ActionItem(PrismIcons.QueueMusic, "Add to queue") { queue(next = false) },
     )
 
     ActionSheet(art, onDismiss) { close ->
@@ -129,14 +119,14 @@ fun PlayActionsSheet(target: Playable, extra: List<SheetItem> = emptyList(), onD
             art, title, subtitle,
             shape = if (item is ArtistItem) CircleShape else ui.art,
             placeholderIcon = when {
-                target == Playable.Liked -> Icons.Rounded.Favorite
-                target == Playable.Downloads -> Icons.Rounded.DownloadDone
-                item is ArtistItem -> Icons.Rounded.Person
-                item is AlbumItem -> Icons.Rounded.Album
-                else -> Icons.AutoMirrored.Rounded.QueueMusic
+                target == Playable.Liked -> PrismIcons.HeartFilled
+                target == Playable.Downloads -> PrismIcons.DownloadDone
+                item is ArtistItem -> PrismIcons.Person
+                item is AlbumItem -> PrismIcons.Album
+                else -> PrismIcons.QueueMusic
             },
         ) {
-            SheetIconButton(Icons.Rounded.Share, "Share") {
+            SheetIconButton(PrismIcons.Share, "Share") {
                 sharing = when (target) {
                     Playable.Liked -> ShareTarget("Liked songs", com.prism.music.data.model.songCount(liked.size), "Playlist", art, null, songs = liked)
                     Playable.Downloads -> c.downloads.completedSongs().let { ShareTarget("Downloads", com.prism.music.data.model.songCount(it.size), "Playlist", art, null, songs = it) }

@@ -205,6 +205,11 @@ class ArtworkProvider : ContentProvider() {
             if (!file.canonicalPath.startsWith(covers + File.separator) || !file.exists()) return null
             return ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY)
         }
+        // A local song's album art (Library → On this phone), passed on from Android's media store; nothing else there.
+        if (url.startsWith(LOCAL_ALBUM_ART)) {
+            val id = url.removePrefix(LOCAL_ALBUM_ART).toLongOrNull() ?: return null
+            return runCatching { ctx.contentResolver.openFileDescriptor(Uri.parse(LOCAL_ALBUM_ART + id), "r") }.getOrNull()
+        }
         val host = Uri.parse(url).host ?: return null
         if (!url.startsWith("https://") || allowedHosts.none { host.endsWith(it) }) return null
         val name = MessageDigest.getInstance("SHA-1").digest(url.toByteArray()).joinToString("") { "%02x".format(it) }
@@ -222,6 +227,10 @@ class ArtworkProvider : ContentProvider() {
             }.onFailure { return null }
         }
         return ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY)
+    }
+
+    private companion object {
+        const val LOCAL_ALBUM_ART = "content://media/external/audio/albumart/"
     }
 
     override fun getType(uri: Uri) = "image/jpeg"

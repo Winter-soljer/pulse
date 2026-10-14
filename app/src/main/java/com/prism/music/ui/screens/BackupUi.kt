@@ -1,5 +1,6 @@
 package com.prism.music.ui.screens
 
+import com.prism.music.ui.theme.PrismIcons
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -11,8 +12,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -218,7 +217,7 @@ private fun Step(n: Int, title: String, detail: String, done: Boolean, enabled: 
             Text(detail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         Spacer(Modifier.width(12.dp))
-        if (done) Icon(Icons.Rounded.Check, "Done", tint = MaterialTheme.colorScheme.primary)
+        if (done) Icon(PrismIcons.Check, "Done", tint = MaterialTheme.colorScheme.primary)
         else if (n == 3) Button(onClick = onClick, enabled = enabled) { Text("Uninstall") }
         else OutlinedButton(onClick = onClick, enabled = enabled) { Text(if (n == 1) "Back up" else "Save") }
     }

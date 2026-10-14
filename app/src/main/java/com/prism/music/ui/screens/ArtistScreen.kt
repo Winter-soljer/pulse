@@ -1,5 +1,6 @@
 package com.prism.music.ui.screens
 
+import com.prism.music.ui.theme.PrismIcons
 import android.app.Activity
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
@@ -30,20 +31,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.outlined.Info
-import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material.icons.rounded.ChevronRight
-import androidx.compose.material.icons.rounded.Draw
-import androidx.compose.material.icons.rounded.MoreHoriz
-import androidx.compose.material.icons.rounded.Person
-import androidx.compose.material.icons.rounded.PlayArrow
-import androidx.compose.material.icons.rounded.Radio
-import androidx.compose.material.icons.rounded.Share
-import androidx.compose.material.icons.rounded.Shuffle
-import androidx.compose.material.icons.rounded.Star
-import androidx.compose.material.icons.rounded.StarBorder
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
@@ -356,11 +343,11 @@ private fun Hero(
         }
         Spacer(Modifier.height(16.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            HeroButton(Icons.Outlined.Info, "About ${page.name}", onClick = onInfo)
+            HeroButton(PrismIcons.Info, "About ${page.name}", onClick = onInfo)
             PlayCapsule(onPlay)
-            HeroButton(Icons.Rounded.Shuffle, "Shuffle ${page.name}", onClick = onShuffle)
+            HeroButton(PrismIcons.Shuffle, "Shuffle ${page.name}", onClick = onShuffle)
             HeroButton(
-                if (favorite) Icons.Rounded.Star else Icons.Rounded.StarBorder, if (favorite) "Remove from favourites" else "Add to favourites",
+                if (favorite) PrismIcons.StarFilled else PrismIcons.Star, if (favorite) "Remove from favourites" else "Add to favourites",
                 tint = if (favorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface, onClick = onFavorite,
             )
         }
@@ -389,7 +376,7 @@ private fun PlayCapsule(onClick: () -> Unit) {
         Modifier.height(50.dp).width(146.dp).clip(RoundedCornerShape(25.dp)).background(bg).clickable(onClick = onClick),
         horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(Icons.Rounded.PlayArrow, null, Modifier.size(26.dp), tint = fg)
+        Icon(PrismIcons.Play, null, Modifier.size(26.dp), tint = fg)
         Spacer(Modifier.width(4.dp))
         Text("Play", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = fg)
     }
@@ -420,18 +407,18 @@ private fun TopBar(
                 page.name, Modifier.align(Alignment.Center).padding(horizontal = 112.dp).graphicsLayer { alpha = solid() },
                 style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis,
             )
-            com.prism.music.ui.components.RoundAction(Icons.AutoMirrored.Rounded.ArrowBack, "Back", Modifier.align(Alignment.CenterStart).padding(start = 12.dp), glass = true) { nav.back() }
+            com.prism.music.ui.components.RoundAction(PrismIcons.ArrowBack, "Back", Modifier.align(Alignment.CenterStart).padding(start = 12.dp), glass = true) { nav.back() }
             Row(Modifier.align(Alignment.CenterEnd).padding(end = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (hasMix) com.prism.music.ui.components.RoundAction(Icons.Rounded.Radio, "Start ${page.name} Mix", glass = true, onClick = onMix)
+                if (hasMix) com.prism.music.ui.components.RoundAction(PrismIcons.Radio, "Start ${page.name} Mix", glass = true, onClick = onMix)
                 Box {
-                    com.prism.music.ui.components.RoundAction(Icons.Rounded.MoreHoriz, "More", glass = true) { menu = true }
+                    com.prism.music.ui.components.RoundAction(PrismIcons.More, "More", glass = true) { menu = true }
                     DropdownMenu(menu, { menu = false }) {
-                        DropdownMenuItem({ Text("Share artist") }, { menu = false; onShare() }, leadingIcon = { Icon(Icons.Rounded.Share, null) })
+                        DropdownMenuItem({ Text("Share artist") }, { menu = false; onShare() }, leadingIcon = { Icon(PrismIcons.Share, null) })
                         DropdownMenuItem(
                             { Text(if (favorite) "Remove from favourites" else "Add to favourites") }, { menu = false; onFavorite() },
-                            leadingIcon = { Icon(if (favorite) Icons.Rounded.Star else Icons.Rounded.StarBorder, null) },
+                            leadingIcon = { Icon(if (favorite) PrismIcons.StarFilled else PrismIcons.Star, null) },
                         )
-                        DropdownMenuItem({ Text("Signature style") }, { menu = false; onSignature() }, leadingIcon = { Icon(Icons.Rounded.Draw, null) })
+                        DropdownMenuItem({ Text("Signature style") }, { menu = false; onSignature() }, leadingIcon = { Icon(PrismIcons.Signature, null) })
                     }
                 }
             }
@@ -449,7 +436,7 @@ private fun AppleHeader(title: String, onMore: (() -> Unit)?) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold)
-        if (onMore != null) Icon(Icons.Rounded.ChevronRight, "See all", Modifier.size(26.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        if (onMore != null) Icon(PrismIcons.ChevronRight, "See all", Modifier.size(26.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
@@ -491,7 +478,7 @@ private fun Spotlight(item: AlbumItem, onOpen: () -> Unit) {
                         }
                     },
                 contentAlignment = Alignment.Center,
-            ) { Icon(Icons.Rounded.PlayArrow, "Play", tint = MaterialTheme.colorScheme.onPrimary) }
+            ) { Icon(PrismIcons.Play, "Play", tint = MaterialTheme.colorScheme.onPrimary) }
         }
     }
 }
@@ -538,7 +525,7 @@ private fun TopSongsGrid(songs: List<Song>, title: String) {
                             )
                         }
                         IconButton(onClick = { menuFor = s }, Modifier.size(36.dp)) {
-                            Icon(Icons.Rounded.MoreHoriz, "More", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Icon(PrismIcons.More, "More", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                     if (i < columns[col].lastIndex) HorizontalDivider(Modifier.padding(start = 60.dp), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
@@ -565,7 +552,7 @@ private fun CardRow(items: List<BrowseItem>, width: Dp, aspect: Float = 1f, roun
                     LocalContainer.current.covers.art(item), Modifier.fillMaxWidth().aspectRatio(aspect),
                     if (round) CircleShape else ui.art,
                     size = if (aspect > 1f) 720 else 544,
-                    placeholderIcon = if (item is ArtistItem) Icons.Rounded.Person else Icons.Rounded.PlayArrow,
+                    placeholderIcon = if (item is ArtistItem) PrismIcons.Person else PrismIcons.Play,
                 )
                 Spacer(Modifier.height(6.dp))
                 Text(
@@ -624,16 +611,16 @@ private fun InfoSheet(page: ArtistPage, genre: String?, favorite: Boolean, onFav
     PrismSheet(onDismiss = onDismiss) {
         Column(Modifier.heightIn(max = 620.dp).verticalScroll(rememberScrollState()).padding(start = 22.dp, end = 22.dp, bottom = 28.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Artwork(page.thumbnail, Modifier.size(56.dp), CircleShape, size = 226, placeholderIcon = Icons.Rounded.Person)
+                Artwork(page.thumbnail, Modifier.size(56.dp), CircleShape, size = 226, placeholderIcon = PrismIcons.Person)
                 Spacer(Modifier.width(14.dp))
                 Column(Modifier.weight(1f)) {
                     Text(page.name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     page.subscribers?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                 }
                 IconButton(onClick = onFavorite) {
-                    Icon(if (favorite) Icons.Rounded.Star else Icons.Rounded.StarBorder, if (favorite) "Remove from favourites" else "Add to favourites", tint = MaterialTheme.colorScheme.primary)
+                    Icon(if (favorite) PrismIcons.StarFilled else PrismIcons.Star, if (favorite) "Remove from favourites" else "Add to favourites", tint = MaterialTheme.colorScheme.primary)
                 }
-                IconButton(onClick = onShare) { Icon(Icons.Rounded.Share, "Share artist") }
+                IconButton(onClick = onShare) { Icon(PrismIcons.Share, "Share artist") }
             }
             facts(page, genre).forEach { (k, v) ->
                 HorizontalDivider(Modifier.padding(vertical = 10.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
@@ -685,7 +672,7 @@ private fun SignatureOption(name: String, label: String, type: com.prism.music.u
             Eyebrow(label)
             SignatureSample(name, type, Modifier.padding(top = 2.dp))
         }
-        if (selected) Icon(Icons.Rounded.Check, "Chosen", tint = MaterialTheme.colorScheme.primary)
+        if (selected) Icon(PrismIcons.Check, "Chosen", tint = MaterialTheme.colorScheme.primary)
     }
 }
 
@@ -802,7 +789,7 @@ private fun ReleaseCard(item: BrowseItem, modifier: Modifier, open: (BrowseItem)
     ) {
         Artwork(
             LocalContainer.current.covers.art(item), Modifier.fillMaxWidth().aspectRatio(1f), ui.art,
-            size = 720, placeholderIcon = Icons.Rounded.PlayArrow,
+            size = 720, placeholderIcon = PrismIcons.Play,
         )
         Spacer(Modifier.height(8.dp))
         Text(

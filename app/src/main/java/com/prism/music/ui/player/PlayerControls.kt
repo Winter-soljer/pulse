@@ -4,12 +4,6 @@ import android.content.Context
 import android.media.AudioDeviceInfo
 import android.media.AudioManager
 import android.media.MediaRouter2
-import androidx.compose.material.icons.rounded.Cast
-import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material.icons.rounded.Headphones
-import androidx.compose.material.icons.rounded.PhoneAndroid
-import androidx.compose.material.icons.rounded.Speaker
-import androidx.compose.material.icons.rounded.Usb
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.animation.AnimatedContent
@@ -47,20 +41,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.FormatListBulleted
-import androidx.compose.material.icons.automirrored.rounded.VolumeDown
-import androidx.compose.material.icons.automirrored.rounded.VolumeUp
-import androidx.compose.material.icons.rounded.AllInclusive
-import androidx.compose.material.icons.rounded.FastForward
-import androidx.compose.material.icons.rounded.FastRewind
-import androidx.compose.material.icons.rounded.FormatQuote
-import androidx.compose.material.icons.rounded.MusicNote
-import androidx.compose.material.icons.rounded.Pause
-import androidx.compose.material.icons.rounded.PlayArrow
-import androidx.compose.material.icons.rounded.Repeat
-import androidx.compose.material.icons.rounded.Shuffle
-import androidx.compose.material.icons.rounded.SmartDisplay
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -95,13 +75,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.media3.common.Player
 import androidx.compose.foundation.border
-import androidx.compose.material.icons.rounded.SkipNext
-import androidx.compose.material.icons.rounded.SkipPrevious
 import com.prism.music.data.prefs.ScrubberStyle
 import com.prism.music.data.prefs.TransportStyle
 import com.prism.music.playback.AudioEffects
 import com.prism.music.ui.theme.LocalAppSettings
 import com.prism.music.ui.theme.LocalContainer
+import com.prism.music.ui.theme.PrismIcons
 import com.prism.music.ui.theme.rememberHaptics
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -132,6 +111,11 @@ fun ThinSlider(
     thumb: Boolean = false,
 ) {
     var dragging by remember { mutableStateOf(false) }
+    // The gesture below runs for the slider's whole life; without these it kept the first callbacks, which
+    // seeked with the duration of the song that was playing when the player opened (a longer or shorter song
+    // later landed in the wrong place).
+    val onChange by androidx.compose.runtime.rememberUpdatedState(onValueChange)
+    val onFinished by androidx.compose.runtime.rememberUpdatedState(onValueChangeFinished)
     val height by animateDpAsState(
         if (dragging) activeHeight else idleHeight,
         spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMediumLow),
@@ -145,18 +129,18 @@ fun ThinSlider(
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false)
                     dragging = true
-                    onValueChange((down.position.x / size.width).coerceIn(0f, 1f))
+                    onChange((down.position.x / size.width).coerceIn(0f, 1f))
                     while (true) {
                         val event = awaitPointerEvent()
                         val p = event.changes.firstOrNull { it.id == down.id } ?: break
                         if (!p.pressed) { p.consume(); break }
                         if (p.positionChanged()) {
-                            onValueChange((p.position.x / size.width).coerceIn(0f, 1f))
+                            onChange((p.position.x / size.width).coerceIn(0f, 1f))
                             p.consume()
                         }
                     }
                     dragging = false
-                    onValueChangeFinished?.invoke()
+                    onFinished?.invoke()
                 }
             },
         contentAlignment = Alignment.Center,
@@ -232,8 +216,8 @@ fun TransportRow(isPlaying: Boolean, isLoading: Boolean, previousEnabled: Boolea
     val playTouch = if (compact) 76.dp else 92.dp
     val skipSize = if (compact) 44.dp else 53.dp
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceAround, verticalAlignment = Alignment.CenterVertically) {
-        val prevIcon = if (style == TransportStyle.GLYPHS) Icons.Rounded.FastRewind else Icons.Rounded.SkipPrevious
-        val nextIcon = if (style == TransportStyle.GLYPHS) Icons.Rounded.FastForward else Icons.Rounded.SkipNext
+        val prevIcon = if (style == TransportStyle.GLYPHS) PrismIcons.Backward else PrismIcons.Previous
+        val nextIcon = if (style == TransportStyle.GLYPHS) PrismIcons.Forward else PrismIcons.Next
         val skip = if (style == TransportStyle.GLYPHS) skipSize else skipSize * 0.82f
         TransportGlyph(prevIcon, "Previous", skip, 53.dp, if (style == TransportStyle.GLYPHS) 0.85f else 1f, previousEnabled) { pc.previous() }
         if (style == TransportStyle.GLYPHS) {
@@ -242,7 +226,7 @@ fun TransportRow(isPlaying: Boolean, isLoading: Boolean, previousEnabled: Boolea
                     CircularProgressIndicator(color = Color.White, strokeWidth = 3.dp, modifier = Modifier.size(if (compact) 30.dp else 38.dp))
                 }
             } else {
-                TransportGlyph(if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, if (isPlaying) "Pause" else "Play", playSize, playTouch) { pc.togglePlay() }
+                TransportGlyph(if (isPlaying) PrismIcons.Pause else PrismIcons.Play, if (isPlaying) "Pause" else "Play", playSize, playTouch) { pc.togglePlay() }
             }
         } else {
             PlayDisc(isPlaying, isLoading, filled = style == TransportStyle.BUTTON, size = if (compact) 64.dp else 78.dp) { pc.togglePlay() }
@@ -271,7 +255,7 @@ private fun PlayDisc(isPlaying: Boolean, isLoading: Boolean, filled: Boolean, si
             val tint = if (filled) Color.Black else Color.White
             if (isLoading) CircularProgressIndicator(color = tint, strokeWidth = 3.dp, modifier = Modifier.size(size * 0.42f))
             else Crossfade(isPlaying, animationSpec = tween(160), label = "playDisc") { p ->
-                Icon(if (p) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, if (p) "Pause" else "Play", tint = tint, modifier = Modifier.size(size * 0.56f))
+                Icon(if (p) PrismIcons.Pause else PrismIcons.Play, if (p) "Pause" else "Play", tint = tint, modifier = Modifier.size(size * 0.56f))
             }
         }
     }
@@ -333,11 +317,11 @@ val VOLUME_ROW_HEIGHT = 32.dp
 @Composable
 fun VolumeRow(volume: PlayerVolume) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Icon(Icons.AutoMirrored.Rounded.VolumeDown, null, tint = Color.White.copy(alpha = 0.5f), modifier = Modifier.size(20.dp))
+        Icon(PrismIcons.VolumeDown, null, tint = Color.White.copy(alpha = 0.5f), modifier = Modifier.size(20.dp))
         Spacer(Modifier.width(10.dp))
         ThinSlider(volume.level, volume::drag, Modifier.weight(1f), volume::release, idleHeight = 6.dp, activeHeight = 10.dp)
         Spacer(Modifier.width(10.dp))
-        Icon(Icons.AutoMirrored.Rounded.VolumeUp, null, tint = Color.White.copy(alpha = 0.5f), modifier = Modifier.size(20.dp))
+        Icon(PrismIcons.VolumeUp, null, tint = Color.White.copy(alpha = 0.5f), modifier = Modifier.size(20.dp))
     }
 }
 
@@ -365,7 +349,7 @@ fun PlayerActionRow(
         val widest = BOTTOM_ACTION_SIZE * 2 + PILL_SEGMENT_WIDTH * 3 + 2.dp
         val inset = ((maxWidth - widest) / 4).coerceAtLeast(0.dp)
         Row(Modifier.fillMaxWidth().padding(horizontal = inset), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            BottomGlyph(Icons.Rounded.FormatQuote, if (lyricsOpen) "Close lyrics" else "Lyrics", lyricsOpen, onToggleLyrics)
+            BottomGlyph(if (lyricsOpen) PrismIcons.LyricsFilled else PrismIcons.Lyrics, if (lyricsOpen) "Close lyrics" else "Lyrics", lyricsOpen, onToggleLyrics)
             AnimatedContent(
                 queueOpen,
                 transitionSpec = {
@@ -374,26 +358,26 @@ fun PlayerActionRow(
                 label = "pill",
             ) { modes ->
                 if (modes) Pill {
-                    PillSegment(Icons.Rounded.Shuffle, "Shuffle", shuffle, width = PILL_SEGMENT_WIDTH_TRIPLE) { pc.toggleShuffle() }
+                    PillSegment(PrismIcons.Shuffle, "Shuffle", shuffle, width = PILL_SEGMENT_WIDTH_TRIPLE) { pc.toggleShuffle() }
                     PillDivider()
                     PillSegment(
-                        if (repeat == Player.REPEAT_MODE_ONE) null else Icons.Rounded.Repeat, "Repeat",
+                        if (repeat == Player.REPEAT_MODE_ONE) null else PrismIcons.Repeat, "Repeat",
                         repeat != Player.REPEAT_MODE_OFF, label = if (repeat == Player.REPEAT_MODE_ONE) "1" else null, width = PILL_SEGMENT_WIDTH_TRIPLE,
                     ) { pc.cycleRepeat() }
                     PillDivider()
-                    PillSegment(Icons.Rounded.AllInclusive, "Autoplay", settings.autoplay, width = PILL_SEGMENT_WIDTH_TRIPLE) { c.settings.setAutoplay(!settings.autoplay) }
+                    PillSegment(PrismIcons.Autoplay, "Autoplay", settings.autoplay, width = PILL_SEGMENT_WIDTH_TRIPLE) { c.settings.setAutoplay(!settings.autoplay) }
                 } else Pill {
-                    PillSegment(Icons.Rounded.MusicNote, "Song", !videoMode && !videoLoading) { if (videoMode || videoLoading) onVideoMode(false) }
+                    PillSegment(PrismIcons.Song, "Song", !videoMode && !videoLoading) { if (videoMode || videoLoading) onVideoMode(false) }
                     PillDivider()
                     PillSegment(
-                        Icons.Rounded.SmartDisplay, if (videoAvailable) "Music video" else "No music video for this song",
+                        PrismIcons.Video, if (videoAvailable) "Music video" else "No music video for this song",
                         videoMode || videoLoading, enabled = videoAvailable || videoMode, loading = videoLoading,
                     ) {
                         if (!videoMode && !videoLoading) onVideoMode(true)
                     }
                 }
             }
-            BottomGlyph(Icons.AutoMirrored.Rounded.FormatListBulleted, "Up next", queueOpen, onToggleQueue)
+            BottomGlyph(PrismIcons.Queue, "Up next", queueOpen, onToggleQueue)
         }
     }
 }
@@ -538,11 +522,11 @@ fun outputLabel(d: AudioDeviceInfo, phoneName: String): String = when (d.type) {
 }
 
 private fun outputIcon(d: AudioDeviceInfo): ImageVector = when {
-    d.type == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER -> Icons.Rounded.PhoneAndroid
-    d.type == AudioDeviceInfo.TYPE_BLE_SPEAKER || d.type == AudioDeviceInfo.TYPE_HDMI || d.type == AudioDeviceInfo.TYPE_DOCK -> Icons.Rounded.Speaker
-    isBluetooth(d.type) -> Icons.Rounded.Headphones
-    d.type == AudioDeviceInfo.TYPE_USB_DEVICE || d.type == AudioDeviceInfo.TYPE_USB_HEADSET -> Icons.Rounded.Usb
-    else -> Icons.Rounded.Headphones
+    d.type == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER -> PrismIcons.Phone
+    d.type == AudioDeviceInfo.TYPE_BLE_SPEAKER || d.type == AudioDeviceInfo.TYPE_HDMI || d.type == AudioDeviceInfo.TYPE_DOCK -> PrismIcons.Speaker
+    isBluetooth(d.type) -> PrismIcons.Headphones
+    d.type == AudioDeviceInfo.TYPE_USB_DEVICE || d.type == AudioDeviceInfo.TYPE_USB_HEADSET -> PrismIcons.Usb
+    else -> PrismIcons.Headphones
 }
 
 /** Audio output picker inside the player — no trip to the system Bluetooth page. */
@@ -589,7 +573,7 @@ fun OutputPickerSheet(phoneName: String, onDismiss: () -> Unit) {
                             style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.55f),
                         )
                     }
-                    if (selected) Icon(Icons.Rounded.Check, "Selected", tint = Color.White)
+                    if (selected) Icon(PrismIcons.Check, "Selected", tint = Color.White)
                 }
             }
             if (android.os.Build.VERSION.SDK_INT >= 34) Row(
@@ -599,7 +583,7 @@ fun OutputPickerSheet(phoneName: String, onDismiss: () -> Unit) {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Box(Modifier.size(40.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.12f)), contentAlignment = Alignment.Center) {
-                    Icon(Icons.Rounded.Cast, null, tint = Color.White, modifier = Modifier.size(22.dp))
+                    Icon(PrismIcons.Cast, null, tint = Color.White, modifier = Modifier.size(22.dp))
                 }
                 Spacer(Modifier.width(16.dp))
                 Column(Modifier.weight(1f)) {

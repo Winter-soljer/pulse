@@ -15,8 +15,8 @@ android {
         applicationId = "com.prism.music"
         minSdk = 26
         targetSdk = 36
-        versionCode = 28
-        versionName = "1.6.2"
+        versionCode = 29
+        versionName = "1.6.3"
         vectorDrawables { useSupportLibrary = true }
         // Optional: `lastfm.apiKey=…` in local.properties lets genre detection ask Last.fm too.
         val localProps = Properties().apply {
@@ -95,7 +95,6 @@ dependencies {
     implementation("androidx.compose.foundation:foundation")
     implementation("androidx.compose.animation:animation")
     implementation("androidx.compose.material3:material3")
-    implementation("androidx.compose.material:material-icons-extended:1.7.8")
 
     implementation("androidx.core:core-ktx:1.19.1")
     implementation("androidx.activity:activity-compose:1.13.0")

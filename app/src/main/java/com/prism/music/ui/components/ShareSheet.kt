@@ -1,5 +1,6 @@
 package com.prism.music.ui.components
 
+import com.prism.music.ui.theme.PrismIcons
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -25,13 +26,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.List
-import androidx.compose.material.icons.rounded.ContentCopy
-import androidx.compose.material.icons.rounded.Image
-import androidx.compose.material.icons.rounded.Link
-import androidx.compose.material.icons.rounded.Lock
-import androidx.compose.material.icons.rounded.MoreHoriz
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -172,20 +166,20 @@ fun ShareSheet(target: ShareTarget, onDismiss: () -> Unit) {
             Spacer(Modifier.height(18.dp))
             Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
                 if (target.url != null) {
-                    ShareAction(Icons.Rounded.ContentCopy, "Copy link") {
+                    ShareAction(PrismIcons.Copy, "Copy link") {
                         copy(context, target.url)
                         close {}
                     }
-                    ShareAction(Icons.Rounded.Link, "Send link") {
+                    ShareAction(PrismIcons.Link, "Send link") {
                         close { sendText(context, "$message\n${target.url}", "Share ${target.kind.lowercase()}") }
                     }
                 } else if (target.songs.isNotEmpty()) {
-                    ShareAction(Icons.AutoMirrored.Rounded.List, "Track list") {
+                    ShareAction(PrismIcons.Queue, "Track list") {
                         close { sendText(context, trackList(target), "Share ${target.title}") }
                     }
                 }
-                ShareAction(Icons.Rounded.Image, if (busy) "Preparing…" else "Share image") { shareImage("Share ${target.kind.lowercase()}") }
-                ShareAction(Icons.Rounded.MoreHoriz, "More") {
+                ShareAction(PrismIcons.Photo, if (busy) "Preparing…" else "Share image") { shareImage("Share ${target.kind.lowercase()}") }
+                ShareAction(PrismIcons.More, "More") {
                     close { sendText(context, target.url?.let { "$message\n$it" } ?: trackList(target), "Share ${target.kind.lowercase()}") }
                 }
             }
@@ -206,7 +200,7 @@ private fun PrivateNotice(changing: Boolean, onMakeShareable: () -> Unit) {
             .background(scheme.surfaceContainerHighest).padding(start = 14.dp, top = 10.dp, bottom = 10.dp, end = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(Icons.Rounded.Lock, null, Modifier.size(20.dp), tint = scheme.onSurfaceVariant)
+        Icon(PrismIcons.Lock, null, Modifier.size(20.dp), tint = scheme.onSurfaceVariant)
         Spacer(Modifier.width(12.dp))
         Text(
             "This playlist is private, so its link only works for you.",

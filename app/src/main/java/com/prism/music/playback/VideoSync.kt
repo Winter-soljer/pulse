@@ -11,6 +11,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.ensureActive
@@ -56,7 +57,7 @@ class VideoSync(
     /** Forgets any result for this pair so the next request measures again. */
     fun forget(songId: String, videoId: String) {
         failed -= key(songId, videoId)
-        prefs.edit().remove(key(songId, videoId)).apply()
+        prefs.edit().remove(key(songId, videoId)).remove("x:" + key(songId, videoId)).apply()
     }
 
     /** Video time minus song time, in ms, if already measured. */
@@ -71,12 +72,15 @@ class VideoSync(
         cached(songId, videoId)?.let { return it }
         val k = key(songId, videoId)
         if (k in failed) return null
+        // A pair that didn't line up is left alone for a week, not measured again on every launch.
+        if (System.currentTimeMillis() - prefs.getLong("x:$k", 0L) < UNMATCHED_RETRY_MS) { failed += k; return null }
         return inFlight.computeIfAbsent(k) {
             scope.async {
                 try {
                     val lag = measure(songId, videoId)
                     // Only a real "these don't line up" is remembered; network errors can be retried.
-                    if (lag == null) failed += k else prefs.edit().putLong(k, lag).apply()
+                    if (lag == null) { failed += k; prefs.edit().putLong("x:$k", System.currentTimeMillis()).apply() }
+                    else prefs.edit().putLong(k, lag).apply()
                     lag
                 } catch (e: CancellationException) {
                     throw e
@@ -91,13 +95,24 @@ class VideoSync(
     }
 
     private suspend fun measure(songId: String, videoId: String): Long? = coroutineScope {
-        val song = async(Dispatchers.IO) { fingerprintOf(songId, SONG_SECONDS) }
-        val video = async(Dispatchers.IO) { fingerprintOf(videoId, VIDEO_SECONDS) }
+        val seconds = withContext(analysis) {
+            videoSeconds(runCatching { streams.analysisAudio(songId).durationSec }.getOrDefault(0), runCatching { streams.analysisAudio(videoId).durationSec }.getOrDefault(0))
+        }
+        val song = async(analysis) { fingerprintOf(songId, SONG_SECONDS) }
+        val video = async(analysis) { fingerprintOf(videoId, seconds) }
         val s = song.await() ?: return@coroutineScope null
         val v = video.await() ?: return@coroutineScope null
         ensureActive()
-        withContext(Dispatchers.Default) { align(s, v, frameMs) }?.also { Log.i(TAG, "sync $songId -> $videoId: ${it}ms") }
+        withContext(analysis) { align(s, v, frameMs) }?.also { Log.i(TAG, "sync $songId -> $videoId: ${it}ms") }
     }
+
+    /**
+     * Two background-priority threads for the downloading, decoding and matching: a long video is minutes of audio,
+     * and on the shared pools it competed with playback and the UI.
+     */
+    private val analysis = java.util.concurrent.Executors.newFixedThreadPool(2) { r ->
+        Thread({ android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND); r.run() }, "VideoSync")
+    }.asCoroutineDispatcher()
 
     private fun fingerprintOf(id: String, seconds: Int): Array<FloatArray>? {
         val a = streams.analysisAudio(id)
@@ -207,6 +222,20 @@ class VideoSync(
         var log: (String) -> Unit = { Log.d(TAG, it) }
         const val SONG_SECONDS = 70
         const val VIDEO_SECONDS = 190
+        private const val MAX_VIDEO_SECONDS = 540
+        private const val UNMATCHED_RETRY_MS = 7 * 86_400_000L
+
+        /**
+         * How much of the video to listen to. 190 s finds intros up to ~2 min; a video much longer than its song
+         * (Kendrick Lamar's "Alright" opens with minutes of film) can start the song later than that, so the window
+         * grows by the extra length, up to 9 minutes.
+         */
+        fun videoSeconds(songSec: Long, videoSec: Long): Int {
+            if (songSec <= 0 || videoSec <= 0) return VIDEO_SECONDS
+            val extra = videoSec - songSec
+            val cap = max(VIDEO_SECONDS.toLong(), minOf(videoSec + 5, MAX_VIDEO_SECONDS.toLong()))
+            return (extra + SONG_SECONDS + 20).coerceIn(VIDEO_SECONDS.toLong(), cap).toInt()
+        }
         private const val BANDS = 16
         /** FFT window of [bandFeatures], in samples: a frame's energy is that of the window starting at it. */
         const val WINDOW = 512

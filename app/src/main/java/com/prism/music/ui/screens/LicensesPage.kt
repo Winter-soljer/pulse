@@ -1,13 +1,10 @@
 package com.prism.music.ui.screens
 
+import com.prism.music.ui.theme.PrismIcons
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.OpenInNew
-import androidx.compose.material.icons.rounded.KeyboardArrowDown
-import androidx.compose.material.icons.rounded.KeyboardArrowUp
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -56,7 +53,7 @@ fun LicensesPage() {
         Group("Prism") {
             Note("Prism is free software under the GNU General Public License, version 3 or later. You can use, study, share and change it; copies and changed versions have to stay under the same license, with their source.")
             Item("Source code", SOURCE_URL.removePrefix("https://"), onClick = { uri.openUri(SOURCE_URL) }) {
-                Icon(Icons.AutoMirrored.Rounded.OpenInNew, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                Icon(PrismIcons.OpenInNew, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             LicenseRow("GNU GPL 3.0", "Prism's license", "gpl-3.0")
         }
@@ -73,12 +70,12 @@ private fun LicenseRow(title: String, subtitle: String, text: String, url: Strin
     var open by rememberSaveable(title) { mutableStateOf(false) }
     val uri = LocalUriHandler.current
     Item(title, subtitle, onClick = { open = !open }) {
-        Icon(if (open) Icons.Rounded.KeyboardArrowUp else Icons.Rounded.KeyboardArrowDown, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        Icon(if (open) PrismIcons.ChevronUp else PrismIcons.ChevronDown, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
     }
     AnimatedVisibility(open) {
         Column {
             if (url != null) Item("Project page", url.removePrefix("https://"), onClick = { uri.openUri(url) }) {
-                Icon(Icons.AutoMirrored.Rounded.OpenInNew, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                Icon(PrismIcons.OpenInNew, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp)) { LicenseText(text) }
         }

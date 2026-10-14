@@ -10,6 +10,8 @@ data class QueueSource(
     val title: String,
     /** Seed for autoplay / radio continuation. */
     val seedId: String? = null,
+    /** The album, playlist or artist the queue was started from, so a play button for it can show pause. */
+    val originId: String? = null,
 )
 
 /** Shared queue bookkeeping between the UI-facing [PlayerConnection] and [PlaybackService]. */

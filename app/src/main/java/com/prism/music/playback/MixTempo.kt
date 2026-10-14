@@ -227,48 +227,82 @@ data class Tempo(
 }
 
 /**
- * Measures songs' tempo for Mix: the song's smallest audio stream is fetched whole (1–4 MB, only on Wi-Fi), decoded
- * to mono ~11 kHz, and read by [Tempo.analyze]. Results are kept per song (`mix_tempo` prefs), so each song is
- * measured once.
+ * Scans songs, once each: their tempo and edges for Mix ([Tempo]) and their loudness for normalization
+ * ([integratedLoudness]). The song's audio is read from the phone when it's there ([local]: a download, the song
+ * cache, a local file), else its smallest stream is fetched whole (1–4 MB, on Wi-Fi unless mobile data is allowed);
+ * it's decoded to mono ~11 kHz and measured. Results are kept per song (`mix_tempo` and `song_loudness` prefs).
  */
-class MixTempo(private val context: Context, private val http: OkHttpClient, private val streams: StreamResolver) {
+class MixTempo(
+    private val context: Context,
+    private val http: OkHttpClient,
+    private val streams: StreamResolver,
+    /** Where the song's audio is on the phone, if it is (may copy it to the file it's given), else null. */
+    private val local: (id: String, scratch: File) -> android.net.Uri? = { _, _ -> null },
+) {
     private val prefs = context.getSharedPreferences("mix_tempo", Context.MODE_PRIVATE)
+    /** Song id -> integrated loudness (LUFS; NaN when it couldn't be measured). Also marks a song as scanned. */
+    private val loudPrefs = context.getSharedPreferences("song_loudness", Context.MODE_PRIVATE)
     private val failed = ConcurrentHashMap.newKeySet<String>()
     /** One song at a time: decoding a whole song is the heaviest thing Prism does in the background. */
     private val lock = Mutex()
 
     fun cached(id: String): Tempo? = prefs.getString(id, null)?.let(Tempo::decode)
 
-    /** The song's tempo, measured now if it isn't known yet; null when it can't be (offline, no clear audio). */
-    suspend fun measure(id: String): Tempo? {
-        cached(id)?.let { return it }
-        if (id in failed) return null
+    /** The song's measured loudness (integrated LUFS), once it's been scanned. */
+    fun loudness(id: String): Float? = loudPrefs.getFloat(id, Float.NaN).takeIf { !it.isNaN() }
+
+    private fun scanned(id: String) = loudPrefs.contains(id)
+
+    private class Scan(val tempo: Tempo?, val lufs: Float?)
+
+    /**
+     * Scans the song now if it hasn't been ([network]: whether its audio may be downloaded when it isn't on the phone),
+     * and returns its tempo; null when it has none that's clear, or it can't be scanned yet.
+     */
+    suspend fun measure(id: String, network: Boolean = true): Tempo? {
+        if (scanned(id) || id in failed) return cached(id)
         return lock.withLock {
-            cached(id) ?: withContext(Dispatchers.IO) {
-                Log.d(TAG, "measuring the tempo of $id")
+            if (scanned(id)) return@withLock cached(id)
+            withContext(Dispatchers.IO) {
                 val started = System.nanoTime()
-                val t = runCatching { analyzeSong(id) }.onFailure { Log.w(TAG, "tempo of $id failed: $it") }.getOrNull()
-                if (t == null) failed += id else {
-                    prefs.edit().putString(id, t.encode()).apply()
-                    Log.i(TAG, "tempo $id: %.1f BPM (confidence %.1f), music %d–%d ms, first beat %d ms, in %d ms"
-                        .format(t.bpm, t.confidence, t.firstSoundMs, t.lastSoundMs, t.firstBeatMs, (System.nanoTime() - started) / 1_000_000))
+                val r = runCatching { scan(id, network) }.onFailure { Log.w(TAG, "scan of $id failed: $it") }
+                val s = r.getOrNull()
+                when {
+                    r.isFailure -> { failed += id; cached(id) }
+                    s == null -> cached(id) // not on the phone, and no network for it now
+                    else -> {
+                        prefs.edit().putString(id, s.tempo?.encode() ?: "none").apply()
+                        loudPrefs.edit().putFloat(id, s.lufs ?: Float.NaN).apply()
+                        val ms = (System.nanoTime() - started) / 1_000_000
+                        val t = s.tempo
+                        Log.i(TAG, "scanned $id in $ms ms: loudness ${s.lufs?.let { "%.1f LUFS".format(it) } ?: "unknown"}, " +
+                            (if (t == null) "no clear music" else "%.1f BPM (confidence %.1f), music %d–%d ms, first beat %d ms"
+                                .format(t.bpm, t.confidence, t.firstSoundMs, t.lastSoundMs, t.firstBeatMs)))
+                        t
+                    }
                 }
-                t
             }
         }
     }
 
-    private fun analyzeSong(id: String): Tempo? {
-        val a = streams.analysisAudio(id)
+    /** Null when the song's audio isn't on the phone and [network] doesn't allow fetching it. */
+    private fun scan(id: String, network: Boolean): Scan? {
         val file = File(context.cacheDir, "mix_$id.part")
         try {
-            http.newCall(Request.Builder().url(a.url).apply {
-                if (a.contentLength > 0) header("Range", "bytes=0-${a.contentLength - 1}")
-            }.build()).execute().use { r ->
-                if (!r.isSuccessful) { Log.w(TAG, "tempo of $id: audio returned HTTP ${r.code}"); return null }
-                file.outputStream().use { out -> r.body.byteStream().copyTo(out) }
+            val uri = local(id, file) ?: run {
+                if (!network || id.startsWith(com.prism.music.data.model.Song.LOCAL_PREFIX)) return null
+                Log.d(TAG, "downloading $id to scan it")
+                val a = streams.analysisAudio(id)
+                http.newCall(Request.Builder().url(a.url).apply {
+                    if (a.contentLength > 0) header("Range", "bytes=0-${a.contentLength - 1}")
+                }.build()).execute().use { r ->
+                    if (!r.isSuccessful) throw java.io.IOException("audio returned HTTP ${r.code}")
+                    file.outputStream().use { out -> r.body.byteStream().copyTo(out) }
+                }
+                android.net.Uri.fromFile(file)
             }
-            val (pcm, rate) = decodeAll(file) ?: run { Log.w(TAG, "tempo of $id: couldn't decode ${file.length()} bytes"); return null }
+            val (pcm, rate) = decodeAll(uri) ?: throw java.io.IOException("couldn't decode its audio")
+            val lufs = integratedLoudness(pcm, rate)?.let { it + MONO_TO_STEREO_DB }
             // Debug builds keep the decoded audio when asked (adb shell touch …/files/mix_dump), for tuning [Tempo.analyze].
             if (com.prism.music.BuildConfig.DEBUG) context.getExternalFilesDir(null)?.let { dir ->
                 if (File(dir, "mix_dump").exists()) runCatching {
@@ -279,19 +313,18 @@ class MixTempo(private val context: Context, private val http: OkHttpClient, pri
             }
             val bands = VideoSync.bandFeatures(pcm, rate)
             val frameMs = (rate / 100) * 1000.0 / rate
-            return Tempo.analyze(bands, frameMs, offsetMs = VideoSync.WINDOW / 2 * 1000.0 / rate)
-                ?: run { Log.w(TAG, "tempo of $id: no clear music in ${pcm.size / rate} s of audio"); null }
+            return Scan(Tempo.analyze(bands, frameMs, offsetMs = VideoSync.WINDOW / 2 * 1000.0 / rate), lufs)
         } finally {
             file.delete()
         }
     }
 
     /** The whole file as mono PCM, decimated to roughly 11 kHz. */
-    private fun decodeAll(file: File): Pair<FloatArray, Int>? {
+    private fun decodeAll(uri: android.net.Uri): Pair<FloatArray, Int>? {
         val ex = MediaExtractor()
         var codec: MediaCodec? = null
         try {
-            ex.setDataSource(file.path)
+            ex.setDataSource(context, uri, null)
             val track = (0 until ex.trackCount).firstOrNull { ex.getTrackFormat(it).getString(MediaFormat.KEY_MIME)?.startsWith("audio/") == true }
                 ?: return null
             ex.selectTrack(track)
@@ -366,5 +399,75 @@ class MixTempo(private val context: Context, private val http: OkHttpClient, pri
         private const val TAG = "PrismMix"
         /** Longer than this (a DJ set, an hour-long mix) isn't measured past this point. */
         private const val MAX_SECONDS = 15 * 60
+        /**
+         * The scan hears the song in mono (left and right averaged), which reads about 3 dB quieter than both channels
+         * counted apart, as LUFS does (exactly 3 dB for a centred sound, more for a wide one).
+         */
+        private const val MONO_TO_STEREO_DB = 3.0f
+
+        /**
+         * Integrated loudness after ITU-R BS.1770 / EBU R128 (what Spotify and YouTube normalize by): the signal
+         * K-weighted (a high shelf ~+4 dB above 1.7 kHz, a high-pass at 38 Hz), its power taken over 400 ms blocks every
+         * 100 ms, and averaged over the blocks above -70 LUFS and no more than 10 LU below their mean (so silence and
+         * quiet passages don't drag it down). For one channel; null for silence or under half a second.
+         */
+        fun integratedLoudness(pcm: FloatArray, rate: Int): Float? {
+            val block = (0.4 * rate).toInt()
+            val hop = (0.1 * rate).toInt().coerceAtLeast(1)
+            if (rate <= 0 || pcm.size < block + hop) return null
+            // K-weighting: two biquads, worked out for this sample rate.
+            val shelf = biquadHighShelf(rate, 1681.974450955533, 3.999843853973347, 0.7071752369554196)
+            val pass = biquadHighPass(rate, 38.13547087602444, 0.5003270373238773)
+            val sq = DoubleArray(pcm.size + 1)
+            var s1 = 0.0; var s2 = 0.0; var p1 = 0.0; var p2 = 0.0
+            for (i in pcm.indices) {
+                // Direct form II transposed, one stage into the next.
+                val x = pcm[i].toDouble()
+                val y1 = shelf[0] * x + s1
+                s1 = shelf[1] * x - shelf[3] * y1 + s2
+                s2 = shelf[2] * x - shelf[4] * y1
+                val y2 = pass[0] * y1 + p1
+                p1 = pass[1] * y1 - pass[3] * y2 + p2
+                p2 = pass[2] * y1 - pass[4] * y2
+                sq[i + 1] = sq[i] + y2 * y2
+            }
+            val powers = ArrayList<Double>()
+            var start = 0
+            while (start + block <= pcm.size) {
+                powers += (sq[start + block] - sq[start]) / block
+                start += hop
+            }
+            fun lufs(power: Double) = -0.691 + 10 * kotlin.math.log10(power)
+            val loud = powers.filter { it > 0 && lufs(it) > -70 }
+            if (loud.isEmpty()) return null
+            val relative = lufs(loud.average()) - 10
+            val gated = loud.filter { lufs(it) > relative }
+            return lufs(gated.ifEmpty { loud }.average()).toFloat()
+        }
+
+        /** [b0, b1, b2, a1, a2] (a0 = 1) for a high shelf (RBJ's cookbook, as BS.1770's stage 1 at any sample rate). */
+        private fun biquadHighShelf(rate: Int, fc: Double, gainDb: Double, q: Double): DoubleArray {
+            val a = Math.pow(10.0, gainDb / 40)
+            val w = 2 * Math.PI * fc / rate
+            val cw = kotlin.math.cos(w)
+            val alpha = kotlin.math.sin(w) / (2 * q)
+            val sa = 2 * kotlin.math.sqrt(a) * alpha
+            val b0 = a * ((a + 1) + (a - 1) * cw + sa)
+            val b1 = -2 * a * ((a - 1) + (a + 1) * cw)
+            val b2 = a * ((a + 1) + (a - 1) * cw - sa)
+            val a0 = (a + 1) - (a - 1) * cw + sa
+            val a1 = 2 * ((a - 1) - (a + 1) * cw)
+            val a2 = (a + 1) - (a - 1) * cw - sa
+            return doubleArrayOf(b0 / a0, b1 / a0, b2 / a0, a1 / a0, a2 / a0)
+        }
+
+        /** [b0, b1, b2, a1, a2] (a0 = 1) for a high-pass (BS.1770's stage 2, the "RLB" curve). */
+        private fun biquadHighPass(rate: Int, fc: Double, q: Double): DoubleArray {
+            val w = 2 * Math.PI * fc / rate
+            val cw = kotlin.math.cos(w)
+            val alpha = kotlin.math.sin(w) / (2 * q)
+            val a0 = 1 + alpha
+            return doubleArrayOf((1 + cw) / 2 / a0, -(1 + cw) / a0, (1 + cw) / 2 / a0, -2 * cw / a0, (1 - alpha) / a0)
+        }
     }
 }

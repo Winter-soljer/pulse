@@ -1,5 +1,6 @@
 package com.prism.music.ui.screens
 
+import com.prism.music.ui.theme.PrismIcons
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -16,15 +17,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Bookmark
-import androidx.compose.material.icons.rounded.BookmarkBorder
-import androidx.compose.material.icons.rounded.CheckCircle
-import androidx.compose.material.icons.rounded.MoreHoriz
-import androidx.compose.material.icons.rounded.PlayArrow
-import androidx.compose.material.icons.rounded.Podcasts
-import androidx.compose.material.icons.rounded.Search
-import androidx.compose.material.icons.rounded.Share
 import com.prism.music.ui.components.shareTarget
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -103,7 +95,7 @@ fun PodcastsScreen(bottomPadding: Dp) {
     val onSong: (SongItem) -> Unit = { playEpisode(c, it.song, "Podcasts") }
 
     SubPage("Podcasts", bottomPadding, actions = {
-        RoundAction(Icons.Rounded.Search, "Search podcasts") { nav.go(Routes.SEARCH) }
+        RoundAction(PrismIcons.Search, "Search podcasts") { nav.go(Routes.SEARCH) }
     }) {
         if (resume.isNotEmpty()) {
             item(key = "resume-h") { SectionHeader("Continue listening") }
@@ -139,7 +131,7 @@ fun PodcastsScreen(bottomPadding: Dp) {
                 }
                 home.shelves.forEach { shelf -> shelfItems(shelf) { nav.open(it, onSong) } }
                 if (home.shelves.isEmpty() && home.yourShows.isEmpty()) item {
-                    EmptyState(Icons.Rounded.Podcasts, "No podcasts here", "YouTube Music didn't list any podcasts for your country. Try another content country in Settings → Home screen.")
+                    EmptyState(PrismIcons.Podcasts, "No podcasts here", "YouTube Music didn't list any podcasts for your country. Try another content country in Settings → Home screen.")
                 }
             }
         }
@@ -176,7 +168,7 @@ fun PodcastScreen(id: String, bottomPadding: Dp) {
     val show = page?.let { PodcastItem(it.id, it.title, it.author?.name ?: "", it.thumbnail) }
 
     SubPage(page?.title ?: "Podcast", bottomPadding, actions = {
-        if (show != null) RoundAction(Icons.Rounded.Share, "Share") { sharing = true }
+        if (show != null) RoundAction(PrismIcons.Share, "Share") { sharing = true }
     }) {
         when (val st = load.state) {
             Load.Loading -> item { LoadingState() }
@@ -188,7 +180,7 @@ fun PodcastScreen(id: String, bottomPadding: Dp) {
                     val ui = LocalUi.current
                     Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Artwork(p.thumbnail, Modifier.size(132.dp), ui.art, size = 544, placeholderIcon = Icons.Rounded.Podcasts)
+                            Artwork(p.thumbnail, Modifier.size(132.dp), ui.art, size = 544, placeholderIcon = PrismIcons.Podcasts)
                             Spacer(Modifier.width(16.dp))
                             Column(Modifier.weight(1f)) {
                                 Text(p.title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, maxLines = 3, overflow = TextOverflow.Ellipsis)
@@ -211,13 +203,13 @@ fun PodcastScreen(id: String, bottomPadding: Dp) {
                                     .padding(horizontal = 18.dp, vertical = 10.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
-                                Icon(Icons.Rounded.PlayArrow, null, tint = MaterialTheme.colorScheme.onPrimary)
+                                Icon(PrismIcons.Play, null, tint = MaterialTheme.colorScheme.onPrimary)
                                 Spacer(Modifier.width(6.dp))
                                 Text("Latest episode", color = MaterialTheme.colorScheme.onPrimary, style = MaterialTheme.typography.labelLarge)
                             }
                             if (s.isLoggedIn && saved != null) {
                                 val on = saved == true
-                                RoundAction(if (on) Icons.Rounded.Bookmark else Icons.Rounded.BookmarkBorder, if (on) "Remove from library" else "Save to library") {
+                                RoundAction(if (on) PrismIcons.BookmarkFilled else PrismIcons.Bookmark, if (on) "Remove from library" else "Save to library") {
                                     saved = !on
                                     scope.launch {
                                         runCatching { c.ytm.setLibrarySaved(p.playlistId, !on) }.onFailure {
@@ -294,7 +286,7 @@ fun EpisodeRow(
         verticalAlignment = Alignment.Top,
     ) {
         Box {
-            Artwork(song.thumbnail, Modifier.size(width = 104.dp, height = 58.dp), ui.shape(8.dp), size = 480, placeholderIcon = Icons.Rounded.Podcasts)
+            Artwork(song.thumbnail, Modifier.size(width = 104.dp, height = 58.dp), ui.shape(8.dp), size = 480, placeholderIcon = PrismIcons.Podcasts)
             if (playing) Box(Modifier.size(width = 104.dp, height = 58.dp).clip(ui.shape(8.dp)).background(androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.45f)), contentAlignment = Alignment.Center) {
                 PlayingBars(Modifier.size(20.dp))
             }
@@ -313,7 +305,7 @@ fun EpisodeRow(
                 else -> null
             }
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 2.dp)) {
-                if (e.played) Icon(Icons.Rounded.CheckCircle, null, Modifier.size(14.dp).padding(end = 3.dp), tint = scheme.primary)
+                if (e.played) Icon(PrismIcons.CheckCircle, null, Modifier.size(14.dp).padding(end = 3.dp), tint = scheme.primary)
                 Text(
                     listOfNotNull(if (showShow) song.artistText.takeIf { song.artists.isNotEmpty() } else null, e.date, length).joinToString(" • "),
                     maxLines = 1, overflow = TextOverflow.Ellipsis,
@@ -332,7 +324,7 @@ fun EpisodeRow(
                 )
             }
         }
-        IconButton(onClick = { menu = true }) { Icon(Icons.Rounded.MoreHoriz, "More", tint = scheme.onSurfaceVariant.copy(alpha = 0.8f)) }
+        IconButton(onClick = { menu = true }) { Icon(PrismIcons.More, "More", tint = scheme.onSurfaceVariant.copy(alpha = 0.8f)) }
     }
     if (menu) SongActionsSheet(song) { menu = false }
 }

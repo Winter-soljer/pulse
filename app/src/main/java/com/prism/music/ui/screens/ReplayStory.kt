@@ -1,5 +1,6 @@
 package com.prism.music.ui.screens
 
+import com.prism.music.ui.theme.PrismIcons
 import android.content.Context
 import android.content.Intent
 import android.widget.Toast
@@ -43,16 +44,6 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.PlaylistAdd
-import androidx.compose.material.icons.automirrored.rounded.VolumeOff
-import androidx.compose.material.icons.automirrored.rounded.VolumeUp
-import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.PlayArrow
-import androidx.compose.material.icons.rounded.Replay
-import androidx.compose.material.icons.rounded.Share
-import androidx.compose.material.icons.automirrored.rounded.TrendingDown
-import androidx.compose.material.icons.automirrored.rounded.TrendingUp
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
@@ -415,9 +406,9 @@ private fun StoryContent(story: ReplayStory, onDismiss: () -> Unit) {
                     style = kicker(12.sp), color = Color.White.copy(alpha = 0.85f), maxLines = 1,
                 )
                 IconButton(onClick = { muted = !muted }) {
-                    Icon(if (muted) Icons.AutoMirrored.Rounded.VolumeOff else Icons.AutoMirrored.Rounded.VolumeUp, if (muted) "Unmute" else "Mute", tint = Color.White)
+                    Icon(if (muted) PrismIcons.VolumeOff else PrismIcons.VolumeUp, if (muted) "Unmute" else "Mute", tint = Color.White)
                 }
-                IconButton(onClick = onDismiss) { Icon(Icons.Rounded.Close, "Close", tint = Color.White) }
+                IconButton(onClick = onDismiss) { Icon(PrismIcons.Close, "Close", tint = Color.White) }
             }
         }
 
@@ -555,7 +546,7 @@ private fun Minutes(s: ReplayStory, modifier: Modifier) {
         if (s.previousMs != null && s.previousLabel != null) {
             val change = ((s.totalMs - s.previousMs) * 100.0 / s.previousMs).toInt()
             Row(Modifier.reveal(3_000).padding(top = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-                Icon(if (change >= 0) Icons.AutoMirrored.Rounded.TrendingUp else Icons.AutoMirrored.Rounded.TrendingDown, null, tint = Color.White, modifier = Modifier.size(26.dp))
+                Icon(if (change >= 0) PrismIcons.TrendingUp else PrismIcons.TrendingDown, null, tint = Color.White, modifier = Modifier.size(26.dp))
                 Spacer(Modifier.width(8.dp))
                 Text(if (change >= 0) "$change% more than ${s.previousLabel}" else "${-change}% less than ${s.previousLabel}", style = body)
             }
@@ -857,7 +848,7 @@ private fun Summary(s: ReplayStory, modifier: Modifier, onReplay: () -> Unit, on
         }
         Spacer(Modifier.height(18.dp))
         Row(Modifier.reveal(500), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Pill("Share", Icons.Rounded.Share, primary = true) {
+            Pill("Share", PrismIcons.Share, primary = true) {
                 scope.launch {
                     runCatching {
                         val bmp = card.toImageBitmap().asAndroidBitmap()
@@ -873,18 +864,18 @@ private fun Summary(s: ReplayStory, modifier: Modifier, onReplay: () -> Unit, on
                     }.onFailure { Toast.makeText(context, "Couldn't share your Replay", Toast.LENGTH_SHORT).show() }
                 }
             }
-            Pill("Play", Icons.Rounded.PlayArrow, onClick = onPlayAll)
+            Pill("Play", PrismIcons.Play, onClick = onPlayAll)
         }
         Spacer(Modifier.height(10.dp))
         Row(Modifier.reveal(700), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            if (c.settings.current.isLoggedIn) Pill("Save playlist", Icons.AutoMirrored.Rounded.PlaylistAdd) {
+            if (c.settings.current.isLoggedIn) Pill("Save playlist", PrismIcons.PlaylistAdd) {
                 scope.launch {
                     val name = "Replay ${s.title}"
                     val id = runCatching { c.ytm.createPlaylist(name, s.songs.take(100).map { it.songId }, "Made with Prism Replay") }.getOrNull()
                     Toast.makeText(context, if (id != null) "Saved \"$name\" to YouTube Music" else "Couldn't create playlist", Toast.LENGTH_SHORT).show()
                 }
             }
-            Pill("Watch again", Icons.Rounded.Replay, onClick = onReplay)
+            Pill("Watch again", PrismIcons.Refresh, onClick = onReplay)
         }
     }
 }

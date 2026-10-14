@@ -1,5 +1,6 @@
 package com.prism.music.ui.player
 
+import com.prism.music.ui.theme.PrismIcons
 import android.os.Build
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.SizeTransform
@@ -39,11 +40,6 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
-import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material.icons.rounded.MusicNote
-import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -349,12 +345,12 @@ private fun StripRow(onClick: () -> Unit, note: Boolean, content: @Composable ()
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (note) {
-            Icon(Icons.Rounded.MusicNote, null, tint = Color.White, modifier = Modifier.size(16.dp))
+            Icon(PrismIcons.Song, null, tint = Color.White, modifier = Modifier.size(16.dp))
             Spacer(Modifier.width(6.dp))
         }
         Box(Modifier.weight(1f, fill = false)) { content() }
         Spacer(Modifier.width(6.dp))
-        Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, null, tint = Color.White.copy(alpha = 0.5f), modifier = Modifier.size(14.dp))
+        Icon(PrismIcons.ChevronRight, null, tint = Color.White.copy(alpha = 0.5f), modifier = Modifier.size(14.dp))
     }
 }
 
@@ -702,7 +698,7 @@ fun LyricsProviderSheet(state: LyricsState, onDismiss: () -> Unit) {
             Text("Lyrics source", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
             // Up top, where it can't scroll out of reach.
             state.source?.let {
-                com.prism.music.ui.components.PrismChip(false, { state.redownload(); close {} }, "Re-download", icon = Icons.Rounded.Refresh)
+                com.prism.music.ui.components.PrismChip(false, { state.redownload(); close {} }, "Re-download", icon = PrismIcons.Refresh)
             }
         }
         state.source?.let { src ->
@@ -741,7 +737,7 @@ fun LyricsProviderSheet(state: LyricsState, onDismiss: () -> Unit) {
                         )
                     }
                     when {
-                        chosen -> Icon(Icons.Rounded.Check, "Selected", tint = scheme.primary)
+                        chosen -> Icon(PrismIcons.Check, "Selected", tint = scheme.primary)
                         st == ProviderState.LOADING -> CircularProgressIndicator(Modifier.size(18.dp), color = scheme.onSurfaceVariant, strokeWidth = 2.dp)
                     }
                 }

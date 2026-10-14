@@ -75,7 +75,43 @@ class DownloadRepository(private val context: Context, private val c: AppContain
     private val _lossless = MutableStateFlow<Map<String, DownloadInfo>>(emptyMap())
     private val _downloads = MutableStateFlow<Map<String, DownloadInfo>>(emptyMap())
     val downloads: StateFlow<Map<String, DownloadInfo>> = _downloads
-    private fun publish() { _downloads.value = _lossless.value + _media.value }
+    private fun publish() {
+        _downloads.value = _lossless.value + _media.value
+        c.smartPickBytes = _smartIds.value.sumOf { _media.value[it]?.bytes ?: 0L }
+    }
+
+    private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
+
+    /** Songs Smart Downloads picked (the songs table's `smartDownload` flag), so their space and network rule are known. */
+    private val _smartIds = MutableStateFlow<Set<String>>(emptySet())
+    val smartIds: StateFlow<Set<String>> = _smartIds
+
+    /** Re-reads which downloads are Smart Downloads' picks (after it adds or drops some). */
+    fun refreshSmartIds() {
+        c.scope.launch(Dispatchers.IO) {
+            _smartIds.value = runCatching { c.db.songs().smartDownloads().map { it.id }.toSet() }.getOrDefault(_smartIds.value)
+            publish()
+            applyRequirements()
+            c.trimSongCache()
+        }
+    }
+
+    /**
+     * Downloads wait for Wi-Fi when they're set to; Smart Downloads' picks may use mobile data when it's allowed to,
+     * so while only picks are waiting, any network will do (a song you download yourself still waits for Wi-Fi).
+     */
+    private fun applyRequirements() {
+        if (android.os.Looper.myLooper() != android.os.Looper.getMainLooper()) { mainHandler.post { applyRequirements() }; return }
+        val s = c.settings.current
+        val waiting = { d: DownloadInfo -> d.state == Download.STATE_QUEUED || d.state == Download.STATE_DOWNLOADING }
+        val smart = _smartIds.value
+        val picksOnly = s.smartDownloads && s.smartDownloadsCellular &&
+            _media.value.any { (id, d) -> id in smart && waiting(d) } &&
+            _media.value.none { (id, d) -> id !in smart && waiting(d) } &&
+            _videoParts.value.values.none { it.state == Download.STATE_QUEUED || it.state == Download.STATE_DOWNLOADING }
+        val req = Requirements(if (s.downloadWifiOnly && !picksOnly) Requirements.NETWORK_UNMETERED else Requirements.NETWORK)
+        if (manager.requirements != req) manager.requirements = req
+    }
 
     /** Video download parts by request id, and the videos they add up to, by song id. */
     private val _videoParts = MutableStateFlow<Map<String, Download>>(emptyMap())
@@ -123,6 +159,7 @@ class DownloadRepository(private val context: Context, private val c: AppContain
             _videoParts.value = parts
             publish()
             publishVideos()
+            refreshSmartIds()
             // Songs downloaded before lyrics came with them (or while offline) get theirs now.
             backfillLyrics()
         }
@@ -131,10 +168,14 @@ class DownloadRepository(private val context: Context, private val c: AppContain
                 if (isVideoPart(download.request.id)) {
                     _videoParts.update { it + (download.request.id to download) }
                     publishVideos()
+                    applyRequirements()
                     return
                 }
                 _media.update { it + (download.request.id to download.info()) }
                 publish()
+                applyRequirements()
+                // A pick that arrived takes its space from the song cache.
+                if (download.state == Download.STATE_COMPLETED && download.request.id in _smartIds.value) c.trimSongCache()
                 if (download.state == Download.STATE_COMPLETED) download.info().song?.let { s ->
                     c.scope.launch(Dispatchers.IO) { ensureLyrics(s) }
                     // Its animated cover is kept with it.
@@ -150,6 +191,7 @@ class DownloadRepository(private val context: Context, private val c: AppContain
                 }
                 _media.update { it - download.request.id }
                 publish()
+                applyRequirements()
                 c.canvasStore.forgetDownloads(listOf(download.request.id))
             }
         })
@@ -168,9 +210,7 @@ class DownloadRepository(private val context: Context, private val c: AppContain
             }
         }
         scope.launch {
-            c.settings.flow.collect { s ->
-                manager.requirements = Requirements(if (s.downloadWifiOnly) Requirements.NETWORK_UNMETERED else Requirements.NETWORK)
-            }
+            c.settings.flow.collect { applyRequirements() }
         }
     }
 
@@ -188,6 +228,8 @@ class DownloadRepository(private val context: Context, private val c: AppContain
     fun isLosslessOnly(id: String) = id in _lossless.value && id !in _media.value
 
     fun download(song: Song) {
+        // A file on the phone is already offline.
+        if (song.isLocal) return
         // A lossless file that was taken out of Downloads just comes back.
         if (c.losslessSync.unhide(song.id)) return
         if (_downloads.value[song.id]?.state.let { it == Download.STATE_COMPLETED || it == Download.STATE_DOWNLOADING || it == Download.STATE_QUEUED }) return
@@ -246,21 +288,27 @@ class DownloadRepository(private val context: Context, private val c: AppContain
         if (isLosslessOnly(id)) { c.losslessSync.hide(listOf(id)); return }
         DownloadService.sendRemoveDownload(context, PrismDownloadService::class.java, id, false)
         removeVideo(id)
-        c.scope.launch(Dispatchers.IO) { c.db.songs().setSmart(id, false) }
+        c.scope.launch(Dispatchers.IO) { c.db.songs().setSmart(id, false); refreshSmartIds() }
     }
 
     /** Deletes many downloads at once, straight through the manager (no intent per song). */
     fun removeMany(ids: Collection<String>) {
         c.losslessSync.hide(ids.filter(::isLosslessOnly))
         ids.forEach { manager.removeDownload(it); removeVideo(it) }
-        c.scope.launch(Dispatchers.IO) { ids.forEach { c.db.songs().setSmart(it, false) } }
+        c.scope.launch(Dispatchers.IO) { ids.forEach { c.db.songs().setSmart(it, false) }; refreshSmartIds() }
     }
 
     fun removeAll() {
         val ids = _media.value.keys.toList()
         c.losslessSync.hide(_lossless.value.keys)
         manager.removeAllDownloads()
-        c.scope.launch(Dispatchers.IO) { ids.forEach { c.db.songs().setSmart(it, false) } }
+        c.scope.launch(Dispatchers.IO) { ids.forEach { c.db.songs().setSmart(it, false) }; refreshSmartIds() }
+    }
+
+    /** Smart Downloads' picks and the song cache, emptied (the songs you downloaded yourself stay). */
+    fun clearSmartDownloads() {
+        removeMany(_smartIds.value.filter { id -> _media.value[id] != null })
+        c.clearSongCache()
     }
 
     // ------------------------------------------------------------ Lyrics for downloads
@@ -326,8 +374,8 @@ class PrismDownloadService : DownloadService(
             .buildProgressNotification(this, R.drawable.ic_notification, null, null, downloads, notMetRequirements)
 }
 
-/** Sizes offered for smart downloads, in GB. */
-val SMART_DOWNLOAD_SIZES = listOf(0.5f, 1f, 2f, 3f, 5f, 7.5f, 10f, 15f, 20f, 25f)
+/** Sizes offered for Smart Downloads' space (its picks and the songs you've streamed), in GB. */
+val SMART_DOWNLOAD_SIZES = listOf(1f, 2f, 3f, 5f, 7.5f, 10f, 15f, 20f, 30f, 50f)
 
 fun formatGb(gb: Float): String = when {
     gb < 1f -> "${(gb * 1024).roundToInt()} MB"

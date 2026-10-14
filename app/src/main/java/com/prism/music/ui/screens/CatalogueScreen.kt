@@ -1,9 +1,9 @@
 package com.prism.music.ui.screens
 
+import com.prism.music.ui.theme.PrismIcons
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
-import androidx.compose.material.icons.rounded.DragHandle
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -28,21 +28,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ViewList
-import androidx.compose.material.icons.rounded.Add
-import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material.icons.rounded.GridView
-import androidx.compose.material.icons.rounded.KeyboardArrowDown
-import androidx.compose.material.icons.rounded.KeyboardArrowUp
-import androidx.compose.material.icons.rounded.MoreVert
-import androidx.compose.material.icons.rounded.Remove
-import androidx.compose.material.icons.rounded.Restore
-import androidx.compose.material.icons.rounded.ViewCarousel
-import androidx.compose.material.icons.rounded.ViewDay
-import androidx.compose.material.icons.rounded.Visibility
-import androidx.compose.material.icons.rounded.VisibilityOff
-import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -79,10 +64,10 @@ import com.prism.music.ui.theme.LocalAppSettings
 import com.prism.music.ui.theme.LocalContainer
 
 private fun SectionStyle.icon(): ImageVector = when (this) {
-    SectionStyle.CAROUSEL -> Icons.Rounded.ViewCarousel
-    SectionStyle.GRID -> Icons.Rounded.GridView
-    SectionStyle.LIST -> Icons.AutoMirrored.Rounded.ViewList
-    SectionStyle.HERO -> Icons.Rounded.ViewDay
+    SectionStyle.CAROUSEL -> PrismIcons.Carousel
+    SectionStyle.GRID -> PrismIcons.Customize
+    SectionStyle.LIST -> PrismIcons.Queue
+    SectionStyle.HERO -> PrismIcons.Rows
 }
 
 /**
@@ -115,7 +100,7 @@ fun CatalogueScreen(bottomPadding: Dp) {
         "Customize Home", bottomPadding,
         horizontalPadding = 16.dp,
         spacing = 22.dp,
-        actions = { RoundAction(Icons.Rounded.Restore, "Reset", glass = true) { save(HomeSections.initial) } },
+        actions = { RoundAction(PrismIcons.History, "Reset", glass = true) { save(HomeSections.initial) } },
     ) {
         item(key = "greeting") {
             Group("Greeting") {
@@ -185,7 +170,7 @@ fun CatalogueScreen(bottomPadding: Dp) {
                     Modifier.fillMaxWidth().clickable { adding = true }.padding(horizontal = 16.dp, vertical = 14.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Icon(Icons.Rounded.Add, null, Modifier.size(22.dp), tint = MaterialTheme.colorScheme.primary)
+                    Icon(PrismIcons.Add, null, Modifier.size(22.dp), tint = MaterialTheme.colorScheme.primary)
                     Spacer(Modifier.width(14.dp))
                     Text("Add a section", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Medium)
                 }
@@ -250,7 +235,7 @@ private fun SectionRow(
             .padding(start = 16.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(if (cfg.visible) cfg.style.icon() else Icons.Rounded.VisibilityOff, null, Modifier.size(22.dp), tint = if (cfg.visible) scheme.primary else fg)
+        Icon(if (cfg.visible) cfg.style.icon() else PrismIcons.Hidden, null, Modifier.size(22.dp), tint = if (cfg.visible) scheme.primary else fg)
         Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {
             Text(cfg.title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, color = fg, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -259,25 +244,25 @@ private fun SectionRow(
                 style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant,
             )
         }
-        Icon(Icons.Rounded.DragHandle, null, Modifier.size(20.dp), tint = scheme.onSurfaceVariant.copy(alpha = 0.6f))
+        Icon(PrismIcons.DragHandle, null, Modifier.size(20.dp), tint = scheme.onSurfaceVariant.copy(alpha = 0.6f))
         IconButton(onClick = { menu = true }) {
-            Icon(Icons.Rounded.MoreVert, "Options for ${cfg.title}", tint = scheme.onSurfaceVariant)
+            Icon(PrismIcons.MoreVertical, "Options for ${cfg.title}", tint = scheme.onSurfaceVariant)
             DropdownMenu(menu, { menu = false }) {
                 SectionStyle.entries.forEach { st ->
                     DropdownMenuItem(
                         { Text(st.label) }, { onChange(cfg.copy(style = st, visible = true)); menu = false },
                         leadingIcon = { Icon(st.icon(), null) },
-                        trailingIcon = { if (st == cfg.style) Icon(Icons.Rounded.Check, null) },
+                        trailingIcon = { if (st == cfg.style) Icon(PrismIcons.Check, null) },
                     )
                 }
                 HorizontalDivider()
-                if (canUp) DropdownMenuItem({ Text("Move up") }, { onMove(-1); menu = false }, leadingIcon = { Icon(Icons.Rounded.KeyboardArrowUp, null) })
-                if (canDown) DropdownMenuItem({ Text("Move down") }, { onMove(1); menu = false }, leadingIcon = { Icon(Icons.Rounded.KeyboardArrowDown, null) })
+                if (canUp) DropdownMenuItem({ Text("Move up") }, { onMove(-1); menu = false }, leadingIcon = { Icon(PrismIcons.ChevronUp, null) })
+                if (canDown) DropdownMenuItem({ Text("Move down") }, { onMove(1); menu = false }, leadingIcon = { Icon(PrismIcons.ChevronDown, null) })
                 DropdownMenuItem(
                     { Text(if (cfg.visible) "Hide" else "Show") }, { onChange(cfg.copy(visible = !cfg.visible)); menu = false },
-                    leadingIcon = { Icon(if (cfg.visible) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility, null) },
+                    leadingIcon = { Icon(if (cfg.visible) PrismIcons.Hidden else PrismIcons.Visible, null) },
                 )
-                DropdownMenuItem({ Text("Remove") }, { onRemove(); menu = false }, leadingIcon = { Icon(Icons.Rounded.DeleteOutline, null) })
+                DropdownMenuItem({ Text("Remove") }, { onRemove(); menu = false }, leadingIcon = { Icon(PrismIcons.Delete, null) })
             }
         }
     }
@@ -309,9 +294,9 @@ private fun GreetingField() {
 @Composable
 private fun Stepper(value: Int, range: IntRange, onChange: (Int) -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        IconButton(onClick = { onChange(value - 1) }, enabled = value > range.first, modifier = Modifier.size(36.dp)) { Icon(Icons.Rounded.Remove, "Fewer") }
+        IconButton(onClick = { onChange(value - 1) }, enabled = value > range.first, modifier = Modifier.size(36.dp)) { Icon(PrismIcons.Remove, "Fewer") }
         Text(if (value == 0) "Off" else "$value", style = MaterialTheme.typography.titleSmall, modifier = Modifier.width(32.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-        IconButton(onClick = { onChange(value + 1) }, enabled = value < range.last, modifier = Modifier.size(36.dp)) { Icon(Icons.Rounded.Add, "More") }
+        IconButton(onClick = { onChange(value + 1) }, enabled = value < range.last, modifier = Modifier.size(36.dp)) { Icon(PrismIcons.Add, "More") }
     }
 }
 
@@ -384,8 +369,8 @@ private fun SheetRow(title: String, checked: Boolean? = null, onClick: () -> Uni
     ) {
         Text(title, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
         when (checked) {
-            null -> Icon(Icons.Rounded.Add, "Add", tint = MaterialTheme.colorScheme.primary)
-            true -> Icon(Icons.Rounded.Check, "Pinned", tint = MaterialTheme.colorScheme.primary)
+            null -> Icon(PrismIcons.Add, "Add", tint = MaterialTheme.colorScheme.primary)
+            true -> Icon(PrismIcons.Check, "Pinned", tint = MaterialTheme.colorScheme.primary)
             false -> {}
         }
     }

@@ -1,5 +1,6 @@
 package com.prism.music.ui.player
 
+import com.prism.music.ui.theme.PrismIcons
 import android.app.Activity
 import android.content.pm.ActivityInfo
 import android.content.res.Configuration
@@ -45,26 +46,6 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.QueueMusic
-import androidx.compose.material.icons.rounded.AspectRatio
-import androidx.compose.material.icons.rounded.AvTimer
-import androidx.compose.material.icons.rounded.Animation
-import androidx.compose.material.icons.rounded.Bedtime
-import androidx.compose.material.icons.rounded.Photo
-import androidx.compose.material.icons.rounded.ThumbDown
-import androidx.compose.material.icons.rounded.ThumbDownOffAlt
-import androidx.compose.material.icons.rounded.DataUsage
-import androidx.compose.material.icons.rounded.Favorite
-import androidx.compose.material.icons.rounded.FavoriteBorder
-import androidx.compose.material.icons.rounded.FormatQuote
-import androidx.compose.material.icons.rounded.Fullscreen
-import androidx.compose.material.icons.rounded.FullscreenExit
-import androidx.compose.material.icons.rounded.PictureInPictureAlt
-import androidx.compose.material.icons.rounded.MoreHoriz
-import androidx.compose.material.icons.rounded.MusicNote
-import androidx.compose.material.icons.rounded.Pause
-import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -142,11 +123,13 @@ private val ART_BOX_TOP_PAD = 8.dp
 private const val HERO_FADE = 0.42f
 
 @Composable
-fun rememberPosition(fast: Boolean): Long {
+fun rememberPosition(fast: Boolean, hold: Boolean = false): Long {
     val pc = LocalContainer.current.player
     var pos by remember { mutableLongStateOf(pc.position) }
-    LaunchedEffect(fast) {
-        while (isActive) {
+    // [hold]: hidden under a sheet, the player isn't recomposed four times a second for a clock nobody sees.
+    LaunchedEffect(fast, hold) {
+        pos = pc.position
+        while (isActive && !hold) {
             pos = pc.position
             delay(if (fast) 60 else 250)
         }
@@ -195,8 +178,12 @@ fun NowPlayingScreen(onCollapse: () -> Unit) {
     var fullscreenVideo by rememberSaveable { mutableStateOf(false) }
     var videoFill by rememberSaveable { mutableStateOf(true) }
 
+    // A sheet over the player (⋯, lyrics source, sleep timer): what moves underneath it every frame (the animated
+    // cover, the word sweep, the title marquee) holds still, since both windows draw on the same thread and dragging
+    // the sheet stuttered. The timing sheet isn't counted: the lyrics are what's being lined up there.
+    val covered = showActions || showProviders || showSleep
     val lyricsState = rememberLyricsState(song)
-    val position = rememberPosition(fast = false)
+    val position = rememberPosition(fast = false, hold = covered)
     val volume = rememberPlayerVolume()
     val scope = rememberCoroutineScope()
 
@@ -356,6 +343,7 @@ fun NowPlayingScreen(onCollapse: () -> Unit) {
                 CanvasPlayer(
                     clip, canvasSaved, isPlaying,
                     Modifier.fillMaxWidth().height(heroHeight),
+                    hold = covered,
                     bottomFade = HERO_FADE,
                     presentationAlpha = { heroT.value * (1f - 2f * p()).coerceIn(0f, 1f) },
                     onCoverChanged = { canvasCover = it },
@@ -463,13 +451,13 @@ fun NowPlayingScreen(onCollapse: () -> Unit) {
                         ) {
                             MusicVideoSurface(Modifier.fillMaxSize(), fill = videoFill)
                             Row(Modifier.align(Alignment.BottomEnd).padding(10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                VideoChip(Icons.Rounded.AspectRatio, if (videoFill) "Fit video" else "Fill") { videoFill = !videoFill }
-                                if (activity != null) VideoChip(Icons.Rounded.PictureInPictureAlt, "Picture-in-picture") {
+                                VideoChip(PrismIcons.AspectRatio, if (videoFill) "Fit video" else "Fill") { videoFill = !videoFill }
+                                if (activity != null) VideoChip(PrismIcons.PictureInPicture, "Picture-in-picture") {
                                     if (!activity.enterPip()) android.widget.Toast.makeText(
                                         context, "Picture-in-picture is off for Prism in Android's settings", android.widget.Toast.LENGTH_SHORT,
                                     ).show()
                                 }
-                                VideoChip(Icons.Rounded.Fullscreen, "Full screen") { fullscreenVideo = true }
+                                VideoChip(PrismIcons.Fullscreen, "Full screen") { fullscreenVideo = true }
                             }
                         }
                     }
@@ -505,14 +493,14 @@ fun NowPlayingScreen(onCollapse: () -> Unit) {
                                 .background(Color.Black.copy(alpha = 0.18f)),
                             contentAlignment = Alignment.Center,
                         ) {
-                            if (!artLoaded) Icon(Icons.Rounded.MusicNote, null, tint = Color.White.copy(alpha = 0.35f), modifier = Modifier.size(40.dp))
+                            if (!artLoaded) Icon(PrismIcons.Song, null, tint = Color.White.copy(alpha = 0.35f), modifier = Modifier.size(40.dp))
                             AsyncImage(
                                 artUrl, null, contentScale = ContentScale.Crop,
                                 onState = { if (it is AsyncImagePainter.State.Success) artLoaded = true },
                                 modifier = Modifier.fillMaxSize(),
                             )
                             if (!heroMode && !videoMode) canvas?.takeIf { !collapsePastHalf }?.let { clip ->
-                                CanvasPlayer(clip, canvasSaved, isPlaying, Modifier.fillMaxSize(), onCoverChanged = { canvasCover = it })
+                                CanvasPlayer(clip, canvasSaved, isPlaying, Modifier.fillMaxSize(), onCoverChanged = { canvasCover = it }, hold = covered)
                             }
                         }
                         if (!collapsePastHalf && !videoMode) SleeveNerdStats(
@@ -543,7 +531,7 @@ fun NowPlayingScreen(onCollapse: () -> Unit) {
                                 transformOrigin = TransformOrigin(0f, 0.5f)
                             },
                         ) {
-                            val scrolls = collapse.value < 0.01f
+                            val scrolls = collapse.value < 0.01f && !covered
                             PlayerMarquee(
                                 song.title, MaterialTheme.typography.titleLarge.copy(fontSize = 20.sp), Color.White, scrolls,
                                 Modifier.clickable(enabled = song.album?.id != null) { song.album?.id?.let { onCollapse(); nav.go(Routes.album(it)) } },
@@ -556,17 +544,17 @@ fun NowPlayingScreen(onCollapse: () -> Unit) {
                         }
                         Spacer(Modifier.width(10.dp))
                         val isLiked = song.id in liked
-                        CircleGlyph(if (isLiked) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder, if (isLiked) "Remove from liked" else "Like", isLiked) {
+                        CircleGlyph(if (isLiked) PrismIcons.HeartFilled else PrismIcons.Heart, if (isLiked) "Remove from liked" else "Like", isLiked) {
                             c.library.toggleLike(song)
                         }
                         Spacer(Modifier.width(8.dp))
-                        CircleGlyph(Icons.Rounded.MoreHoriz, "Song options") { showActions = true }
+                        CircleGlyph(PrismIcons.More, "Song options") { showActions = true }
                     }
 
                     // ---- Lyrics and queue panels, under the collapsed header
                     if (lyricsOpen && panelsSettled) {
                         LyricsPanel(
-                            lyricsState, isPlaying, lyricsControlsOpen,
+                            lyricsState, isPlaying && !covered, lyricsControlsOpen,
                             onRevealControls = { lyricsControlsOpen = true },
                             onHideControls = { lyricsControlsOpen = false },
                             modifier = Modifier.fillMaxSize().padding(top = HEADER_HEIGHT).graphicsLayer { alpha = panelFade },
@@ -600,7 +588,7 @@ fun NowPlayingScreen(onCollapse: () -> Unit) {
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         if (lyricsOpen) LyricsStatusWithChange(lyricsState) { showProviders = true }
-                        else if (settings.lyricsOnPlayer) CurrentLyricStrip(lyricsState, isPlaying, openLyrics)
+                        else if (settings.lyricsOnPlayer) CurrentLyricStrip(lyricsState, isPlaying && !covered, openLyrics)
                         else Text(" ", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(vertical = 4.dp))
                         PlayerScrubber(position, pc.duration) {
                             QualityLabel(Modifier.align(Alignment.Center), selected = statsOpen) { toggleStats() }
@@ -756,12 +744,12 @@ private fun FullscreenVideo(song: Song, forceLandscape: Boolean, pip: Boolean = 
                 Box(
                     Modifier.align(Alignment.TopEnd).padding(16.dp).size(44.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.4f)).clickable(onClick = onExit),
                     contentAlignment = Alignment.Center,
-                ) { Icon(Icons.Rounded.FullscreenExit, "Exit full screen", tint = Color.White) }
+                ) { Icon(PrismIcons.FullscreenExit, "Exit full screen", tint = Color.White) }
                 Box(
                     Modifier.align(Alignment.Center).size(72.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.4f))
                         .clickable(remember { MutableInteractionSource() }, indication = null) { pc.togglePlay() },
                     contentAlignment = Alignment.Center,
-                ) { Icon(if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, "Play/pause", tint = Color.White, modifier = Modifier.size(44.dp)) }
+                ) { Icon(if (isPlaying) PrismIcons.Pause else PrismIcons.Play, "Play/pause", tint = Color.White, modifier = Modifier.size(44.dp)) }
                 Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(horizontal = 32.dp, vertical = 16.dp)) {
                     PlayerScrubber(position, pc.duration)
                 }

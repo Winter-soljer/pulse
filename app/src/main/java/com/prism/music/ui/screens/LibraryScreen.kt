@@ -1,16 +1,10 @@
 package com.prism.music.ui.screens
 
+import com.prism.music.ui.theme.PrismIcons
 import com.prism.music.data.friendlyMessage
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.material.icons.rounded.Delete
-import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material.icons.rounded.DragHandle
-import androidx.compose.material.icons.rounded.KeyboardArrowDown
-import androidx.compose.material.icons.rounded.KeyboardArrowUp
-import androidx.compose.material.icons.rounded.SwapVert
-import androidx.compose.material.icons.automirrored.rounded.QueueMusic
 import com.prism.music.ui.components.pane
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -33,19 +27,6 @@ import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.CloudSync
-import androidx.compose.material.icons.rounded.DownloadDone
-import androidx.compose.material.icons.rounded.Add
-import androidx.compose.material.icons.rounded.Favorite
-import androidx.compose.material.icons.rounded.Groups
-import androidx.compose.material.icons.rounded.History
-import androidx.compose.material.icons.rounded.LibraryMusic
-import androidx.compose.material.icons.rounded.Login
-import androidx.compose.material.icons.rounded.Settings
-import androidx.compose.material.icons.rounded.GridView
-import androidx.compose.material.icons.automirrored.rounded.ViewList
-import androidx.compose.material.icons.automirrored.rounded.PlaylistAdd
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.TextButton
@@ -88,7 +69,10 @@ import com.prism.music.ui.theme.LocalAppSettings
 import com.prism.music.ui.theme.LocalContainer
 import kotlinx.coroutines.launch
 
-private enum class LibTab(val label: String) { PLAYLISTS("Playlists"), SONGS("Songs"), ALBUMS("Albums"), ARTISTS("Artists"), DOWNLOADS("Downloads") }
+private enum class LibTab(val label: String) { PLAYLISTS("Playlists"), SONGS("Songs"), ALBUMS("Albums"), ARTISTS("Artists"), DOWNLOADS("Downloads"), LOCAL("On this phone") }
+
+/** Local music's orders: Album plays each album through in track order. */
+private enum class LocalSort(val label: String) { ADDED("Recently added"), TITLE("Title"), ARTIST("Artist"), ALBUM("Album") }
 
 private enum class SongSort(val label: String) { RECENT("Recently liked"), TITLE("Title"), ARTIST("Artist"), ALBUM("Album") }
 private enum class AlbumSort(val label: String) { LIBRARY("Library order"), MOST("Most songs"), TITLE("Title"), ARTIST("Artist") }
@@ -185,6 +169,20 @@ fun LibraryScreen(bottomPadding: Dp) {
         c.library.setPlaylistOrder(list.map { it.id })
         c.library.setPlaylistSort(PlaylistSort.CUSTOM.name)
     }
+    // ---- On this phone (local music)
+    val localTracks by c.localMusic.tracks.collectAsState()
+    val localScanned by c.localMusic.scanned.collectAsState()
+    var localSort by rememberSaveable { mutableStateOf(LocalSort.ADDED) }
+    var localAllowed by remember { mutableStateOf(c.localMusic.hasPermission()) }
+    val allowLocal = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) { granted ->
+        localAllowed = granted
+        if (granted) {
+            c.localMusic.start()
+            // Lossless sync reads the same files.
+            scope.launch { c.losslessSync.sync() }
+        }
+    }
+
     LaunchedEffect(pager.currentPage == LibTab.ARTISTS.ordinal, artists.size) {
         if (pager.currentPage == LibTab.ARTISTS.ordinal) c.library.loadArtistThumbs(artists.filter { it.thumbnail == null }.take(60).map { it.id })
     }
@@ -198,13 +196,13 @@ fun LibraryScreen(bottomPadding: Dp) {
         com.prism.music.ui.components.ScreenHeader("Library") {
             if (settings.isLoggedIn) {
                 if (sync == SyncState.SYNCING) Box(Modifier.size(42.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp) }
-                else com.prism.music.ui.components.RoundAction(Icons.Rounded.CloudSync, "Sync with YouTube Music") { scope.launch { c.library.sync() } }
+                else com.prism.music.ui.components.RoundAction(PrismIcons.Sync, "Sync with YouTube Music") { scope.launch { c.library.sync() } }
             }
             com.prism.music.ui.components.RoundAction(
-                if (asList) Icons.Rounded.GridView else Icons.AutoMirrored.Rounded.ViewList,
+                if (asList) PrismIcons.Customize else PrismIcons.Queue,
                 if (asList) "Show as grid" else "Show as list",
             ) { c.settings.setLibraryView(if (asList) com.prism.music.data.prefs.LibraryView.GRID else com.prism.music.data.prefs.LibraryView.LIST) }
-            if (com.prism.music.data.prefs.NavTab.SETTINGS !in settings.navTabs) com.prism.music.ui.components.RoundAction(Icons.Rounded.Settings, "Settings") { nav.go(Routes.SETTINGS) }
+            if (com.prism.music.data.prefs.NavTab.SETTINGS !in settings.navTabs) com.prism.music.ui.components.RoundAction(PrismIcons.SettingsFilled, "Settings") { nav.go(Routes.SETTINGS) }
         }
         PagerChips(LibTab.entries.map { it.label }, pager)
 
@@ -224,25 +222,25 @@ fun LibraryScreen(bottomPadding: Dp) {
                 if (empty) item(span = { GridItemSpan(maxLineSpan) }) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         if (!settings.isLoggedIn) {
-                            EmptyState(Icons.Rounded.LibraryMusic, "Sign in to sync your library", "Your playlists, albums, artists and likes from YouTube Music will appear here.")
-                            Button(onClick = { nav.go(Routes.LOGIN) }) { Icon(Icons.Rounded.Login, null); Spacer(Modifier.width(8.dp)); Text("Sign in") }
+                            EmptyState(PrismIcons.LibraryFilled, "Sign in to sync your library", "Your playlists, albums, artists and likes from YouTube Music will appear here.")
+                            Button(onClick = { nav.go(Routes.LOGIN) }) { Icon(PrismIcons.Login, null); Spacer(Modifier.width(8.dp)); Text("Sign in") }
                         } else {
-                            EmptyState(Icons.Rounded.LibraryMusic, "Nothing here yet", "Like or download songs, or star artists, and they'll show up here.")
+                            EmptyState(PrismIcons.LibraryFilled, "Nothing here yet", "Like or download songs, or star artists, and they'll show up here.")
                         }
                     }
                 }
                 when (tab) {
                     LibTab.PLAYLISTS -> {
-                        item { ShortcutTile("Liked songs", com.prism.music.data.model.songCount(liked.size), Icons.Rounded.Favorite, asList, art = c.covers.custom("liked"), onLongClick = { menu(com.prism.music.ui.components.Playable.Liked) }) { nav.go(Routes.liked()) } }
-                        item { ShortcutTile("Downloads", com.prism.music.data.model.songCount(dls.values.count { it.state == androidx.media3.exoplayer.offline.Download.STATE_COMPLETED }), Icons.Rounded.DownloadDone, asList, onLongClick = { menu(com.prism.music.ui.components.Playable.Downloads) }) { nav.go(Routes.DOWNLOADS) } }
-                        item { ShortcutTile("Replay", "Your listening recap", Icons.Rounded.History, asList) { nav.go(Routes.REPLAY) } }
-                        item { ShortcutTile("Listen together", "With friends on the same Wi-Fi", Icons.Rounded.Groups, asList) { nav.go(Routes.TOGETHER) } }
-                        if (settings.isLoggedIn) item { ShortcutTile("New playlist", "Make one on YouTube Music", Icons.Rounded.Add, asList) { creating = true } }
-                        if (settings.isLoggedIn) item { ShortcutTile("Import playlists", "From Spotify, Apple Music…", Icons.AutoMirrored.Rounded.PlaylistAdd, asList) { nav.go(Routes.IMPORT) } }
+                        item { ShortcutTile("Liked songs", com.prism.music.data.model.songCount(liked.size), PrismIcons.HeartFilled, asList, art = c.covers.custom("liked"), onLongClick = { menu(com.prism.music.ui.components.Playable.Liked) }) { nav.go(Routes.liked()) } }
+                        item { ShortcutTile("Downloads", com.prism.music.data.model.songCount(dls.values.count { it.state == androidx.media3.exoplayer.offline.Download.STATE_COMPLETED }), PrismIcons.DownloadDone, asList, onLongClick = { menu(com.prism.music.ui.components.Playable.Downloads) }) { nav.go(Routes.DOWNLOADS) } }
+                        item { ShortcutTile("Replay", "Your listening recap", PrismIcons.History, asList) { nav.go(Routes.REPLAY) } }
+                        item { ShortcutTile("Listen together", "With friends on the same Wi-Fi", PrismIcons.Groups, asList) { nav.go(Routes.TOGETHER) } }
+                        if (settings.isLoggedIn) item { ShortcutTile("New playlist", "Make one on YouTube Music", PrismIcons.Add, asList) { creating = true } }
+                        if (settings.isLoggedIn) item { ShortcutTile("Import playlists", "From Spotify, Apple Music…", PrismIcons.PlaylistAdd, asList) { nav.go(Routes.IMPORT) } }
                         if (!settings.isLoggedIn) item(span = { GridItemSpan(maxLineSpan) }) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                EmptyState(Icons.Rounded.LibraryMusic, "Sign in to sync your playlists", "Your YouTube Music playlists will appear here.")
-                                Button(onClick = { nav.go(Routes.LOGIN) }) { Icon(Icons.Rounded.Login, null); Spacer(Modifier.width(8.dp)); Text("Sign in") }
+                                EmptyState(PrismIcons.LibraryFilled, "Sign in to sync your playlists", "Your YouTube Music playlists will appear here.")
+                                Button(onClick = { nav.go(Routes.LOGIN) }) { Icon(PrismIcons.Login, null); Spacer(Modifier.width(8.dp)); Text("Sign in") }
                             }
                         }
                         if (myPlaylists.size > 1) item(span = { GridItemSpan(maxLineSpan) }) {
@@ -260,7 +258,7 @@ fun LibraryScreen(bottomPadding: Dp) {
                                         rearranging = !rearranging
                                     },
                                     if (rearranging) "Done" else "Rearrange",
-                                    icon = if (rearranging) Icons.Rounded.Check else Icons.Rounded.SwapVert,
+                                    icon = if (rearranging) PrismIcons.Check else PrismIcons.SwapVertical,
                                 )
                             }
                         }
@@ -291,6 +289,7 @@ fun LibraryScreen(bottomPadding: Dp) {
                         items(sortedArtists, key = { "r" + it.id }) { a -> LibraryItem(a, asList) { nav.open(a, onSong) } }
                     }
                     LibTab.DOWNLOADS -> item(span = { GridItemSpan(maxLineSpan) }) { DownloadsSummary() }
+                    LibTab.LOCAL -> localMusic(localTracks, localSort, { localSort = it }, localScanned, localAllowed) { allowLocal.launch(com.prism.music.data.local.LocalLossless.permission) }
                 }
             }
         }
@@ -315,8 +314,8 @@ fun LibraryScreen(bottomPadding: Dp) {
         com.prism.music.ui.components.PlayActionsSheet(
             com.prism.music.ui.components.Playable.Of(p),
             extra = listOf(
-                com.prism.music.ui.components.SheetItem(Icons.Rounded.SwapVert, "Rearrange playlists") { saveOrder(sortedPlaylists); rearranging = true },
-                com.prism.music.ui.components.SheetItem(Icons.Rounded.Delete, "Delete playlist", danger = true) { deleting = p },
+                com.prism.music.ui.components.SheetItem(PrismIcons.SwapVertical, "Rearrange playlists") { saveOrder(sortedPlaylists); rearranging = true },
+                com.prism.music.ui.components.SheetItem(PrismIcons.Delete, "Delete playlist", danger = true) { deleting = p },
             ),
         ) { menuFor = null }
     }
@@ -341,6 +340,59 @@ fun LibraryScreen(bottomPadding: Dp) {
         )
     }
 }
+/**
+ * Library → On this phone: the phone's own music files ([com.prism.music.data.local.LocalMusic]), playing from the
+ * files. Asks for access to them first.
+ */
+private fun androidx.compose.foundation.lazy.grid.LazyGridScope.localMusic(
+    tracks: List<com.prism.music.data.local.LocalMusic.Track>,
+    sort: LocalSort,
+    onSort: (LocalSort) -> Unit,
+    scanned: Boolean,
+    allowed: Boolean,
+    onAllow: () -> Unit,
+) {
+    if (!allowed) {
+        item(span = { GridItemSpan(maxLineSpan) }) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                EmptyState(PrismIcons.Phone, "Your music files", "Play the songs on your phone (MP3, M4A, FLAC, OGG, WAV…) in Prism. They stay where they are; Prism only reads them.")
+                Button(onClick = onAllow) { Text("Allow access to music files") }
+            }
+        }
+        return
+    }
+    if (tracks.isEmpty()) {
+        if (scanned) item(span = { GridItemSpan(maxLineSpan) }) {
+            EmptyState(PrismIcons.Phone, "No music files found", "Songs you copy onto your phone, or download with another app, show up here.")
+        }
+        return
+    }
+    val sorted = when (sort) {
+        LocalSort.ADDED -> tracks
+        LocalSort.TITLE -> tracks.sortedBy { it.song.title.lowercase() }
+        LocalSort.ARTIST -> tracks.sortedWith(compareBy<com.prism.music.data.local.LocalMusic.Track> { it.song.primaryArtist.lowercase().ifBlank { "￿" } }
+            .thenBy { it.song.album?.title?.lowercase() ?: "" }.thenBy { it.trackNumber })
+        LocalSort.ALBUM -> tracks.sortedWith(compareBy<com.prism.music.data.local.LocalMusic.Track> { it.song.album?.title?.lowercase() ?: "￿" }
+            .thenBy { it.albumId }.thenBy { it.trackNumber }.thenBy { it.song.title.lowercase() })
+    }
+    val songs = sorted.map { it.song }
+    val source = com.prism.music.playback.QueueSource(com.prism.music.playback.QueueKind.LIBRARY, "On this phone")
+    item(span = { GridItemSpan(maxLineSpan) }) {
+        val c = LocalContainer.current
+        Column {
+            SortBar(com.prism.music.data.model.songCount(tracks.size), LocalSort.entries, sort, { it.label }) { onSort(it) }
+            Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                com.prism.music.ui.components.PrismChip(false, { c.player.playQueue(songs, 0, source) }, "Play", icon = PrismIcons.Play)
+                com.prism.music.ui.components.PrismChip(false, { c.player.playQueue(songs.shuffled(), 0, source) }, "Shuffle", icon = PrismIcons.Shuffle)
+            }
+        }
+    }
+    items(songs, key = { "l" + it.id }, span = { GridItemSpan(maxLineSpan) }) { s ->
+        val c = LocalContainer.current
+        SongRow(s) { c.player.playQueue(songs, songs.indexOf(s), source) }
+    }
+}
+
 /** The playlists as a list to put in order: hold and drag a row, or nudge it with its arrows. */
 @Composable
 private fun RearrangePlaylists(playlists: List<com.prism.music.data.model.BrowseItem>, onReorder: (List<com.prism.music.data.model.BrowseItem>) -> Unit) {
@@ -362,16 +414,16 @@ private fun RearrangePlaylists(playlists: List<com.prism.music.data.model.Browse
         ) {
             com.prism.music.ui.components.Artwork(
                 c.covers.art(p), Modifier.size(44.dp), ui.smallArt, size = 226,
-                placeholderIcon = Icons.AutoMirrored.Rounded.QueueMusic,
+                placeholderIcon = PrismIcons.QueueMusic,
             )
             Spacer(Modifier.width(12.dp))
             Text(
                 p.title, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge, fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
                 maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
             )
-            IconButton(onClick = { move(i, i - 1) }, enabled = i > 0) { Icon(Icons.Rounded.KeyboardArrowUp, "Move ${p.title} up") }
-            IconButton(onClick = { move(i, i + 1) }, enabled = i < playlists.lastIndex) { Icon(Icons.Rounded.KeyboardArrowDown, "Move ${p.title} down") }
-            Icon(Icons.Rounded.DragHandle, null, Modifier.padding(end = 8.dp).size(20.dp), tint = scheme.onSurfaceVariant.copy(alpha = 0.6f))
+            IconButton(onClick = { move(i, i - 1) }, enabled = i > 0) { Icon(PrismIcons.ChevronUp, "Move ${p.title} up") }
+            IconButton(onClick = { move(i, i + 1) }, enabled = i < playlists.lastIndex) { Icon(PrismIcons.ChevronDown, "Move ${p.title} down") }
+            Icon(PrismIcons.DragHandle, null, Modifier.padding(end = 8.dp).size(20.dp), tint = scheme.onSurfaceVariant.copy(alpha = 0.6f))
         }
     }
 }

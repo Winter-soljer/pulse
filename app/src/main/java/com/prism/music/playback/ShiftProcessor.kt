@@ -31,6 +31,15 @@ class ShiftProcessor : BaseAudioProcessor() {
     /** How far the audio has been moved ahead in all (negative: held back). */
     val shiftedMs: Long get() = appliedFrames * 1000 / rate
 
+    @Volatile private var quietFrames = 0L
+    private var encodingFloat = false
+
+    /**
+     * How long the audio coming through has been near-silent (below about -50 dBFS), in ms: Mix's sign that the
+     * ending song has run out (its music is over before its file is), so the next one should come in now.
+     */
+    val quietMs: Long get() = quietFrames * 1000 / rate
+
     override fun onConfigure(inputAudioFormat: AudioProcessor.AudioFormat): AudioProcessor.AudioFormat {
         val bytes = when (inputAudioFormat.encoding) {
             C.ENCODING_PCM_16BIT -> 2
@@ -39,6 +48,7 @@ class ShiftProcessor : BaseAudioProcessor() {
         }
         rate = inputAudioFormat.sampleRate
         frameBytes = bytes * inputAudioFormat.channelCount
+        encodingFloat = bytes == 4
         return inputAudioFormat
     }
 
@@ -60,12 +70,35 @@ class ShiftProcessor : BaseAudioProcessor() {
         repeat(silentBytes) { out.put(0) }
         out.put(inputBuffer)
         out.flip()
+        meter(out)
+    }
+
+    /** Counts how long the audio has stayed quiet (the loudest sample in each buffer against [QUIET]). */
+    private fun meter(out: ByteBuffer) {
+        val sampleBytes = if (encodingFloat) 4 else 2
+        var peak = 0f
+        var i = out.position()
+        val end = out.limit()
+        // Absolute reads: the buffer's position is left where the player expects it.
+        while (i + sampleBytes <= end) {
+            val v = if (encodingFloat) kotlin.math.abs(out.getFloat(i)) else kotlin.math.abs(out.getShort(i) / 32768f)
+            if (v > peak) peak = v
+            i += sampleBytes
+        }
+        val frames = (end - out.position()).toLong() / frameBytes
+        quietFrames = if (peak < QUIET) quietFrames + frames else 0
     }
 
     override fun onFlush() {
         // A seek: the player's position starts afresh from where it seeked to.
         pendingFrames = 0
         appliedFrames = 0
+        quietFrames = 0
         requestedUs.set(0)
+    }
+
+    private companion object {
+        /** About -50 dBFS: the end of a fade-out, or a silent tail. */
+        const val QUIET = 0.003f
     }
 }

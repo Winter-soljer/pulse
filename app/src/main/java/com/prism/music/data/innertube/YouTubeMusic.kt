@@ -94,11 +94,13 @@ class YouTubeMusic(private val api: InnerTube) {
      */
     suspend fun searchTop(query: String, taste: SearchRank.Taste = SearchRank.Taste.NONE): TopSearch = kotlinx.coroutines.coroutineScope {
         val kinds = listOf(SearchFilter.SONGS, SearchFilter.ALBUMS, SearchFilter.ARTISTS, SearchFilter.PLAYLISTS, SearchFilter.VIDEOS, SearchFilter.LIVE)
+        // YouTube's own "Top result" card, from its unfiltered search: it reads abbreviations and typos well.
+        val card = async { runCatching { youtubeTopResult(query) }.getOrNull() }
         val attempts = kinds.map { f -> async { f to runCatching { search(query, f).items } } }.awaitAll()
         val results = attempts.map { (f, r) -> f to r.getOrDefault(emptyList()) }
         // Every search failed: keep why (offline, a timeout…), so the message can say so.
         if (results.all { it.second.isEmpty() }) throw java.io.IOException("Search failed", attempts.firstNotNullOfOrNull { it.second.exceptionOrNull() })
-        val ranked = SearchRank.rank(query, results, taste)
+        val ranked = SearchRank.rank(query, results, taste, card.await())
         // A title track on top whose album YouTube's album search left out (it varies from one request to the next:
         // "after hours" sometimes has no After Hours by The Weeknd): the song names its album, so look that up.
         val song = (ranked.top as? SongItem)?.song
@@ -110,6 +112,12 @@ class YouTubeMusic(private val api: InnerTube) {
             ref.id, page.title, listOfNotNull("Album", page.artists.firstOrNull()?.name ?: song.primaryArtist, page.year?.toString()).joinToString(" • "),
             page.thumbnail, page.playlistId,
         ))
+    }
+
+    /** The card at the top of YouTube Music's unfiltered search, if it shows one. */
+    suspend fun youtubeTopResult(query: String): BrowseItem? {
+        val res = api.post("search", buildJsonObject { put("query", query) })
+        return res.findAll("musicCardShelfRenderer").firstOrNull()?.let { Parser.card(it) }
     }
 
     suspend fun search(query: String, filter: SearchFilter, continuation: String? = null): SearchResult {

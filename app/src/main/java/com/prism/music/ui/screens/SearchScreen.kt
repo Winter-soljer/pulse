@@ -1,5 +1,6 @@
 package com.prism.music.ui.screens
 
+import com.prism.music.ui.theme.PrismIcons
 import com.prism.music.data.friendlyMessage
 import android.content.Context
 import androidx.compose.animation.AnimatedVisibility
@@ -31,16 +32,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowForward
-import androidx.compose.material.icons.automirrored.rounded.QueueMusic
-import androidx.compose.material.icons.rounded.Album
-import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.History
-import androidx.compose.material.icons.rounded.NorthWest
-import androidx.compose.material.icons.rounded.Person
-import androidx.compose.material.icons.rounded.PlayArrow
-import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
@@ -50,6 +41,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -138,9 +130,14 @@ fun SearchScreen(bottomPadding: Dp) {
 
     LaunchedEffect(query) {
         if (query.isBlank()) { suggestions.clear(); live = ""; return@LaunchedEffect }
+        // The listener's own artists and searches come first (from the phone, at once), then YouTube's completions.
+        val taste = runCatching { c.taste.searchTaste() }.getOrDefault(com.prism.music.data.innertube.SearchRank.Taste.NONE)
+        val mine = com.prism.music.data.innertube.SearchRank.predict(query, taste, recents.toList(), limit = 2)
+        suggestions.clear(); suggestions.addAll(mine)
         delay(140)
         val s = runCatching { c.ytm.searchSuggestions(query) }.getOrDefault(emptyList())
-        suggestions.clear(); suggestions.addAll(s.take(3))
+        suggestions.clear()
+        suggestions.addAll((mine + s).distinctBy { com.prism.music.data.innertube.SearchRank.norm(it) }.take(4))
     }
     LaunchedEffect(query) {
         if (query.isBlank()) return@LaunchedEffect
@@ -180,9 +177,9 @@ fun SearchScreen(bottomPadding: Dp) {
             com.prism.music.ui.components.ScreenHeader("Search", Modifier.padding(bottom = 2.dp))
         }
         if (focused || query.isNotBlank()) Spacer(Modifier.statusBarsPadding())
-        GlassSurface(Modifier.padding(horizontal = 16.dp, vertical = 10.dp).fillMaxWidth().height(54.dp), shape = ui.shape(27.dp), elevation = 6.dp) {
+        GlassSurface(Modifier.padding(horizontal = 16.dp, vertical = 10.dp).fillMaxWidth().height(54.dp), shape = ui.shape(27.dp), elevation = 6.dp, inPage = true) {
             Row(Modifier.fillMaxSize().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Rounded.Search, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                Icon(PrismIcons.Search, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.width(12.dp))
                 Box(Modifier.weight(1f)) {
                     if (query.isEmpty()) Text("Songs, albums, artists, lyrics…", color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -198,7 +195,7 @@ fun SearchScreen(bottomPadding: Dp) {
                     )
                 }
                 if (query.isNotEmpty()) IconButton(onClick = { query = ""; live = ""; top = null; list = null; focusRequester.requestFocus() }) {
-                    Icon(Icons.Rounded.Close, "Clear")
+                    Icon(PrismIcons.Close, "Clear")
                 }
             }
         }
@@ -220,7 +217,7 @@ fun SearchScreen(bottomPadding: Dp) {
         // While typing, a few completions sit above the live results.
         AnimatedVisibility(focused && suggestions.isNotEmpty() && suggestions.firstOrNull()?.equals(query.trim(), true) != true) {
             Column {
-                suggestions.forEach { s -> SuggestionRow(Icons.Rounded.Search, s, onFill = { query = it }, dense = true) { submit(s) } }
+                suggestions.forEach { s -> SuggestionRow(PrismIcons.Search, s, onFill = { query = it }, dense = true) { submit(s) } }
             }
         }
 
@@ -262,14 +259,14 @@ private suspend fun playTop(c: com.prism.music.AppContainer, item: BrowseItem) {
     runCatching {
         when (item) {
             is SongItem -> c.player.playSingle(item.song)
-            is AlbumItem -> c.player.playQueue(c.ytm.album(item.id).songs, 0, QueueSource(QueueKind.ALBUM, item.title))
-            is PlaylistItem -> c.player.playQueue(c.ytm.playlist(item.id).songs, 0, QueueSource(QueueKind.PLAYLIST, item.title))
+            is AlbumItem -> c.player.playQueue(c.ytm.album(item.id).songs, 0, QueueSource(QueueKind.ALBUM, item.title, originId = item.id))
+            is PlaylistItem -> c.player.playQueue(c.ytm.playlist(item.id).songs, 0, QueueSource(QueueKind.PLAYLIST, item.title, originId = item.id))
             is ArtistItem -> {
                 val a = c.ytm.artist(item.id)
                 val list = a.shufflePlaylistId ?: a.radioPlaylistId ?: return
                 val r = c.ytm.next(a.shuffleVideoId ?: a.radioVideoId, list, a.shuffleParams ?: a.radioParams)
                 c.queue.counterparts.putAll(r.counterparts)
-                c.player.playQueue(r.songs, 0, QueueSource(QueueKind.RADIO, a.name))
+                c.player.playQueue(r.songs, 0, QueueSource(QueueKind.RADIO, a.name, originId = item.id))
             }
             else -> Unit
         }
@@ -296,7 +293,7 @@ private fun Browse(
         if (recents.isNotEmpty()) {
             item(span = { GridItemSpan(2) }) { Text("Recent searches", style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.ExtraBold), modifier = Modifier.padding(top = 6.dp, bottom = 2.dp)) }
             items(recents.take(6), span = { GridItemSpan(2) }) { r ->
-                SuggestionRow(Icons.Rounded.History, r, onFill = onFill, onRemove = { onRemove(r) }) { onPick(r) }
+                SuggestionRow(PrismIcons.History, r, onFill = onFill, onRemove = { onRemove(r) }) { onPick(r) }
             }
         }
         val ranked = (moods.state as? Load.Ok)?.value
@@ -312,7 +309,7 @@ private fun Browse(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(title, style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.ExtraBold), modifier = Modifier.weight(1f))
-                        Icon(Icons.AutoMirrored.Rounded.ArrowForward, "See all", Modifier.padding(end = 4.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Icon(PrismIcons.ArrowForward, "See all", Modifier.padding(end = 4.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
                 items(m, key = { title + it.id + it.params }) { mood -> MoodTile(mood, Modifier.fillMaxWidth().height(84.dp)) { onMood(mood) } }
@@ -374,7 +371,7 @@ private fun TopCard(item: BrowseItem, onClick: () -> Unit, onPlay: () -> Unit) {
     ) {
         Artwork(
             LocalContainer.current.covers.art(item), Modifier.size(96.dp), if (item is ArtistItem) CircleShape else ui.art, size = 544,
-            placeholderIcon = if (item is ArtistItem) Icons.Rounded.Person else Icons.Rounded.Album,
+            placeholderIcon = if (item is ArtistItem) PrismIcons.Person else PrismIcons.Album,
         )
         Spacer(Modifier.width(16.dp))
         Column(Modifier.weight(1f)) {
@@ -382,7 +379,21 @@ private fun TopCard(item: BrowseItem, onClick: () -> Unit, onPlay: () -> Unit) {
             Text(item.title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
             Text(listOf(kind, detail).filter { it.isNotBlank() }.joinToString(" · "), style = MaterialTheme.typography.bodyMedium, color = scheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
-        FilledIconButton(onClick = onPlay, Modifier.size(48.dp)) { Icon(Icons.Rounded.PlayArrow, "Play") }
+        // What this card started is playing: the button pauses and resumes it rather than starting it over (issue #5).
+        val c = LocalContainer.current
+        val source by c.queue.source.collectAsState()
+        val current by c.player.currentSong.collectAsState()
+        val isPlaying by c.player.isPlaying.collectAsState()
+        val index by c.player.currentIndex.collectAsState()
+        // A song card also covers its music video opening as the song (the queue's first item, seeded by the card).
+        val mine = current != null && (
+            source.originId == item.id || current?.id == item.id ||
+                (item is SongItem && source.kind == QueueKind.SINGLE && source.seedId == item.id && index == 0)
+            )
+        val playing = mine && isPlaying
+        FilledIconButton(onClick = { if (mine) c.player.togglePlay() else onPlay() }, Modifier.size(48.dp)) {
+            Icon(if (playing) PrismIcons.Pause else PrismIcons.Play, if (playing) "Pause" else "Play", Modifier.size(22.dp))
+        }
     }
 }
 
@@ -398,8 +409,8 @@ private fun SuggestionRow(
         Icon(icon, null, Modifier.size(if (dense) 18.dp else 24.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.width(16.dp))
         Text(text, Modifier.weight(1f), style = if (dense) MaterialTheme.typography.bodyMedium else MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        if (onRemove != null) IconButton(onClick = onRemove, Modifier.size(32.dp)) { Icon(Icons.Rounded.Close, "Remove", Modifier.size(18.dp)) }
-        else IconButton(onClick = { onFill(text) }, Modifier.size(32.dp)) { Icon(Icons.Rounded.NorthWest, "Fill", Modifier.size(18.dp)) }
+        if (onRemove != null) IconButton(onClick = onRemove, Modifier.size(32.dp)) { Icon(PrismIcons.Close, "Remove", Modifier.size(18.dp)) }
+        else IconButton(onClick = { onFill(text) }, Modifier.size(32.dp)) { Icon(PrismIcons.FillIn, "Fill", Modifier.size(18.dp)) }
     }
 }
 
@@ -420,9 +431,9 @@ fun ResultRow(item: BrowseItem, onLongClick: (() -> Unit)? = null, onClick: () -
             LocalContainer.current.covers.art(item), Modifier.size(56.dp),
             if (item is ArtistItem) CircleShape else ui.smallArt, size = 226,
             placeholderIcon = when (item) {
-                is ArtistItem -> Icons.Rounded.Person
-                is AlbumItem -> Icons.Rounded.Album
-                else -> Icons.AutoMirrored.Rounded.QueueMusic
+                is ArtistItem -> PrismIcons.Person
+                is AlbumItem -> PrismIcons.Album
+                else -> PrismIcons.QueueMusic
             },
         )
         Spacer(Modifier.width(14.dp))

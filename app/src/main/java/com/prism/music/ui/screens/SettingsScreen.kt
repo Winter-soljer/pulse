@@ -1,5 +1,6 @@
 package com.prism.music.ui.screens
 
+import com.prism.music.ui.theme.PrismIcons
 import android.os.Build
 import android.webkit.CookieManager
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -23,24 +24,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
-import androidx.compose.material.icons.automirrored.rounded.Logout
-import androidx.compose.material.icons.outlined.DownloadForOffline
-import androidx.compose.material.icons.outlined.FormatQuote
-import androidx.compose.material.icons.outlined.GraphicEq
-import androidx.compose.material.icons.outlined.Home
-import androidx.compose.material.icons.outlined.Info
-import androidx.compose.material.icons.outlined.LibraryMusic
-import androidx.compose.material.icons.outlined.Palette
-import androidx.compose.material.icons.outlined.PlayCircle
-import androidx.compose.material.icons.outlined.SpaceDashboard
-import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material.icons.rounded.KeyboardArrowDown
-import androidx.compose.material.icons.rounded.KeyboardArrowUp
-import androidx.compose.material.icons.rounded.Login
-import androidx.compose.material.icons.rounded.Person
-import androidx.compose.material.icons.rounded.RestartAlt
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -118,17 +101,17 @@ import kotlin.math.roundToInt
 
 /** The settings categories, in the order they're listed; each opens its own page. */
 enum class SettingsSection(val key: String, val title: String, val icon: ImageVector) {
-    APPEARANCE("appearance", "Appearance", Icons.Outlined.Palette),
-    INTERFACE("interface", "Layout & navigation", Icons.Outlined.SpaceDashboard),
-    PLAYER("player", "Player", Icons.Outlined.PlayCircle),
-    SOUND("sound", "Playback & sound", Icons.Outlined.GraphicEq),
-    LYRICS("lyrics", "Lyrics", Icons.Outlined.FormatQuote),
-    DOWNLOADS("downloads", "Downloads & storage", Icons.Outlined.DownloadForOffline),
-    HOME("home", "Home screen", Icons.Outlined.Home),
-    LIBRARY("library", "Library & Replay", Icons.Outlined.LibraryMusic),
-    ABOUT("about", "About", Icons.Outlined.Info),
+    APPEARANCE("appearance", "Appearance", PrismIcons.Palette),
+    INTERFACE("interface", "Layout & navigation", PrismIcons.Customize),
+    PLAYER("player", "Player", PrismIcons.PlayCircle),
+    SOUND("sound", "Playback & sound", PrismIcons.Equalizer),
+    LYRICS("lyrics", "Lyrics", PrismIcons.Lyrics),
+    DOWNLOADS("downloads", "Downloads & storage", PrismIcons.DownloadCircle),
+    HOME("home", "Home screen", PrismIcons.Home),
+    LIBRARY("library", "Library & Replay", PrismIcons.Library),
+    ABOUT("about", "About", PrismIcons.Info),
     /** Not on the hub: opened from About. */
-    LICENSES("licenses", "Open-source licenses", Icons.Outlined.Info);
+    LICENSES("licenses", "Open-source licenses", PrismIcons.Info);
 
     fun summary(s: AppSettings): String = when (this) {
         APPEARANCE -> listOf(s.themeMode.label + " theme", s.fontChoice.label + " font", when { s.liquidGlass -> "Liquid Glass"; s.frostedGlass -> "Frosted Glass"; else -> "Solid bars" }).joinToString(" · ")
@@ -136,7 +119,7 @@ enum class SettingsSection(val key: String, val title: String, val icon: ImageVe
         PLAYER -> listOfNotNull(s.playerBackground.label, if (s.fullBleedArtwork) "Full-bleed artwork" else "Framed artwork", if (s.canvasEnabled) "Animated covers" else null).joinToString(" · ")
         SOUND -> listOfNotNull(if (s.lossless) "Lossless" else s.audioQuality.label + " quality", if (s.spatial) "Prism Spatial" else null, if (s.eq.enabled) "EQ ${s.eq.preset}" else null, if (s.normalize) "Normalized" else null).joinToString(" · ")
         LYRICS -> "${s.lyricsOrder.first().label} first · ${if (s.preferSynced) "karaoke preferred" else "any lyrics"}"
-        DOWNLOADS -> listOfNotNull(if (s.smartDownloads) "Smart downloads ${formatGb(s.smartDownloadGb)}" else null, if (s.downloadWifiOnly) "Wi-Fi only" else "Any network").joinToString(" · ")
+        DOWNLOADS -> listOfNotNull("Smart Downloads ${formatGb(s.offlineGb)}", if (s.downloadWifiOnly) "Wi-Fi only" else "Any network").joinToString(" · ")
         HOME -> "Sections, order and styles" + if (s.contentCountry.isNotBlank()) " · ${countryName(s.contentCountry)}" else ""
         LIBRARY -> "${s.libraryView.label} view · ${if (s.replayHours) "hours" else "minutes"}"
         ABOUT -> "Prism ${com.prism.music.BuildConfig.VERSION_NAME}"
@@ -202,7 +185,10 @@ fun SettingsScreen(bottomPadding: Dp, section: SettingsSection? = null) {
                 Column(verticalArrangement = Arrangement.spacedBy(22.dp)) {
                 BackupGroup()
                 Group("About") {
-                    Item("Prism ${com.prism.music.BuildConfig.VERSION_NAME}", "An unofficial YouTube Music client. Not affiliated with Google or YouTube.", onClick = {})
+                    val uri = androidx.compose.ui.platform.LocalUriHandler.current
+                    Item("Prism ${com.prism.music.BuildConfig.VERSION_NAME}", "An unofficial YouTube Music client. Not affiliated with Google or YouTube.", onClick = { runCatching { uri.openUri(SOURCE_URL) } }) {
+                        Icon(PrismIcons.OpenInNew, "Open on GitHub", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                     Item("Your data stays here", "History, Replay and settings live only on this phone. Prism has no server.", onClick = {})
                     CheckForUpdates()
                     Item("Open-source licenses", "Prism is GPL-3.0-or-later · the libraries it's built with", onClick = { nav.go(Routes.settings(SettingsSection.LICENSES.key)) }) { Chevron() }
@@ -266,7 +252,7 @@ private fun ContentCountrySetting() {
 private fun CountryRow(name: String, selected: Boolean, onClick: () -> Unit) {
     Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable(onClick = onClick).padding(horizontal = 8.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(name, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge, color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
-        if (selected) Icon(Icons.Rounded.Check, null, tint = MaterialTheme.colorScheme.primary)
+        if (selected) Icon(PrismIcons.Check, null, tint = MaterialTheme.colorScheme.primary)
     }
 }
 
@@ -300,7 +286,7 @@ private fun CheckForUpdates() {
 }
 
 @Composable
-private fun Chevron() = Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+private fun Chevron() = Icon(PrismIcons.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
 
 // ---------------------------------------------------------------------------- Account
 
@@ -322,7 +308,7 @@ private fun AccountCard() {
     ) {
         Box(Modifier.size(56.dp).clip(CircleShape).background(if (frosted) com.prism.music.ui.components.frostFill(1.6f) else scheme.surface.copy(alpha = 0.5f)), contentAlignment = Alignment.Center) {
             if (s.isLoggedIn && s.accountAvatar.isNotBlank()) AsyncImage(s.accountAvatar, null, Modifier.fillMaxSize())
-            else Icon(if (s.isLoggedIn) Icons.Rounded.Person else Icons.Rounded.Login, null, tint = if (frosted) scheme.primary else ink)
+            else Icon(if (s.isLoggedIn) PrismIcons.Person else PrismIcons.Login, null, tint = if (frosted) scheme.primary else ink)
         }
         Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {
@@ -340,8 +326,8 @@ private fun AccountCard() {
         if (s.isLoggedIn) OutlinedButton(onClick = {
             c.settings.logout()
             CookieManager.getInstance().removeAllCookies(null)
-        }) { Icon(Icons.AutoMirrored.Rounded.Logout, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Sign out") }
-        else Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, null, tint = ink)
+        }) { Icon(PrismIcons.Logout, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Sign out") }
+        else Icon(PrismIcons.ChevronRight, null, tint = ink)
     }
 }
 
@@ -470,7 +456,7 @@ private fun ResetLook() {
     val prefs = LocalContainer.current.settings
     var ask by remember { mutableStateOf(false) }
     TextButton(onClick = { ask = true }, Modifier.fillMaxWidth()) {
-        Icon(Icons.Rounded.RestartAlt, null, Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)); Text("Reset look & layout to defaults")
+        Icon(PrismIcons.Refresh, null, Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)); Text("Reset look & layout to defaults")
     }
     if (ask) androidx.compose.material3.AlertDialog(
         onDismissRequest = { ask = false },
@@ -545,8 +531,8 @@ private fun TabsEditor() {
                 }, enabled = !on || allowed(tabs - t))
                 Text(t.label, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, color = if (on) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant)
                 if (on) {
-                    IconButton(onClick = { prefs.setNavTabs(tabs.toMutableList().apply { add(i - 1, removeAt(i)) }) }, enabled = i > 0) { Icon(Icons.Rounded.KeyboardArrowUp, "Move up") }
-                    IconButton(onClick = { prefs.setNavTabs(tabs.toMutableList().apply { add(i + 1, removeAt(i)) }) }, enabled = i < tabs.lastIndex) { Icon(Icons.Rounded.KeyboardArrowDown, "Move down") }
+                    IconButton(onClick = { prefs.setNavTabs(tabs.toMutableList().apply { add(i - 1, removeAt(i)) }) }, enabled = i > 0) { Icon(PrismIcons.ChevronUp, "Move up") }
+                    IconButton(onClick = { prefs.setNavTabs(tabs.toMutableList().apply { add(i + 1, removeAt(i)) }) }, enabled = i < tabs.lastIndex) { Icon(PrismIcons.ChevronDown, "Move down") }
                 }
             }
         }
@@ -672,11 +658,6 @@ private fun SoundPage() {
                     "Prism measures each song's tempo and lines up the beats, playing the next song at the same tempo while they overlap",
                     s.mixBeatMatch,
                 ) { prefs.setMixBeatMatch(it) }
-                if (s.mixBeatMatch) Toggle(
-                    "Measure tempo on mobile data",
-                    "Measuring a song's tempo downloads a small copy of it (1–4 MB). Off: only on Wi-Fi, and songs on mobile data blend without beat matching",
-                    s.mixTempoOnCellular,
-                ) { prefs.setMixTempoOnCellular(it) }
             }
         }
         Group("Quality") {
@@ -715,7 +696,18 @@ private fun SoundPage() {
             Spacer(Modifier.height(6.dp))
         }
         Group("Sound") {
-            Toggle("Normalize volume", "Evens out loudness between songs: loud ones come down, quiet ones come up (with a limiter so nothing clips). Works offline too", s.normalize) { prefs.setNormalize(it) }
+            Toggle(
+                "Normalize volume",
+                "Evens out loudness between songs: each song is measured on your phone and brought to the same level (-14 LUFS, " +
+                    "like Spotify's), loud ones down, quiet ones up, with a limiter so nothing clips. Works offline too",
+                s.normalize,
+            ) { prefs.setNormalize(it) }
+            if (s.normalize || s.mix) Toggle(
+                "Measure songs on mobile data",
+                "Normalize volume and Mix measure each song once (its loudness, where its music starts and ends, its beat). Songs " +
+                    "on your phone are measured from there; others need a small copy of the song (1–4 MB). Off: that waits for Wi-Fi",
+                s.mixTempoOnCellular,
+            ) { prefs.setMixTempoOnCellular(it) }
             SoundSettings(onOpenEq = { nav.go(Routes.EQ) })
         }
     }
@@ -777,10 +769,10 @@ private fun LyricsSettings() {
                     Spacer(Modifier.width(12.dp))
                     Text(src.label, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
                     IconButton(onClick = { prefs.setLyricsOrder(s.lyricsOrder.toMutableList().apply { add(i - 1, removeAt(i)) }) }, enabled = i > 0) {
-                        Icon(Icons.Rounded.KeyboardArrowUp, "Up")
+                        Icon(PrismIcons.ChevronUp, "Up")
                     }
                     IconButton(onClick = { prefs.setLyricsOrder(s.lyricsOrder.toMutableList().apply { add(i + 1, removeAt(i)) }) }, enabled = i < s.lyricsOrder.lastIndex) {
-                        Icon(Icons.Rounded.KeyboardArrowDown, "Down")
+                        Icon(PrismIcons.ChevronDown, "Down")
                     }
                 }
             }
@@ -807,43 +799,58 @@ private fun DownloadSettings() {
                 if (it) c.downloads.downloadAll(c.library.liked.value)
             }
         }
-        Group("Smart downloads") {
-            Toggle("Smart downloads", "Keeps the songs you're most likely to play offline, learned on your phone from what you play, finish, skip and like. Fills the space you choose gradually over a few days on Wi-Fi, and swaps songs out as your taste changes", s.smartDownloads) {
+        Group("Smart Downloads") {
+            Note(
+                "One space for music on your phone: songs you stream stay here, so replays start at once and use no data, " +
+                    "and the songs you're most likely to play next are downloaded ahead. When it's full, the songs you're least " +
+                    "likely to come back to make room. Learned on your phone from what you play, finish, skip and like."
+            )
+            val sizes = SMART_DOWNLOAD_SIZES
+            var i by remember { mutableFloatStateOf(sizes.indexOfFirst { it >= s.offlineGb }.let { if (it < 0) sizes.lastIndex else it }.toFloat()) }
+            val gb = sizes[i.roundToInt().coerceIn(0, sizes.lastIndex)]
+            val freeGb = remember { context.filesDir.usableSpace / 1_073_741_824f }
+            val picks by c.downloads.smartIds.collectAsState()
+            val downloads by c.downloads.downloads.collectAsState()
+            val pickBytes = picks.sumOf { downloads[it]?.bytes ?: 0L }
+            Label("Space to use: ${formatGb(gb)}")
+            Note(
+                "Room for about ${smartSongEstimate(gb, s.audioQuality)} songs at ${s.audioQuality.label.lowercase()} quality · %.1f GB free on this phone".format(freeGb) +
+                    (if (gb > freeGb) " — more than is free, so it'll stop when storage runs low" else "") +
+                    "\nUsing %.1f GB: %.1f GB downloaded ahead, %.1f GB from songs you've played".format(
+                        (pickBytes + cacheBytes) / 1_073_741_824.0, pickBytes / 1_073_741_824.0, cacheBytes / 1_073_741_824.0,
+                    )
+            )
+            Slider(
+                i, { i = it }, Modifier.padding(horizontal = 16.dp), valueRange = 0f..sizes.lastIndex.toFloat(), steps = sizes.size - 2,
+                onValueChangeFinished = {
+                    prefs.setOfflineGb(gb)
+                    c.trimSongCache()
+                    if (s.smartDownloads) SmartDownloadWorker.runNow(context)
+                },
+            )
+            Toggle("Smart Downloads", "Downloads the songs you're likely to play next into this space, a little at a time, and swaps them out as your taste changes. Off, it only keeps songs you've played", s.smartDownloads) {
                 prefs.setSmartDownloads(it)
                 SmartDownloadWorker.schedule(context, it)
-                if (it) SmartDownloadWorker.runNow(context)
+                if (it) SmartDownloadWorker.runNow(context) else c.trimSongCache()
             }
-            if (s.smartDownloads) {
-                val sizes = SMART_DOWNLOAD_SIZES
-                var i by remember { mutableFloatStateOf(sizes.indexOfFirst { it >= s.smartDownloadGb }.coerceAtLeast(0).toFloat()) }
-                val gb = sizes[i.roundToInt().coerceIn(0, sizes.lastIndex)]
-                val freeGb = remember { context.filesDir.usableSpace / 1_073_741_824f }
-                Label("Space to use: ${formatGb(gb)}")
-                Note(
-                    "About ${smartSongEstimate(gb, s.audioQuality)} songs at ${s.audioQuality.label.lowercase()} quality · %.1f GB free on this phone".format(freeGb) +
-                        if (gb > freeGb) " — more than is free, so it'll stop when storage runs low" else ""
-                )
-                Slider(
-                    i, { i = it }, Modifier.padding(horizontal = 16.dp), valueRange = 0f..sizes.lastIndex.toFloat(), steps = sizes.size - 2,
-                    onValueChangeFinished = {
-                        prefs.setSmartDownloadGb(gb)
-                        SmartDownloadWorker.runNow(context)
-                    },
-                )
+            if (s.smartDownloads) Toggle("Smart Downloads on mobile data","Off, it waits for Wi-Fi. A song is about 3–8 MB", s.smartDownloadsCellular) {
+                prefs.setSmartDownloadsCellular(it)
+                // The worker's network rule is fixed when it's scheduled, so it's scheduled again with the new one.
+                SmartDownloadWorker.schedule(context, true, cellular = it)
+                SmartDownloadWorker.runNow(context, force = false, cellular = it)
+                c.downloads.refreshSmartIds()
             }
-        }
-        Group("Song cache") {
-            Note("Songs you stream are cached so replays start instantly and use no data. Used: %.0f MB".format(cacheBytes / 1_048_576.0))
-            Label("Cache size (applies after restart)")
-            Chips(listOf(512, 1024, 2048, 4096, 8192, 0), s.cacheSizeMb, { if (it == 0) "Unlimited" else if (it >= 1024) "${it / 1024} GB" else "$it MB" }) { prefs.setCacheSizeMb(it) }
-            Item("Clear song cache", null, onClick = { c.clearSongCache(); cacheBytes = c.songCacheBytes() })
+            Item("Clear Smart Downloads", "Removes what it downloaded ahead and the songs kept from streaming. Songs you downloaded yourself stay", onClick = {
+                c.downloads.clearSmartDownloads()
+                cacheBytes = c.songCacheBytes()
+            })
         }
     }
 }
 
 // ---------------------------------------------------------------------------- Library & Replay
 
-private val libraryTabs = listOf("PLAYLISTS" to "Playlists", "SONGS" to "Songs", "ALBUMS" to "Albums", "ARTISTS" to "Artists", "DOWNLOADS" to "Downloads")
+private val libraryTabs = listOf("PLAYLISTS" to "Playlists", "SONGS" to "Songs", "ALBUMS" to "Albums", "ARTISTS" to "Artists", "DOWNLOADS" to "Downloads", "LOCAL" to "On this phone")
 
 @Composable
 private fun LibraryReplaySettings() {
@@ -885,7 +892,7 @@ private fun AccentPicker(current: Int, onPick: (Int) -> Unit) {
                         )
                         .clickable { onPick(col.toArgb()) },
                     contentAlignment = Alignment.Center,
-                ) { if (sel) Icon(Icons.Rounded.Check, null, tint = if (neutral) Color.Black else Color.White, modifier = Modifier.size(18.dp)) }
+                ) { if (sel) Icon(PrismIcons.Check, null, tint = if (neutral) Color.Black else Color.White, modifier = Modifier.size(18.dp)) }
             }
         }
         Spacer(Modifier.height(12.dp))

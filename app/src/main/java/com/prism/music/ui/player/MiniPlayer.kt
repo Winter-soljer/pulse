@@ -1,5 +1,6 @@
 package com.prism.music.ui.player
 
+import com.prism.music.ui.theme.PrismIcons
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.fadeIn
@@ -26,11 +27,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Pause
-import androidx.compose.material.icons.rounded.PlayArrow
-import androidx.compose.material.icons.rounded.SkipNext
-import androidx.compose.material.icons.rounded.SkipPrevious
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -141,20 +137,20 @@ fun MiniPlayer(modifier: Modifier = Modifier, onOpen: () -> Unit) {
                 }
             }
             if (settings.miniSkipButtons && style == MiniPlayerStyle.CARD) {
-                IconButton(onClick = { haptics.click(); pc.previous() }, modifier = Modifier.size(40.dp)) { Icon(Icons.Rounded.SkipPrevious, "Previous") }
+                IconButton(onClick = { haptics.click(); pc.previous() }, modifier = Modifier.size(40.dp)) { Icon(PrismIcons.Previous, "Previous") }
             }
             if (style == MiniPlayerStyle.PILL) {
                 Box(
                     Modifier.size(40.dp).clip(CircleShape).background(scheme.onSurface).clickable { haptics.click(); pc.togglePlay() },
                     contentAlignment = Alignment.Center,
-                ) { Icon(if (playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, "Play/pause", Modifier.size(24.dp), tint = scheme.surface) }
+                ) { Icon(if (playing) PrismIcons.Pause else PrismIcons.Play, "Play/pause", Modifier.size(24.dp), tint = scheme.surface) }
             } else {
                 IconButton(onClick = { haptics.click(); pc.togglePlay() }, modifier = Modifier.size(44.dp)) {
-                    Icon(if (playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, "Play/pause", Modifier.size(if (style == MiniPlayerStyle.SLIM) 26.dp else 30.dp))
+                    Icon(if (playing) PrismIcons.Pause else PrismIcons.Play, "Play/pause", Modifier.size(if (style == MiniPlayerStyle.SLIM) 26.dp else 30.dp))
                 }
             }
             if (settings.miniSkipButtons) {
-                IconButton(onClick = { haptics.click(); pc.next() }, modifier = Modifier.size(40.dp)) { Icon(Icons.Rounded.SkipNext, "Next") }
+                IconButton(onClick = { haptics.click(); pc.next() }, modifier = Modifier.size(40.dp)) { Icon(PrismIcons.Next, "Next") }
             }
         }
         if (settings.miniProgress == MiniProgress.LINE) {

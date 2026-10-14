@@ -1,5 +1,6 @@
 package com.prism.music.ui.screens
 
+import com.prism.music.ui.theme.PrismIcons
 import com.prism.music.data.friendlyMessage
 import android.text.format.DateUtils
 import android.widget.Toast
@@ -12,12 +13,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.PlaylistPlay
-import androidx.compose.material.icons.rounded.Delete
-import androidx.compose.material.icons.rounded.Favorite
-import androidx.compose.material.icons.rounded.Refresh
-import androidx.compose.material.icons.rounded.SyncDisabled
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -93,7 +88,7 @@ fun LikedPlaylistSheet(art: String?, onDismiss: () -> Unit) {
         ActionHeader(
             art, "Liked songs playlist",
             if (id != null) "Kept up to date" else com.prism.music.data.model.songCount(liked.size),
-            placeholderIcon = Icons.Rounded.Favorite,
+            placeholderIcon = PrismIcons.HeartFilled,
         )
         when {
             !settings.isLoggedIn -> Text(
@@ -143,12 +138,12 @@ fun LikedPlaylistSheet(art: String?, onDismiss: () -> Unit) {
                     )
                 }
                 ActionGroup(null, listOf(
-                    ActionItem(Icons.AutoMirrored.Rounded.PlaylistPlay, "Open the playlist") { nav.go(Routes.playlist(id!!)) },
-                    ActionItem(Icons.Rounded.Refresh, "Update now", keepOpen = true) { scope.launch { mirror.sync(full = true) } },
+                    ActionItem(PrismIcons.PlaylistPlay, "Open the playlist") { nav.go(Routes.playlist(id!!)) },
+                    ActionItem(PrismIcons.Refresh, "Update now", keepOpen = true) { scope.launch { mirror.sync(full = true) } },
                 )) { runAction(it, close) }
                 ActionGroup(null, listOf(
-                    ActionItem(Icons.Rounded.SyncDisabled, "Stop updating it") { scope.launch { mirror.stop(delete = false); toast("The playlist stays, but won't change any more") } },
-                    ActionItem(Icons.Rounded.Delete, "Delete the playlist", danger = true, keepOpen = true) { confirmDelete = true },
+                    ActionItem(PrismIcons.SyncOff, "Stop updating it") { scope.launch { mirror.stop(delete = false); toast("The playlist stays, but won't change any more") } },
+                    ActionItem(PrismIcons.Delete, "Delete the playlist", danger = true, keepOpen = true) { confirmDelete = true },
                 )) { runAction(it, close) }
             }
         }

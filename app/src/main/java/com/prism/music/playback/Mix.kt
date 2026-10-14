@@ -46,8 +46,8 @@ class MixEngine(
     private val beatMatch: () -> Boolean,
     /** Whether this transition may blend at all (video, live, Listen Together, an album's next track…). */
     private val allowed: (from: MediaItem, to: MediaItem) -> Boolean,
-    /** Analysis needs the songs' audio, so it waits for Wi-Fi (unless it's allowed on mobile data). */
-    private val mayDownload: () -> Boolean,
+    /** Scans a song from what's on the phone (no network), if it hasn't been ([MixTempo.measure]). */
+    private val scanFromPhone: (String) -> Unit,
     /** A second player for the ending song: same sources and effects as the main one (plus [ShiftProcessor] first), no audio focus. */
     private val buildTail: (ShiftProcessor) -> ExoPlayer,
 ) {
@@ -112,15 +112,11 @@ class MixEngine(
         abort("released")
     }
 
-    /** Measures the tempo of the playing song and the next one ahead of their blend (on Wi-Fi, or any network if allowed). */
-    fun analyzeAhead(currentId: String?, nextId: String?) {
-        if (mixMs() == null || !beatMatch()) return
-        if (!mayDownload()) { Log.i(TAG, "tempo of $currentId / $nextId waits for Wi-Fi"); return }
-        scope.launch {
-            currentId?.let { tempo.measure(it) }
-            nextId?.let { tempo.measure(it) }
-        }
-    }
+    /** The song a scan from the phone was last asked for (once per song as its end comes up). */
+    private var scanAskedFor: String? = null
+    /** When the ending song went quiet mid-blend and the next was brought in early (0 when it hasn't). */
+    private var rushedAt = 0L
+    private var rushFrom = 0f
 
     /** One step; returns how long to wait before the next. */
     private fun tick(): Long {
@@ -142,11 +138,23 @@ class MixEngine(
         if (!main.isPlaying) return 500
         val item = main.currentMediaItem ?: return 500
         val dur = main.duration.takeIf { it != C.TIME_UNSET && it > 0 } ?: return 500
-        val left = dur - main.currentPosition
-        if (left > length + 20_000) return minOf(2000, left - length - 20_000).coerceAtLeast(250)
+        // Counted to where the music ends, not the file: a song with a long silent tail blends that much earlier (counted
+        // from the file's end, the blend's moment had passed before it was even planned, and the song just stopped).
+        val musicEnd = tempo.cached(item.mediaId)?.lastSoundMs?.takeIf { it in dur / 2..dur } ?: dur
+        val left = musicEnd - main.currentPosition
+        // Not scanned yet (on mobile data, say): by now the rest of the song is usually buffered, so it's scanned from
+        // the song cache, to know where its music really ends (a fade-out or a silent tail would otherwise be blended
+        // over, and sound like the song stopping before the next one came in).
+        if (dur - main.currentPosition < length + 60_000 && scanAskedFor != item.mediaId && tempo.cached(item.mediaId) == null) {
+            scanAskedFor = item.mediaId
+            scanFromPhone(item.mediaId)
+        }
+        val planAhead = length + LEAD_MS + PREPARE_MS + 5_000
+        if (left > planAhead) return minOf(2000, left - planAhead).coerceAtLeast(250)
         if (noPlanFor == item.mediaId) return 1000
         val p = makePlan(item, dur, length) ?: run { noPlanFor = item.mediaId; return 1000 }
-        if (main.currentPosition > p.startMs - LEAD_MS - PREPARE_MS) {
+        // (The tail can still load while it waits to play along, see [prepared], so only the lead-in itself is needed.)
+        if (main.currentPosition > p.startMs - LEAD_MS - 1000) {
             // Too late to get the tail ready in time (a seek near the end): let this one end on its own.
             noPlanFor = item.mediaId
             return 1000
@@ -180,7 +188,8 @@ class MixEngine(
         if (len < 1500 || dur < 30_000) return null
         val end = (a?.lastSoundMs?.takeIf { it in dur / 2..dur } ?: dur)
         var start = end - len
-        var inMs = (b?.firstSoundMs ?: 0L).coerceIn(0, 3000)
+        // Silence before the next song's music is skipped (up to 10 s; a quiet intro is music, and stays).
+        var inMs = (b?.firstSoundMs ?: 0L).coerceIn(0, 10_000)
         var ratio = 1f
         var beats = false
         var beatMs = 0.0
@@ -212,8 +221,10 @@ class MixEngine(
         if (pos > p.startMs + 200 || pos < p.startMs - LEAD_MS - PREPARE_MS - 15_000) return abort("seeked away")
         if (pos < p.startMs - LEAD_MS) return if (p.startMs - LEAD_MS - pos > 400) 100 else 10
         if (t.playbackState != Player.STATE_READY) {
-            // Not ready in time (the ending wasn't buffered): no blend, the song ends on its own.
-            return abort("tail not ready")
+            // Still loading the ending (slow network): it can wait as long as there's time left to get in step.
+            if (pos < p.startMs - MIN_SYNC_MS) return 50
+            // Not ready in time: no blend, the song ends on its own.
+            return abort("tail not ready (the song's ending didn't load in time)")
         }
         // Where the main player is now, if it's well past where the tail waits (a reload costs a moment; [syncing]
         // shifts away whatever difference is left). Still muted.
@@ -304,6 +315,7 @@ class MixEngine(
         syncActionAt = now
         windowFrom = 0L
         catchUpUntil = 0L
+        rushedAt = 0L
         phase = Phase.BLENDING
         Log.i(TAG, "blend ${p.fromId} -> ${p.toId} started (tail $d ms off)")
         return 20
@@ -317,7 +329,16 @@ class MixEngine(
         // start, the ending one isn't faded out into a gap before it's there.
         val tailProgress = (tailPosition(t) - p.startMs).toFloat() / p.lengthMs
         val mainProgress = if (main.isPlaying) (main.currentPosition - p.inMs) / p.ratio / p.lengthMs else 0f
-        val progress = minOf(tailProgress, mainProgress).coerceIn(0f, 1f)
+        var progress = minOf(tailProgress, mainProgress).coerceIn(0f, 1f)
+        // The ending song has gone quiet (its music is over: a fade-out's end, a silent tail) while the next one is
+        // still fading in: it comes up the rest of the way now, instead of the blend fading out over silence.
+        val now = SystemClock.elapsedRealtime()
+        if (rushedAt == 0L && main.isPlaying && (shifter?.quietMs ?: 0L) >= QUIET_HANDOFF_MS && progress < 0.9f) {
+            rushedAt = now
+            rushFrom = progress
+            Log.i(TAG, "${p.fromId} went quiet ${(tailPosition(t) - p.startMs)} ms into the blend: bringing ${p.toId} in now")
+        }
+        if (rushedAt != 0L) progress = maxOf(progress, (rushFrom + (now - rushedAt).toFloat() / RUSH_MS * (1 - rushFrom)).coerceAtMost(1f))
         val ended = t.playbackState == Player.STATE_ENDED
         main.volume = sin(progress * PI / 2).toFloat()
         t.volume = cos(progress * PI / 2).toFloat()
@@ -434,8 +455,14 @@ class MixEngine(
         private const val WINDOW_MS = 450L
         /** Closer than this, the tail counts as in step (the ear doesn't hear a doubling this short). */
         private const val IN_STEP_MS = 8L
-        /** Time given to the tail to load the ending (it's in the song cache, so usually far less). */
-        private const val PREPARE_MS = 3000L
+        /** Time given to the tail to load the ending (it's in the song cache, so usually far less; mobile data can take longer). */
+        private const val PREPARE_MS = 6000L
+        /** The least time before the blend a late tail may still start in: enough to measure and settle once. */
+        private const val MIN_SYNC_MS = 2500L
+        /** The ending song quiet this long mid-blend means its music is over. */
+        private const val QUIET_HANDOFF_MS = 400L
+        /** How quickly the next song comes up the rest of the way then. */
+        private const val RUSH_MS = 700L
         /** The furthest the next song's tempo is stretched to match (±6%, a DJ's usual range); beyond that it blends without beats. */
         private const val MAX_STRETCH = 0.06
         /** How long the next song takes to ease back to its own tempo after a tempo-matched blend. */

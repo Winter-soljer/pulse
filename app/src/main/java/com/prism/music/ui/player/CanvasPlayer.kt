@@ -66,6 +66,8 @@ fun CanvasPlayer(
     /** Extra alpha from the caller (e.g. as the player collapses into a panel). */
     presentationAlpha: () -> Float = { 1f },
     onCoverChanged: (Float) -> Unit = {},
+    /** Something covers the player (a sheet): the clip holds its frame meanwhile. */
+    hold: Boolean = false,
 ) {
     val context = LocalContext.current
     val c = LocalContainer.current
@@ -129,11 +131,12 @@ fun CanvasPlayer(
         lifecycle.addObserver(obs)
         onDispose { lifecycle.removeObserver(obs) }
     }
-    LaunchedEffect(foreground, isPlaying) { player.playWhenReady = foreground }
+    LaunchedEffect(foreground, isPlaying, hold) { player.playWhenReady = foreground && !hold }
 
     val alpha by animateFloatAsState(if (rendered) 1f else 0f, tween(320), label = "canvasAlpha")
     val cover by rememberUpdatedState(onCoverChanged)
-    LaunchedEffect(alpha) { cover(alpha * presentationAlpha()) }
+    // Held, the still cover shows in the clip's place (the video view is taken off screen, below).
+    LaunchedEffect(alpha, hold) { cover(if (hold) 0f else alpha * presentationAlpha()) }
     DisposableEffect(Unit) { onDispose { cover(0f) } }
 
     AndroidView(
@@ -171,6 +174,9 @@ fun CanvasPlayer(
         },
         update = { frame ->
             val tv = frame.getChildAt(0) as TextureView
+            // Under a sheet the video view isn't drawn at all: paused, it was still a live layer (with its fade effect)
+            // in the window, and dragging the ⋯ sheet over an animated cover kept sticking.
+            frame.visibility = if (hold) android.view.View.INVISIBLE else android.view.View.VISIBLE
             tv.alpha = alpha * presentationAlpha()
             tv.cropTo(aspect)
             if (Build.VERSION.SDK_INT >= 31) tv.bottomFade(bottomFade) else frame.fade = bottomFade
