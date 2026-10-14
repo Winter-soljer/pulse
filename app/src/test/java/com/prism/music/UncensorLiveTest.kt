@@ -61,4 +61,23 @@ class UncensorLiveTest {
         }
         println("[uncensor] censored source/song pairs: $censoredSeen, fully filled: $filled")
     }
+
+    /**
+     * "IV. Sweatpants": Apple Music's lyrics star words out whole ("real **** feelin'"), which once didn't count as
+     * censored at all; Genius only knows it without "(feat. Jason Martin)"; and some lines are split differently.
+     */
+    @Test
+    fun wholeWordStarsAreFilledIn() = runBlocking {
+        val s = song("j_d2o-V5SgM", "IV. Sweatpants (feat. Jason Martin)", "Childish Gambino", "Because the Internet", 181)
+        settings = settings.copy(skipCensored = true)
+        for (src in listOf(LyricsSource.APPLE, LyricsSource.NETEASE)) {
+            val l = repo.fetch(s, src) ?: continue
+            l.lines.filter { it.text.contains('*') }.forEach { println("[sweatpants] ${src.label} still starred: ${it.text}") }
+            assertTrue("${src.label} still censored", !l.censored)
+        }
+        val apple = repo.fetch(s, LyricsSource.APPLE)
+        if (apple != null) assertTrue(apple.lines.any { it.text.startsWith("I'm chillin', real nigga feelin'") })
+        val netease = repo.fetch(s, LyricsSource.NETEASE)
+        if (netease != null) assertTrue(netease.lines.any { it.text.contains("doing you, fuck it") })
+    }
 }

@@ -49,13 +49,16 @@ data class Lyrics(
 }
 
 /**
- * A word with starred-out letters ("f*ck", "f***", "sh**", "**ck", "f##k") or an outright
- * "[censored]" / "(bleep)". A lone "*laughs*" style aside doesn't count.
+ * A word with starred-out letters ("f*ck", "f***", "sh**", "**ck", "f##k"), a word starred out whole ("****",
+ * as Apple Music's lyrics do), or an outright "[censored]" / "(bleep)". A lone "*laughs*" style aside doesn't count.
  */
 private val censorMark = Regex(
-    "\\p{L}[*#]+\\p{L}|\\b\\p{L}{1,3}[*#]{2,}|[*#]{2,}\\p{L}{1,3}\\b|[\\[(](?:censored|bleep(?:ed)?)[\\])]",
+    "\\p{L}[*#]+\\p{L}|\\b\\p{L}{1,3}[*#]{2,}|[*#]{2,}\\p{L}{1,3}\\b|(?<![\\p{L}\\p{N}*#])[*#]{3,}(?![\\p{L}\\p{N}*#])|[\\[(](?:censored|bleep(?:ed)?)[\\])]",
     RegexOption.IGNORE_CASE,
 )
+
+/** A word starred out completely: nothing of it shows, and the number of stars needn't match its length. */
+private fun String.allStars() = length >= 3 && all { it == '*' || it == '#' }
 
 /**
  * Puts starred-out words ("f**k", "sh*t") back from an uncensored text of the same song (Genius),
@@ -66,15 +69,20 @@ private val censorMark = Regex(
  */
 object Uncensor {
     private val wordRe = Regex("[\\p{L}\\p{N}'’*#]+")
-    private fun key(w: String) = w.lowercase().replace(Regex("['’]"), "")
-    private fun isCensored(w: String) = w.any { it.isLetter() } && censorMark.containsMatchIn(w)
+    /** A word for matching: no case or apostrophes, and "doing" / "doin'" alike. */
+    private fun key(w: String) = w.lowercase().replace(Regex("['’]"), "").replace(Regex("(?<=\\p{L}{2})ing$"), "in")
+    /** Whether [text] still has a starred-out word. */
+    fun isStarred(text: String) = censorMark.containsMatchIn(text)
+    private fun isCensored(w: String) = w.allStars() || (w.any { it.isLetter() } && censorMark.containsMatchIn(w))
 
     fun fill(lyrics: Lyrics, reference: String?): Lyrics {
         if (reference.isNullOrBlank() || !lyrics.censored) return lyrics
-        val ref = reference.lines()
+        val single = reference.lines()
             .map { l -> wordRe.findAll(l).map { it.value }.filter { w -> w.any(Char::isLetterOrDigit) }.toList() }
             .filter { it.isNotEmpty() }
-        if (ref.isEmpty()) return lyrics
+        if (single.isEmpty()) return lyrics
+        // Sources break long lines in different places: a line may be two of the reference's, run together.
+        val ref = single + single.zipWithNext { a, b -> a + b }
         return lyrics.copy(lines = lyrics.lines.map { if (it.isGap || !censorMark.containsMatchIn(it.text)) it else fillLine(it, ref) })
     }
 
@@ -90,10 +98,19 @@ object Uncensor {
         // Most of the line's other words have to be there, or it's a different line.
         if (clean.count { it in bestKeys } < maxOf(1, (clean.size * 0.6).roundToInt())) return line
         val swaps = ArrayList<Pair<String, String>>()
+        val cleanSet = clean.toSet()
         words.forEachIndexed { i, w ->
             if (!isCensored(w)) return@forEachIndexed
             val expected = expectedIndex(i, words, bestKeys, best.size)
-            val pick = candidates(w, best, exact = true).ifEmpty { candidates(w, best, exact = false) }
+            val pick = if (w.allStars()) {
+                // No letters to go by (and "****" can stand for "nigga"): the reference word right where the stars
+                // sit, and one the line doesn't have elsewhere, or nothing.
+                // Placed by its nearest neighbours on both sides, at every spot each appears ("you" can be there three times).
+                val spots = neighbourSpots(i, words, bestKeys).ifEmpty { listOf(expected) }
+                fun off(j: Int) = spots.minOf { abs(j - it) }
+                best.indices.filter { j -> !isCensored(best[j]) && key(best[j]) !in cleanSet }
+                    .minByOrNull(::off)?.takeIf { off(it) <= 1.0 } ?: return@forEachIndexed
+            } else candidates(w, best, exact = true).ifEmpty { candidates(w, best, exact = false) }
                 .minByOrNull { abs(it - expected) } ?: return@forEachIndexed
             swaps += w to matchCase(w, best[pick])
         }
@@ -117,6 +134,16 @@ object Uncensor {
             words.getOrNull(i + d)?.takeIf { !isCensored(it) }?.let { w -> refKeys.indexOf(key(w)).takeIf { it >= 0 }?.let { return (it - d).toDouble() } }
         }
         return i.toDouble() * refSize / words.size.coerceAtLeast(1)
+    }
+
+    /** Where word [i] could sit in the reference line: one past each place its left neighbour is, one before each of its right. */
+    private fun neighbourSpots(i: Int, words: List<String>, refKeys: List<String>): List<Double> {
+        val out = ArrayList<Double>()
+        val left = (i - 1 downTo 0).firstOrNull { !isCensored(words[it]) }
+        val right = (i + 1 until words.size).firstOrNull { !isCensored(words[it]) }
+        left?.let { l -> refKeys.indices.filter { refKeys[it] == key(words[l]) }.forEach { out += (it + (i - l)).toDouble() } }
+        right?.let { r -> refKeys.indices.filter { refKeys[it] == key(words[r]) }.forEach { out += (it - (r - i)).toDouble() } }
+        return out
     }
 
     /** Reference words a starred word could be: its letters where they show, any letter under each star. */
@@ -579,11 +606,13 @@ class LyricsRepository(
 
     /** Plain lyrics with [Verse]/[Chorus] headers from Genius. */
     private fun fetchGenius(song: Song): String? {
-        val q = "${cleanTitle(song.title)} ${song.primaryArtist}"
+        // Genius titles leave guests out: "IV. Sweatpants (feat. Jason Martin)" is "IV. Sweatpants" there.
+        val bare = cleanTitle(song.title).replace(Regex("\\s*[(\\[](?:feat|ft|with)\\.?\\s[^)\\]]*[)\\]]", RegexOption.IGNORE_CASE), "").trim()
+        val q = "$bare ${song.primaryArtist}"
         val search = "https://genius.com/api/search/multi".toHttpUrl().newBuilder().addQueryParameter("q", q).build()
         val sections = getJson(search).field("response").field("sections") as? JsonArray ?: return null
         val hits = sections.firstOrNull { it.str("type") == "song" }.field("hits") as? JsonArray ?: return null
-        val title = norm(cleanTitle(song.title))
+        val title = norm(bare)
         val artist = norm(song.primaryArtist)
         val url = hits.map { it.field("result") }.firstOrNull { r ->
             val t = norm(r.str("title") ?: "")
@@ -682,8 +711,17 @@ class LyricsRepository(
      */
     private suspend fun uncensor(song: Song, l: Lyrics): Lyrics {
         if (!l.censored || l.source == LyricsSource.GENIUS || !skipCensored()) return l
-        val reference = fetchRaw(song, LyricsSource.GENIUS) ?: return l
-        return Uncensor.fill(l, reference.plain)
+        // Genius first; when it doesn't have the song, any other source's uncensored text does as well.
+        fun starred(x: Lyrics) = x.lines.count { !it.isGap && Uncensor.isStarred(it.text) }
+        var best = l
+        for (src in REFERENCE_SOURCES) {
+            if (src == l.source) continue
+            val reference = runCatching { fetchRaw(song, src) }.getOrNull()?.takeIf { !it.censored } ?: continue
+            val filled = Uncensor.fill(best, reference.plain)
+            if (!filled.censored) return filled
+            if (starred(filled) < starred(best)) best = filled
+        }
+        return best
     }
 
     private suspend fun fetchRaw(song: Song, source: LyricsSource, force: Boolean = false): Lyrics? = withContext(Dispatchers.IO) {
@@ -733,6 +771,9 @@ class LyricsRepository(
         const val LENGTH_CHECK_SINCE = 1_791_936_000_000L
         val LENGTH_CHECKED = setOf(LyricsSource.KUGOU, LyricsSource.NETEASE, LyricsSource.LRCLIB, LyricsSource.BINI)
 
+        /** Where the full words for starred-out lyrics come from, in order. */
+        val REFERENCE_SOURCES = listOf(LyricsSource.GENIUS, LyricsSource.YTMUSIC, LyricsSource.LRCLIB)
+
         /** Sources that can have a timing for every word. */
         val WORD_SOURCES = setOf(
             LyricsSource.APPLE, LyricsSource.LYRICSPLUS, LyricsSource.BINI, LyricsSource.QQ,
@@ -754,8 +795,10 @@ class LyricsRepository(
     private suspend fun saved(song: Song): Lyrics? = withContext(Dispatchers.IO) {
         val s = settings()
         val rows = dao.allFor(song.id).associateBy { it.source }
-        // Genius's text, if it's saved, fills in starred-out words offline too.
-        val reference = if (s.skipCensored) rows[LyricsSource.GENIUS.name]?.let { build(LyricsSource.GENIUS, it.content)?.plain } else null
+        // Genius's text (or another saved uncensored one), if it's saved, fills in starred-out words offline too.
+        val reference = if (!s.skipCensored) null else REFERENCE_SOURCES.firstNotNullOfOrNull { src ->
+            rows[src.name]?.let { build(src, it.content) }?.takeIf { !it.censored }?.plain
+        }
         val all = s.lyricsOrder.mapNotNull { src -> rows[src.name]?.let { build(src, it.content) } }
             .map { if (it.source == LyricsSource.GENIUS) it else Uncensor.fill(it, reference) }
             .filterNot { skipCensored() && it.censored }
