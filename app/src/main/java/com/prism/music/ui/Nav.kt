@@ -35,6 +35,8 @@ object Routes {
     const val BACKGROUNDS = "backgrounds"
     const val IMPORT = "import"
     const val TOGETHER = "together"
+    const val PODCASTS = "podcasts"
+    fun podcast(id: String) = "podcast/${Uri.encode(id)}"
     fun settings(section: String) = "settings/$section"
     fun album(id: String) = "album/${Uri.encode(id)}"
     fun playlist(id: String) = "playlist/${Uri.encode(id)}"
@@ -56,6 +58,7 @@ class Navigator(val nav: NavController, val openPlayer: () -> Unit, private val 
             // Stations and mixes only exist as a watch queue: tapping one starts it, as on YouTube Music.
             is PlaylistItem -> if (item.isMix) playMix(item) else go(Routes.playlist(item.id))
             is ArtistItem -> go(Routes.artist(item.id))
+            is com.prism.music.data.model.PodcastItem -> go(Routes.podcast(item.id))
             is MoodItem -> go(Routes.browse(item.id, item.params, item.title))
         }
     }

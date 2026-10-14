@@ -117,6 +117,8 @@ class AppContainer(val app: Application) {
     }
 
     val artistPrefs = com.prism.music.data.ArtistPrefs(app)
+    /** Where each podcast episode was left off. */
+    val episodes = com.prism.music.data.EpisodeProgress(app)
     val library = LibraryRepository(this)
     /** Liked songs mirrored into a real YouTube Music playlist, when the listener turns that on. */
     val likedPlaylist = com.prism.music.data.LikedPlaylist(this)

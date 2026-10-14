@@ -2,6 +2,30 @@
 
 What changed in each release. Older releases are described on the [Releases page](https://github.com/Yigder/Prism/releases).
 
+## 1.6.1
+
+### New
+- **Podcasts.** The round podcasts button at the top of Home, beside Customize, opens them.
+  - **Continue listening:** episodes you've started pick up where you left off.
+  - **Your shows** and **Episodes for later** from your YouTube Music account, when signed in.
+  - **Popular shows and episodes**, by category.
+  - **Show pages:** newest episodes first, more as you go, save to library and share.
+  - **Search:** new Podcasts and Episodes filters.
+  - **Speed:** 0.75× to 2× from the player's ⋯ menu, for episodes only.
+  - Episodes don't look up lyrics, don't blend with Mix, aren't followed by music radio and don't count in Replay.
+- **Home screen widgets**, in four looks: Prism (frosted cover), Spotify style, Apple Music style and YouTube Music style. Each shows the cover, title, progress, previous/play/next and like; tapping the cover opens the player.
+- **Content country** (Settings → Home screen → Region). Where YouTube Music isn't offered, pick a country where it is to get Home, charts and search back. Songs a label blocks in your country still won't play.
+- **Mix on mobile data.** "Measure tempo on mobile data" lets beat matching work away from Wi-Fi (about 1–4 MB per song).
+
+### Fixed
+- **Pixel Watch:** previous and next sit beside play again, instead of like and shuffle.
+- **Lyric timing:**
+  - lyric files that shift their own timing (an `[offset]` line) were read without the shift, so every line was early or late;
+  - some sources used an extended or radio edit's lyrics, which ran early or late; versions more than 8 seconds off are now turned down, and lyrics saved from those sources are checked again once;
+  - while paused, lyrics no longer creep ahead and jump back.
+- **Menus:** swiping a menu down (like the player's ⋯) could stutter, or pop back up after being flung away.
+- **Player:** an interrupted swipe down could leave the player stuck part of the way down.
+
 ## 1.6.0
 
 ### New

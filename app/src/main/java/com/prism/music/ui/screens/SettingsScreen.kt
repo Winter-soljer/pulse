@@ -137,7 +137,7 @@ enum class SettingsSection(val key: String, val title: String, val icon: ImageVe
         SOUND -> listOfNotNull(if (s.lossless) "Lossless" else s.audioQuality.label + " quality", if (s.spatial) "Prism Spatial" else null, if (s.eq.enabled) "EQ ${s.eq.preset}" else null, if (s.normalize) "Normalized" else null).joinToString(" · ")
         LYRICS -> "${s.lyricsOrder.first().label} first · ${if (s.preferSynced) "synced preferred" else "any lyrics"}"
         DOWNLOADS -> listOfNotNull(if (s.smartDownloads) "Smart downloads ${formatGb(s.smartDownloadGb)}" else null, if (s.downloadWifiOnly) "Wi-Fi only" else "Any network").joinToString(" · ")
-        HOME -> "Sections, order and styles"
+        HOME -> "Sections, order and styles" + if (s.contentCountry.isNotBlank()) " · ${countryName(s.contentCountry)}" else ""
         LIBRARY -> "${s.libraryView.label} view · ${if (s.replayHours) "hours" else "minutes"}"
         ABOUT -> "Prism ${com.prism.music.BuildConfig.VERSION_NAME}"
         LICENSES -> "GPL-3.0-or-later"
@@ -187,10 +187,13 @@ fun SettingsScreen(bottomPadding: Dp, section: SettingsSection? = null) {
             SettingsSection.LYRICS -> item { LyricsSettings() }
             SettingsSection.DOWNLOADS -> item { DownloadSettings() }
             SettingsSection.HOME -> item {
-                Group("Home") {
-                    Item("Customize Home", "Reorder, hide and restyle Home's sections, shortcuts and greeting", onClick = { nav.go(Routes.CATALOGUE) }) { Chevron() }
-                    Toggle("Add new sections automatically", "New shelves from YouTube Music show up on Home as they appear", s.autoAddSections) { c.settings.setAutoAddSections(it) }
-                    Toggle("\"Customize Home\" button", "At the very bottom of Home", s.homeCustomizeButton) { c.settings.setHomeCustomizeButton(it) }
+                Column(verticalArrangement = Arrangement.spacedBy(22.dp)) {
+                    Group("Home") {
+                        Item("Customize Home", "Reorder, hide and restyle Home's sections, shortcuts and greeting", onClick = { nav.go(Routes.CATALOGUE) }) { Chevron() }
+                        Toggle("Add new sections automatically", "New shelves from YouTube Music show up on Home as they appear", s.autoAddSections) { c.settings.setAutoAddSections(it) }
+                        Toggle("\"Customize Home\" button", "At the very bottom of Home", s.homeCustomizeButton) { c.settings.setHomeCustomizeButton(it) }
+                    }
+                    ContentCountrySetting()
                 }
             }
             SettingsSection.LIBRARY -> item { LibraryReplaySettings() }
@@ -207,6 +210,62 @@ fun SettingsScreen(bottomPadding: Dp, section: SettingsSection? = null) {
             }
             SettingsSection.LICENSES -> item { LicensesPage() }
         }
+    }
+}
+
+private fun countryName(code: String): String =
+    java.util.Locale("", code).displayCountry.takeIf { it.isNotBlank() && it != code } ?: code
+
+/**
+ * The country YouTube Music is asked as. Where it isn't offered, picking one where it is (the US, say) brings
+ * Home, charts and search back; songs then play as long as YouTube itself is available there.
+ */
+@Composable
+private fun ContentCountrySetting() {
+    val c = LocalContainer.current
+    val s = LocalAppSettings.current
+    var picking by remember { mutableStateOf(false) }
+    val phone = java.util.Locale.getDefault().country
+    Group("Region") {
+        Item(
+            "Content country",
+            if (s.contentCountry.isBlank()) "Automatic (${if (phone.isBlank()) "United States" else countryName(phone)})" else countryName(s.contentCountry),
+            onClick = { picking = true },
+        ) { Chevron() }
+        Note(
+            "Home, charts, new releases and search follow this country. If YouTube Music isn't available where you live, " +
+                "pick a country where it is. Restart Prism for playback to follow too. Songs blocked in your country by their " +
+                "label still won't play: that's decided by your connection, not this setting."
+        )
+    }
+    if (picking) {
+        val countries = remember {
+            java.util.Locale.getISOCountries().map { it to countryName(it) }.sortedBy { it.second }
+        }
+        val pick: (String) -> Unit = { code -> c.settings.setContentCountry(code); picking = false }
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { picking = false },
+            title = { Text("Content country") },
+            text = {
+                androidx.compose.foundation.lazy.LazyColumn(Modifier.height(420.dp)) {
+                    item { CountryRow("Automatic (follow the phone)", s.contentCountry.isBlank()) { pick("") } }
+                    item { CountryRow("United States", s.contentCountry == "US") { pick("US") } }
+                    items(countries.size) { i ->
+                        val (code, name) = countries[i]
+                        CountryRow(name, s.contentCountry == code) { pick(code) }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { picking = false }) { Text("Cancel") } },
+        )
+    }
+}
+
+@Composable
+private fun CountryRow(name: String, selected: Boolean, onClick: () -> Unit) {
+    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable(onClick = onClick).padding(horizontal = 8.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(name, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge, color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
+        if (selected) Icon(Icons.Rounded.Check, null, tint = MaterialTheme.colorScheme.primary)
     }
 }
 
@@ -609,9 +668,14 @@ private fun SoundPage() {
                 SliderSetting("Blend", s.mixSeconds.toFloat(), 2f..12f, { "${it.roundToInt()} s" }, steps = 9) { prefs.setMixSeconds(it.roundToInt()) }
                 Toggle(
                     "Match tempo and beats",
-                    "Prism measures each song's tempo (on Wi-Fi) and lines up the beats, playing the next song at the same tempo while they overlap",
+                    "Prism measures each song's tempo and lines up the beats, playing the next song at the same tempo while they overlap",
                     s.mixBeatMatch,
                 ) { prefs.setMixBeatMatch(it) }
+                if (s.mixBeatMatch) Toggle(
+                    "Measure tempo on mobile data",
+                    "Measuring a song's tempo downloads a small copy of it (1–4 MB). Off: only on Wi-Fi, and songs on mobile data blend without beat matching",
+                    s.mixTempoOnCellular,
+                ) { prefs.setMixTempoOnCellular(it) }
             }
         }
         Group("Quality") {

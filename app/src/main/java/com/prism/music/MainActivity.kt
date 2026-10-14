@@ -411,6 +411,10 @@ private fun PrismRoot(deepLink: MutableStateFlow<Uri?>) {
                         composable(Routes.MOODS) { ScreenBackdrop(BackdropScreen.SEARCH) { com.prism.music.ui.screens.MoodsScreen(bottomPadding) } }
                         composable(Routes.IMPORT) { ScreenBackdrop(BackdropScreen.LIBRARY) { com.prism.music.ui.screens.ImportScreen(bottomPadding) } }
                         composable(Routes.TOGETHER) { ScreenBackdrop(BackdropScreen.LIBRARY) { com.prism.music.ui.screens.TogetherScreen(bottomPadding) } }
+                        composable(Routes.PODCASTS) { ScreenBackdrop(BackdropScreen.LIBRARY) { com.prism.music.ui.screens.PodcastsScreen(bottomPadding) } }
+                        composable("podcast/{id}", listOf(navArgument("id") { type = NavType.StringType })) {
+                            com.prism.music.ui.screens.PodcastScreen(it.arguments?.getString("id")!!, bottomPadding)
+                        }
                         composable(Routes.DOWNLOADS) { CollectionScreen(CollectionType.DOWNLOADS, "downloads", null, bottomPadding) }
                         composable(Routes.LOGIN) {
                             LoginScreen(
@@ -608,6 +612,8 @@ private fun handleDeepLink(uri: Uri, nav: Navigator, c: AppContainer) {
     val list = uri.getQueryParameter("list")
     val path = uri.pathSegments
     when {
+        // A widget's cover or title: the player.
+        uri.scheme == "prism" && uri.host == "player" -> nav.openPlayer()
         v != null -> {
             nav.openPlayer()
             launchSingle(c, v)
@@ -615,7 +621,9 @@ private fun handleDeepLink(uri: Uri, nav: Navigator, c: AppContainer) {
         list != null -> nav.go(Routes.playlist(list))
         path.firstOrNull() == "browse" && path.size > 1 -> {
             val id = path[1]
-            if (id.startsWith("MPRE")) nav.go(Routes.album(id)) else nav.go(Routes.browse(id, null, ""))
+            if (id.startsWith("MPRE")) nav.go(Routes.album(id))
+            else if (id.startsWith("MPSP")) nav.go(Routes.podcast(id))
+            else nav.go(Routes.browse(id, null, ""))
         }
         path.firstOrNull() == "channel" && path.size > 1 -> nav.go(Routes.artist(path[1]))
     }

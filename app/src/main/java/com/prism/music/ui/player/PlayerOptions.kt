@@ -19,6 +19,8 @@ import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Translate
 import androidx.compose.material.icons.rounded.SaveAlt
 import androidx.compose.material.icons.rounded.Share
+import androidx.compose.material.icons.rounded.Speed
+import androidx.compose.material.icons.rounded.Podcasts
 import androidx.compose.material.icons.rounded.ThumbDown
 import androidx.compose.material.icons.rounded.ThumbDownOffAlt
 import androidx.compose.runtime.Composable
@@ -100,6 +102,25 @@ fun PlayerOptionsSheet(
             active = sleeping, onClick = onSleepTimer,
         ),
     )
+    val speed by c.player.episodeSpeed.collectAsState()
+    if (song.isEpisode) {
+        val speeds = listOf(1f, 1.25f, 1.5f, 1.75f, 2f, 0.75f)
+        val episode = listOfNotNull(
+            ActionItem(
+                Icons.Rounded.Speed, "Playback speed", value = "${speed.toString().removeSuffix(".0")}×", active = speed != 1f, keepOpen = true,
+            ) { c.player.setEpisodeSpeed(speeds[(speeds.indexOf(speed) + 1) % speeds.size]) },
+            song.podcastId?.let { id -> ActionItem(Icons.Rounded.Podcasts, "Go to podcast") { onCollapse(); nav.go(Routes.podcast(id)) } },
+            ActionItem(Icons.Rounded.DataUsage, "Stats for nerds", active = statsShown, onClick = onToggleStats),
+        )
+        ActionSheet(song.thumbnail, onDismiss) { close ->
+            ActionHeader(song.thumbnail, song.title, song.artistText) {
+                SheetIconButton(Icons.Rounded.Share, "Share") { sharing = true }
+            }
+            QuickActions(quick.filter { it.label != "Radio" && it.label != "Playlist" }) { runAction(it, close) }
+            ActionGroup("Episode", episode) { runAction(it, close) }
+        }
+        return
+    }
     val translating = c.settings.flow.collectAsState().value.lyricsTranslate
     val lyrics = listOf(
         ActionItem(Icons.Rounded.FormatQuote, "Lyrics source", onClick = onLyricsSource),

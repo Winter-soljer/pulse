@@ -187,8 +187,13 @@ class PlaybackService : MediaLibraryService(), Player.Listener {
             }
         }
         scope.launch {
+            var tick = 0
             while (isActive) {
                 delay(1000)
+                // An episode's place is saved every few seconds while it plays.
+                if (++tick % 5 == 0 && player.isPlaying) saveEpisodePosition()
+                // Widgets' progress bars move on every 15 s (more often would cost battery for little).
+                if (tick % 15 == 0 && player.isPlaying) pushWidgets()
                 if (player.mediaItemCount > 0) c.nerdStats.value = c.nerdStats.value.copy(
                     bufferMs = (player.bufferedPosition - player.currentPosition).coerceAtLeast(0),
                     effects = effects.activeSummary,
@@ -203,7 +208,10 @@ class PlaybackService : MediaLibraryService(), Player.Listener {
             mixMs = { c.settings.current.let { s -> if (s.mix) s.mixSeconds * 1000L else null } },
             beatMatch = { c.settings.current.mixBeatMatch },
             allowed = ::mayBlend,
-            unmetered = { getSystemService(android.net.ConnectivityManager::class.java)?.isActiveNetworkMetered == false },
+            mayDownload = {
+                c.settings.current.mixTempoOnCellular ||
+                    getSystemService(android.net.ConnectivityManager::class.java)?.isActiveNetworkMetered == false
+            },
             buildTail = ::buildTailPlayer,
         ).also { it.start() }
         restoreQueue()
@@ -221,6 +229,8 @@ class PlaybackService : MediaLibraryService(), Player.Listener {
         val a = from.toSong() ?: return false
         val b = to.toSong() ?: return false
         if (a.isLive || b.isLive || from.videoModeId != null || to.videoModeId != null) return false
+        // Talk doesn't blend.
+        if (a.isEpisode || b.isEpisode) return false
         if (c.queue.followingHost || c.together.state.value !is com.prism.music.playback.together.TogetherState.Idle) return false
         // Only while an album plays through (a radio or playlist that puts two of an album's songs side by side blends).
         val album = a.album?.id
@@ -274,7 +284,11 @@ class PlaybackService : MediaLibraryService(), Player.Listener {
 
     override fun onDestroy() {
         flushPlayTime()
+        saveEpisodePosition()
         saveQueue()
+        player.currentMediaItem?.toSong()?.let { song ->
+            com.prism.music.widget.Widgets.update(this, song, false, song.id in c.library.likedIds.value, player.currentPosition, player.duration.takeIf { it > 0 })
+        }
         mix.release()
         c.player.detach()
         carLyrics.stop()
@@ -316,6 +330,13 @@ class PlaybackService : MediaLibraryService(), Player.Listener {
             return
         }
         trackedSong = song
+        // Podcast episodes pick up where they were left, and play at the speed picked for episodes.
+        if (song.isEpisode) {
+            val resume = c.episodes.positionOf(song.id)
+            if (resume > 0 && player.currentPosition < 5_000) player.seekTo(resume)
+            if (player.playbackParameters.speed != episodeSpeed) player.setPlaybackSpeed(episodeSpeed)
+        } else if (lastWasEpisode && player.playbackParameters.speed != 1f) player.setPlaybackSpeed(1f)
+        lastWasEpisode = song.isEpisode
         // Already playing: a seamless move on (gapless, or a Mix blend); nothing to time.
         startedLoading = if (player.isPlaying) null else song.id to SystemClock.elapsedRealtime()
         retries.remove(song.id)
@@ -343,6 +364,20 @@ class PlaybackService : MediaLibraryService(), Player.Listener {
         scheduleSave()
     }
 
+    /** Podcast episodes' playback speed (the player's ⋯ sets it); music always plays at 1×. */
+    var episodeSpeed = 1f
+        set(v) {
+            field = v
+            if (player.currentMediaItem?.toSong()?.isEpisode == true) player.setPlaybackSpeed(v)
+        }
+    private var lastWasEpisode = false
+
+    /** Remembers how far into the playing episode the listener is (see [com.prism.music.data.EpisodeProgress]). */
+    private fun saveEpisodePosition() {
+        val song = player.currentMediaItem?.toSong()?.takeIf { it.isEpisode } ?: return
+        c.episodes.save(song, player.currentPosition, player.duration.takeIf { it > 0 } ?: song.durationSec * 1000L)
+    }
+
     /** The song that just came up and when, until it's heard: how long starting a song takes (logcat tag PrismStream). */
     private var startedLoading: Pair<String, Long>? = null
 
@@ -352,6 +387,8 @@ class PlaybackService : MediaLibraryService(), Player.Listener {
             if (id == player.currentMediaItem?.mediaId) android.util.Log.i("PrismStream", "$id playing ${now - at} ms after it came up (${c.streamDetails[id]?.first ?: "?"})")
             startedLoading = null
         }
+        if (!isPlaying) saveEpisodePosition()
+        pushWidgets()
         if (isPlaying) playStartedAt = now
         else if (playStartedAt > 0) {
             accumulatedMs += now - playStartedAt
@@ -489,6 +526,8 @@ class PlaybackService : MediaLibraryService(), Player.Listener {
     fun maybeAutoplay() {
         val src = c.queue.source.value
         if (!c.settings.current.autoplay || player.mediaItemCount == 0 || c.queue.followingHost) return
+        // No music radio after a podcast episode.
+        if (player.currentMediaItem?.toSong()?.isEpisode == true) return
         if (src.kind != QueueKind.SINGLE && player.repeatMode != Player.REPEAT_MODE_OFF) return
         if (player.mediaItemCount - player.currentMediaItemIndex > 3 || c.queue.autoplayLoading) return
         val seed = src.seedId ?: player.getMediaItemAt(player.mediaItemCount - 1).mediaId.takeIf { it.isNotBlank() } ?: return
@@ -528,7 +567,8 @@ class PlaybackService : MediaLibraryService(), Player.Listener {
      * couldn't be reached (worth trying again); otherwise there simply isn't one.
      */
     suspend fun videoIdFor(song: Song): VideoLookup {
-        if (song.isVideo) return VideoLookup(song.id)
+        // An episode is a YouTube video already: its video is itself.
+        if (song.isVideo || song.isEpisode) return VideoLookup(song.id)
         // A saved video plays offline, so it's known without asking YouTube.
         c.downloads.downloadedVideoId(song.id)?.let { return VideoLookup(it) }
         c.queue.counterparts[song.id]?.let { return VideoLookup(it) }
@@ -745,7 +785,8 @@ class PlaybackService : MediaLibraryService(), Player.Listener {
         val song = trackedSong
         val ms = accumulatedMs
         accumulatedMs = 0
-        if (song != null && ms >= 10_000) {
+        // Replay, smart downloads and search taste are about music: episodes aren't counted.
+        if (song != null && ms >= 10_000 && !song.isEpisode) {
             scope.launch(Dispatchers.IO) {
                 c.db.plays().insert(PlayEventEntity(songId = song.id, timestamp = System.currentTimeMillis(), playedMs = ms))
             }
@@ -761,8 +802,14 @@ class PlaybackService : MediaLibraryService(), Player.Listener {
         val id = player.currentMediaItem?.mediaId
         val liked = id != null && id in c.library.likedIds.value
         fun button(icon: Int, name: String, command: SessionCommand) =
-            CommandButton.Builder(icon).setDisplayName(name).setSessionCommand(command).build()
+            CommandButton.Builder(icon).setDisplayName(name).setSessionCommand(command).setSlots(CommandButton.SLOT_OVERFLOW).build()
+        // Previous/next are named for their slots outright: with only custom buttons, a controller that lays out by
+        // slots (the Pixel Watch's media controls) filled the back/forward places with like and shuffle.
         val buttons = listOf(
+            CommandButton.Builder(CommandButton.ICON_PREVIOUS).setDisplayName("Previous")
+                .setPlayerCommand(Player.COMMAND_SEEK_TO_PREVIOUS).setSlots(CommandButton.SLOT_BACK).build(),
+            CommandButton.Builder(CommandButton.ICON_NEXT).setDisplayName("Next")
+                .setPlayerCommand(Player.COMMAND_SEEK_TO_NEXT).setSlots(CommandButton.SLOT_FORWARD).build(),
             button(if (liked) CommandButton.ICON_HEART_FILLED else CommandButton.ICON_HEART_UNFILLED, if (liked) "Remove from liked" else "Like", likeCommand),
             button(if (player.shuffleModeEnabled) CommandButton.ICON_SHUFFLE_ON else CommandButton.ICON_SHUFFLE_OFF, if (player.shuffleModeEnabled) "Shuffle off" else "Shuffle", shuffleCommand),
             when (player.repeatMode) {
@@ -776,6 +823,18 @@ class PlaybackService : MediaLibraryService(), Player.Listener {
             button(CommandButton.ICON_THUMB_DOWN_UNFILLED, "Not for me", dislikeCommand),
         )
         session.setMediaButtonPreferences(buttons)
+        pushWidgets()
+    }
+
+    /** Home screen widgets follow what's playing (nothing happens when none is placed). */
+    private fun pushWidgets() {
+        if (!::player.isInitialized) return
+        val song = player.currentMediaItem?.toSong()
+        com.prism.music.widget.Widgets.update(
+            this, song, player.playWhenReady && player.playbackState != Player.STATE_ENDED && player.playbackState != Player.STATE_IDLE,
+            song != null && song.id in c.library.likedIds.value,
+            player.currentPosition, player.duration.takeIf { it > 0 },
+        )
     }
 
     /** A fresh shuffle order each time shuffle goes on, current song first. */

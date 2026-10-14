@@ -167,6 +167,15 @@ class PlayerConnection(private val context: Context, private val c: AppContainer
         _lyricShift.value = _lyricOffset.value - lag
     }
 
+    private val _episodeSpeed = MutableStateFlow(1f)
+    /** Podcast episodes' playback speed (music always plays at 1×). */
+    val episodeSpeed: StateFlow<Float> = _episodeSpeed
+
+    fun setEpisodeSpeed(speed: Float) {
+        _episodeSpeed.value = speed
+        service?.episodeSpeed = speed
+    }
+
     fun setOutput(device: AudioDeviceInfo?) {
         _output.value = device
         player?.setPreferredAudioDevice(device)
@@ -180,6 +189,7 @@ class PlayerConnection(private val context: Context, private val c: AppContainer
 
     internal fun attach(s: PlaybackService) {
         service = s
+        s.episodeSpeed = _episodeSpeed.value
         s.player.addListener(this)
         refresh()
         pending.toList().forEach { it(s.player) }

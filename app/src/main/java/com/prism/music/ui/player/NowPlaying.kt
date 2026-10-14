@@ -389,10 +389,13 @@ fun NowPlayingScreen(onCollapse: () -> Unit) {
                         }
                     }
                 },
+                // An interrupted drag (a system gesture, a sheet opening) used to leave the player part-way down.
+                onDragCancel = { scope.launch { dismiss.animateTo(0f, spring()) } },
             ) { change, amount ->
                 change.consume()
                 total += amount
-                if (total > 0) scope.launch { dismiss.snapTo(total.coerceAtLeast(0f)) }
+                // Back above where it started: follow the finger back to the top rather than stopping short of it.
+                scope.launch { dismiss.snapTo(total.coerceAtLeast(0f)) }
             }
         }
         val skipGesture = Modifier.pointerInput(lyricsOpen, queueOpen, statsOpen) {

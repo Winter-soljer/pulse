@@ -140,6 +140,8 @@ class LyricsState(
     val unavailable: Boolean get() = !loading && lyrics == null
 
     suspend fun loadAuto() {
+        // Podcast episodes have no lyrics: don't ask ten lyric services about one.
+        if (song.isEpisode) { lyrics = null; loading = false; return }
         loading = true
         lyrics = try { repo.auto(song) } catch (e: CancellationException) { throw e } catch (e: Exception) { null }
         source = lyrics?.source
@@ -266,7 +268,9 @@ fun rememberLyricClock(active: Boolean = true): State<Long> {
         var last = -1L
         while (true) withFrameNanos { now ->
             val actual = pc.lyricPosition
-            if (last < 0) shown = actual.toDouble() else {
+            // Paused or buffering, the playhead stands still: so do the lyrics (they used to creep up to
+            // 250 ms ahead of the audio and then jump back).
+            if (last < 0 || pc.player?.isPlaying != true) shown = actual.toDouble() else {
                 val speed = pc.player?.playbackParameters?.speed ?: 1f
                 shown += (now - last) / 1_000_000.0 * speed
                 val err = actual - shown

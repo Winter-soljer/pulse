@@ -31,6 +31,8 @@ enum class SearchFilter(val label: String, val params: String?) {
     ALBUMS("Albums", "EgWKAQIYAWoMEA4QChADEAQQCRAF"),
     ARTISTS("Artists", "EgWKAQIgAWoMEA4QChADEAQQCRAF"),
     PLAYLISTS("Playlists", "EgeKAQQoAEABagwQDhAKEAMQBBAJEAU%3D"),
+    PODCASTS("Podcasts", "EgWKAQJQAWoMEA4QChADEAQQCRAF"),
+    EPISODES("Episodes", "EgWKAQJIAWoMEA4QChADEAQQCRAF"),
     /** Streams on air now (lofi radios and the like), from youtube.com's search: YouTube Music has no such filter. */
     LIVE("Live", null),
 }
@@ -485,6 +487,52 @@ class YouTubeMusic(private val api: InnerTube) {
     }
 
     suspend fun history(): List<Song> = songsFrom(browse("FEmusic_history"))
+
+    // ---------------------------------------------------------------- Podcasts
+
+    /** YouTube Music's Podcasts page: popular shows and episodes, then shows by category. */
+    suspend fun podcastsHome(): List<Shelf> = Parser.shelves(browse("FEmusic_non_music_audio"))
+
+    /** Shows saved to the account's library. */
+    suspend fun libraryPodcasts(): List<com.prism.music.data.model.PodcastItem> =
+        libraryItems("FEmusic_library_non_music_audio_list", maxPages = 8).filterIsInstance<com.prism.music.data.model.PodcastItem>()
+
+    /** The account's "Episodes for later" (YouTube's "SE" list), newest saved first. */
+    suspend fun savedEpisodes(): List<Song> = runCatching { playlist("SE").songs.filter { it.isEpisode } }.getOrDefault(emptyList())
+
+    /** A show's page: its header and the first episodes (newest first); more come from [podcastEpisodes]. */
+    suspend fun podcast(browseId: String): com.prism.music.data.model.PodcastPage {
+        val id = if (browseId.startsWith("MPSP")) browseId else "MPSP$browseId"
+        val res = browse(id)
+        val header = res.findFirst("musicResponsiveHeaderRenderer")
+        val title = header.obj("title").text() ?: "Podcast"
+        val authorRun = header.obj("straplineTextOne").runs().firstOrNull()
+        val thumb = header.obj("thumbnail").bestThumbnail()
+        val show = com.prism.music.data.model.PodcastItem(id, title, authorRun.str("text") ?: "", thumb)
+        val shelf = res.findFirst("musicShelfRenderer")
+        return com.prism.music.data.model.PodcastPage(
+            id = id,
+            title = title,
+            author = authorRun?.let {
+                com.prism.music.data.model.ArtistRef(it.str("text") ?: "", it.str("navigationEndpoint", "browseEndpoint", "browseId"))
+            },
+            description = header.obj("description").findFirst("description").text(),
+            thumbnail = thumb,
+            episodes = episodesIn(shelf, show),
+            continuation = Parser.continuation(shelf),
+            savedToLibrary = libraryToggle(header),
+        )
+    }
+
+    /** One more page of a show's episodes. */
+    suspend fun podcastEpisodes(token: String, show: com.prism.music.data.model.PodcastItem): Pair<List<com.prism.music.data.model.Episode>, String?> {
+        val res = continueBrowse(token)
+        val node = res.obj("continuationContents") ?: res
+        return episodesIn(node, show) to (Parser.continuation(node) ?: res.findAll("continuationItemRenderer").firstOrNull()?.findFirst("continuationCommand").str("token"))
+    }
+
+    private fun episodesIn(node: JsonElement?, show: com.prism.music.data.model.PodcastItem): List<com.prism.music.data.model.Episode> =
+        node.findAll("musicMultiRowListItemRenderer").mapNotNull { Parser.episode(it, show) }.distinctBy { it.song.id }
 
     suspend fun like(videoId: String, liked: Boolean) {
         api.post(if (liked) "like/like" else "like/removelike", buildJsonObject {

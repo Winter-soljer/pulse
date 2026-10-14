@@ -37,7 +37,7 @@ fun Song.toMediaItem(videoId: String? = null): MediaItem {
                 .setArtworkUri(hiRes(thumbnail, 544)?.let(Uri::parse))
                 .setIsPlayable(true)
                 .setIsBrowsable(false)
-                .setMediaType(MediaMetadata.MEDIA_TYPE_MUSIC)
+                .setMediaType(if (isEpisode) MediaMetadata.MEDIA_TYPE_PODCAST_EPISODE else MediaMetadata.MEDIA_TYPE_MUSIC)
                 .setExtras(extras)
                 .build()
         )

@@ -224,7 +224,14 @@ data class AppSettings(
     val mixSeconds: Int = 6,
     /** Mix lines up the songs' beats and plays the incoming song at the outgoing one's tempo during the blend. */
     val mixBeatMatch: Boolean = true,
+    /** Tempo analysis (a 1–4 MB download per song) may use mobile data, not only Wi-Fi. */
+    val mixTempoOnCellular: Boolean = false,
     val videoMaxHeight: Int = 1080,
+    /**
+     * The country YouTube Music is asked as (ISO code, e.g. "US"); blank follows the phone. Where YouTube Music
+     * isn't offered, asking as a country where it is brings Home, charts and search back.
+     */
+    val contentCountry: String = "",
     // Storage & downloads
     val cacheSizeMb: Int = 4096,
     val downloadWifiOnly: Boolean = true,
@@ -342,6 +349,8 @@ class SettingsRepository(private val context: Context, scope: CoroutineScope) {
         val mix = booleanPreferencesKey("mix")
         val mixSeconds = intPreferencesKey("mix_seconds")
         val mixBeatMatch = booleanPreferencesKey("mix_beat_match")
+        val mixTempoOnCellular = booleanPreferencesKey("mix_tempo_cellular")
+        val contentCountry = stringPreferencesKey("content_country")
         val videoMaxHeight = intPreferencesKey("video_max_height")
         val cacheSizeMb = intPreferencesKey("cache_size_mb")
         val downloadWifiOnly = booleanPreferencesKey("download_wifi_only")
@@ -457,6 +466,8 @@ class SettingsRepository(private val context: Context, scope: CoroutineScope) {
             mix = p[K.mix] ?: d.mix,
             mixSeconds = (p[K.mixSeconds] ?: d.mixSeconds).coerceIn(2, 12),
             mixBeatMatch = p[K.mixBeatMatch] ?: d.mixBeatMatch,
+            mixTempoOnCellular = p[K.mixTempoOnCellular] ?: d.mixTempoOnCellular,
+            contentCountry = p[K.contentCountry] ?: d.contentCountry,
             skipSilence = p[K.skipSilence] ?: d.skipSilence,
             videoMaxHeight = p[K.videoMaxHeight] ?: d.videoMaxHeight,
             cacheSizeMb = p[K.cacheSizeMb] ?: d.cacheSizeMb,
@@ -588,6 +599,8 @@ class SettingsRepository(private val context: Context, scope: CoroutineScope) {
     fun setMix(v: Boolean) = edit { it[K.mix] = v }
     fun setMixSeconds(v: Int) = edit { it[K.mixSeconds] = v.coerceIn(2, 12) }
     fun setMixBeatMatch(v: Boolean) = edit { it[K.mixBeatMatch] = v }
+    fun setMixTempoOnCellular(v: Boolean) = edit { it[K.mixTempoOnCellular] = v }
+    fun setContentCountry(v: String) = edit { it[K.contentCountry] = v }
     fun setSkipSilence(v: Boolean) = edit { it[K.skipSilence] = v }
     fun setVideoMaxHeight(v: Int) = edit { it[K.videoMaxHeight] = v }
     fun setCacheSizeMb(v: Int) = edit { it[K.cacheSizeMb] = v }

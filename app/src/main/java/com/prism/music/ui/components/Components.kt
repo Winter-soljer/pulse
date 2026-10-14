@@ -55,6 +55,9 @@ import androidx.compose.material.icons.rounded.MoreHoriz
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.Person
+import androidx.compose.material.icons.rounded.Podcasts
+import androidx.compose.material.icons.rounded.DoneAll
+import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.PlaylistPlay
 import androidx.compose.material.icons.rounded.Radio
 import androidx.compose.material.icons.rounded.Share
@@ -276,6 +279,7 @@ fun ItemCard(item: BrowseItem, modifier: Modifier = Modifier, width: Dp = Dp.Uns
                         is ArtistItem -> Icons.Rounded.Person
                         is AlbumItem -> Icons.Rounded.Album
                         is PlaylistItem -> Icons.AutoMirrored.Rounded.QueueMusic
+                        is com.prism.music.data.model.PodcastItem -> Icons.Rounded.Podcasts
                         else -> Icons.Rounded.MusicNote
                     },
                 )
@@ -505,21 +509,25 @@ fun SongActionsSheet(song: Song, extra: List<SheetItem> = emptyList(), onDismiss
         else ActionItem(Icons.Rounded.PlaylistPlay, "Play next") { c.player.playNext(song) },
         if (guest != null) ActionItem(Icons.Rounded.GroupAdd, "Add to queue") { c.together.suggest(song, next = false); toast("Sent to ${guest.hostName}") }
         else ActionItem(Icons.AutoMirrored.Rounded.QueueMusic, "Add to queue") { c.player.addToQueue(song) },
-        ActionItem(Icons.Rounded.Radio, "Radio") { c.player.playRadio(song) },
+        // A radio of a podcast episode is music radio: not offered for episodes.
+        if (song.isEpisode) null else ActionItem(Icons.Rounded.Radio, "Radio") { c.player.playRadio(song) },
         ActionItem(
             if (downloaded) Icons.Rounded.DownloadDone else Icons.Rounded.Download, "Download",
             value = when { downloaded -> "Downloaded"; dl != null -> "${dl.percent.toInt().coerceAtLeast(0)}%"; else -> null },
             active = downloaded, keepOpen = true,
         ) { if (dl != null) c.downloads.remove(song.id) else c.downloads.download(song) },
-    )
+    ).filterNotNull()
     val go = listOfNotNull(
+        song.podcastId?.let { id -> ActionItem(Icons.Rounded.Podcasts, "Go to podcast") { nav.go(Routes.podcast(id)) } },
+        if (song.isEpisode && song.id in c.episodes.played.value) ActionItem(Icons.Rounded.Refresh, "Mark as unplayed") { c.episodes.forget(song.id); c.episodes.unmarkPlayed(song.id) }
+        else if (song.isEpisode) ActionItem(Icons.Rounded.DoneAll, "Mark as played") { c.episodes.markPlayed(song.id) } else null,
         if (c.settings.current.isLoggedIn) ActionItem(Icons.AutoMirrored.Rounded.PlaylistAdd, "Add to playlist", keepOpen = true) { pickPlaylist = true } else null,
         song.album?.id?.let { id -> ActionItem(Icons.Rounded.Album, "Go to album", value = song.album?.title?.takeIf { it.length <= 22 }) { nav.go(Routes.album(id)) } },
         song.artists.firstOrNull { it.id != null }?.let { a -> ActionItem(Icons.Rounded.Person, "Go to ${a.name}") { nav.go(Routes.artist(a.id!!)) } },
     )
     val more = extra.map { it.toAction() } + listOfNotNull(
-        videoDownloadAction(song, videos[song.id]),
-        if (song.id in disliked) ActionItem(Icons.Rounded.ThumbDown, "Not for me", active = true, keepOpen = true) { c.library.setDisliked(song, false) }
+        if (song.isEpisode) null else videoDownloadAction(song, videos[song.id]),
+        if (song.isEpisode) null else if (song.id in disliked) ActionItem(Icons.Rounded.ThumbDown, "Not for me", active = true, keepOpen = true) { c.library.setDisliked(song, false) }
         else ActionItem(Icons.Rounded.ThumbDownOffAlt, "Not for me") { c.library.setDisliked(song, true); toast("Got it — Prism will steer clear of this song") },
     )
 

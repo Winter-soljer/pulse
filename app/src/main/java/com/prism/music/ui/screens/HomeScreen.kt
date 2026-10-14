@@ -30,6 +30,7 @@ import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.SystemUpdate
 import androidx.compose.material.icons.rounded.Dashboard
+import androidx.compose.material.icons.rounded.Podcasts
 import androidx.compose.material.icons.rounded.DownloadDone
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.GraphicEq
@@ -245,6 +246,9 @@ private fun HomeTopBar() {
                 settings.accountName, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
+        // Podcasts live a tap away from Home (as on Spotify's), in the same quiet round button as Customize.
+        com.prism.music.ui.components.RoundAction(Icons.Rounded.Podcasts, "Podcasts") { nav.go(Routes.PODCASTS) }
+        Spacer(Modifier.width(8.dp))
         com.prism.music.ui.components.RoundAction(Icons.Rounded.Dashboard, "Customize home") { nav.go(Routes.CATALOGUE) }
         Spacer(Modifier.width(8.dp))
         Box(

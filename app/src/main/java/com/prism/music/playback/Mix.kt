@@ -46,8 +46,8 @@ class MixEngine(
     private val beatMatch: () -> Boolean,
     /** Whether this transition may blend at all (video, live, Listen Together, an album's next track…). */
     private val allowed: (from: MediaItem, to: MediaItem) -> Boolean,
-    /** Analysis needs the songs' audio, so it waits for Wi-Fi. */
-    private val unmetered: () -> Boolean,
+    /** Analysis needs the songs' audio, so it waits for Wi-Fi (unless it's allowed on mobile data). */
+    private val mayDownload: () -> Boolean,
     /** A second player for the ending song: same sources and effects as the main one (plus [ShiftProcessor] first), no audio focus. */
     private val buildTail: (ShiftProcessor) -> ExoPlayer,
 ) {
@@ -112,10 +112,10 @@ class MixEngine(
         abort("released")
     }
 
-    /** Measures the tempo of the playing song and the next one ahead of their blend (on Wi-Fi). */
+    /** Measures the tempo of the playing song and the next one ahead of their blend (on Wi-Fi, or any network if allowed). */
     fun analyzeAhead(currentId: String?, nextId: String?) {
         if (mixMs() == null || !beatMatch()) return
-        if (!unmetered()) { Log.i(TAG, "tempo of $currentId / $nextId waits for Wi-Fi"); return }
+        if (!mayDownload()) { Log.i(TAG, "tempo of $currentId / $nextId waits for Wi-Fi"); return }
         scope.launch {
             currentId?.let { tempo.measure(it) }
             nextId?.let { tempo.measure(it) }

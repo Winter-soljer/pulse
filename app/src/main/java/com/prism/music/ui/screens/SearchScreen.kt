@@ -406,7 +406,7 @@ private fun SuggestionRow(
 @Composable
 fun ResultRow(item: BrowseItem, onLongClick: (() -> Unit)? = null, onClick: () -> Unit) {
     if (item is SongItem) {
-        SongRow(item.song, trailingInfo = if (item.song.isLive) "● LIVE" else if (item.song.isVideo) "Video" else null, onClick = onClick)
+        SongRow(item.song, trailingInfo = if (item.song.isLive) "● LIVE" else if (item.song.isEpisode) "Episode" else if (item.song.isVideo) "Video" else null, onClick = onClick)
         return
     }
     val ui = com.prism.music.ui.theme.LocalUi.current
@@ -429,7 +429,8 @@ fun ResultRow(item: BrowseItem, onLongClick: (() -> Unit)? = null, onClick: () -
         Column(Modifier.weight(1f)) {
             Text(item.title, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(
-                item.subtitle.ifBlank { when (item) { is ArtistItem -> "Artist"; is AlbumItem -> "Album"; is PlaylistItem -> "Playlist"; else -> "" } },
+                if (item is com.prism.music.data.model.PodcastItem) listOf("Podcast", item.subtitle).filter { it.isNotBlank() }.joinToString(" • ")
+                else item.subtitle.ifBlank { when (item) { is ArtistItem -> "Artist"; is AlbumItem -> "Album"; is PlaylistItem -> "Playlist"; else -> "" } },
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis,
             )
         }

@@ -20,6 +20,10 @@ data class Song(
     val explicit: Boolean = false,
     /** A live stream (e.g. a "Listen together" station): played from its HLS manifest, with no end or cache. */
     val isLive: Boolean = false,
+    /** A podcast episode: no lyrics, no Mix blends, no music radio after it, and it picks up where it was left. */
+    val isEpisode: Boolean = false,
+    /** An episode's show (its browse id, "MPSP…"), for "Go to podcast". */
+    val podcastId: String? = null,
 ) {
     val artistText: String get() = artists.joinToString(", ") { it.name }.ifBlank { "Unknown artist" }
     val primaryArtist: String get() = artists.firstOrNull()?.name ?: ""
@@ -65,6 +69,42 @@ data class ArtistItem(
     override val subtitle: String,
     override val thumbnail: String?,
 ) : BrowseItem
+
+/** A podcast show. [id] is its browse id ("MPSP" + its playlist id); [subtitle] is the host. */
+data class PodcastItem(
+    override val id: String,
+    override val title: String,
+    override val subtitle: String,
+    override val thumbnail: String?,
+) : BrowseItem {
+    /** The show's episodes as a YouTube playlist (what "Save to library" works on). */
+    val playlistId: String get() = id.removePrefix("MPSP")
+}
+
+/** One episode on a show's page, with what the list shows beside it. */
+data class Episode(
+    val song: Song,
+    /** "Oct 2", "1d ago". */
+    val date: String?,
+    val description: String?,
+    /** How much of it the account has heard on YouTube (0..1), when signed in. */
+    val progress: Float = 0f,
+    val played: Boolean = false,
+)
+
+data class PodcastPage(
+    val id: String,
+    val title: String,
+    val author: ArtistRef?,
+    val description: String?,
+    val thumbnail: String?,
+    val episodes: List<Episode>,
+    val continuation: String?,
+    /** In the account's library; null when signed out. */
+    val savedToLibrary: Boolean?,
+) {
+    val playlistId: String get() = id.removePrefix("MPSP")
+}
 
 /** Mood / genre navigation tile from YouTube Music's "Moods & genres". */
 data class MoodItem(
@@ -227,6 +267,11 @@ fun formatDuration(sec: Int): String {
 
 fun parseDuration(text: String?): Int {
     if (text.isNullOrBlank()) return 0
+    // Episodes give their length in words: "2 hr 54 min", "47 min", "1 hr", "35 sec".
+    if (!text.contains(':') && Regex("\\d+\\s*(hr|min|sec)").containsMatchIn(text)) {
+        fun part(unit: String) = Regex("(\\d+)\\s*$unit").find(text)?.groupValues?.get(1)?.toIntOrNull() ?: 0
+        return part("hr") * 3600 + part("min") * 60 + part("sec")
+    }
     val parts = text.trim().split(":").mapNotNull { it.toIntOrNull() }
     if (parts.isEmpty()) return 0
     return parts.fold(0) { acc, p -> acc * 60 + p }

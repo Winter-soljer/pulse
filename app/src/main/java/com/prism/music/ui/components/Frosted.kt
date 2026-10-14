@@ -356,12 +356,17 @@ fun ScrollEdge(visible: () -> Float, height: Dp, pageHeight: Dp, backdrop: @Comp
  */
 @Composable
 fun ArtworkAccent(palette: ArtPalette?, content: @Composable () -> Unit) {
-    if (palette == null) { content(); return }
     val dark = LocalIsDark.current
     val scheme = MaterialTheme.colorScheme
-    val accent = palette.accent(dark)
-    val on = if (accent.luminance() > 0.5f) Color.Black else Color.White
-    MaterialTheme(colorScheme = scheme.copy(primary = accent, onPrimary = on, surfaceTint = accent), typography = MaterialTheme.typography, shapes = MaterialTheme.shapes, content = content)
+    // Always the same composition shape, palette or not: switching between calling content() bare and inside
+    // MaterialTheme threw the whole subtree away when the palette arrived — a menu sheet being swiped down
+    // was rebuilt mid-gesture (stuttered, or popped back up after being flung away).
+    val themed = if (palette == null) scheme else {
+        val accent = palette.accent(dark)
+        val on = if (accent.luminance() > 0.5f) Color.Black else Color.White
+        scheme.copy(primary = accent, onPrimary = on, surfaceTint = accent)
+    }
+    MaterialTheme(colorScheme = themed, typography = MaterialTheme.typography, shapes = MaterialTheme.shapes, content = content)
 }
 
 private fun Color.luminance(): Float = ColorUtils.calculateLuminance(toArgb()).toFloat()

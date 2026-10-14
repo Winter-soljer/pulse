@@ -26,6 +26,8 @@ object ShareLinks {
         // Radios and mixes are made for whoever opens them, so there's nothing stable to send.
         is PlaylistItem -> if (item.isMix || item.id.startsWith("RD")) null else playlist(item.id)
         is ArtistItem -> artist(item.id)
+        // A show's address on YouTube Music is its episodes' playlist.
+        is com.prism.music.data.model.PodcastItem -> playlist(item.playlistId)
         is MoodItem -> null
     }
 

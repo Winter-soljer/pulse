@@ -159,13 +159,18 @@ private fun String.decodeEntities(): String = replace("&amp;", "&").replace("&ap
 object Lrc {
     private val tag = Regex("\\[(\\d{1,3}):(\\d{1,2})(?:[.:](\\d{1,3}))?]")
     private val meta = Regex("^\\[(ar|ti|al|by|offset|length|re|ve|id|au|la|tool|#):.*]$", RegexOption.IGNORE_CASE)
+    private val offsetTag = Regex("^\\[offset:\\s*([+-]?\\d+)\\s*]$", RegexOption.IGNORE_CASE)
 
     fun isLrc(text: String) = tag.containsMatchIn(text)
 
     fun parse(text: String): List<LyricLine> {
         val raw = mutableListOf<Pair<Long, String>>()
+        // [offset:+500] means the lyrics come 500 ms sooner than their stamps say. It used to be skipped
+        // with the other tags, which left every line of such a file that much late (or early).
+        var offset = 0L
         for (rawLine in text.lines()) {
             val line = rawLine.trim()
+            offsetTag.find(line)?.let { offset = it.groupValues[1].toLongOrNull() ?: 0L; continue }
             if (line.isEmpty() || meta.matches(line)) continue
             val stamps = tag.findAll(line).toList()
             if (stamps.isEmpty()) continue
@@ -179,7 +184,7 @@ object Lrc {
                 raw += (min * 60_000 + sec * 1000 + ms) to content
             }
         }
-        val sorted = raw.sortedBy { it.first }
+        val sorted = raw.map { (t, s) -> (t - offset).coerceAtLeast(0) to s }.sortedBy { it.first }
         return sorted.mapIndexed { i, (t, s) ->
             val end = sorted.getOrNull(i + 1)?.first ?: (t + 5000)
             LyricLine(t, s, end, isGap = s.isBlank())
@@ -438,6 +443,14 @@ class LyricsRepository(
 
     private fun JsonElement?.field(key: String): JsonElement? = (this as? JsonObject)?.get(key)
 
+    /**
+     * Whether an edition [sec] seconds long can be the song playing. Sources that pick "the closest length" took
+     * an extended or radio edit 10–30 s off when that was all they had, and every line ran early or late.
+     * A few seconds' difference (fade-outs, rounding) is normal; unknown lengths pass.
+     */
+    private fun lengthFits(song: Song, sec: Double?): Boolean =
+        song.durationSec <= 0 || sec == null || sec <= 0 || abs(sec - song.durationSec) <= MAX_LENGTH_GAP_SEC
+
     private fun build(source: LyricsSource, text: String?): Lyrics? {
         if (text.isNullOrBlank()) return null
         val trimmed = text.trimStart()
@@ -500,6 +513,7 @@ class LyricsRepository(
                 .addQueryParameter("artist_name", song.primaryArtist).build()
             val list = (runCatching { getJson(search) }.getOrNull() as? JsonArray) ?: return null
             list.minByOrNull { abs((it.str("duration")?.toDoubleOrNull() ?: 0.0) - song.durationSec) }
+                ?.takeIf { lengthFits(song, it.str("duration")?.toDoubleOrNull()) }
         }
         return pick.str("syncedLyrics")?.takeIf { it.isNotBlank() } ?: pick.str("plainLyrics")
     }
@@ -516,7 +530,8 @@ class LyricsRepository(
             val t = norm(s.str("name") ?: "")
             val artists = (s.field("artists") as? JsonArray)?.map { norm(it.str("name") ?: "") } ?: emptyList()
             (t == wantTitle || t.contains(wantTitle) || wantTitle.contains(t)) &&
-                artists.any { it.isNotBlank() && (it.contains(wantArtist) || wantArtist.contains(it)) }
+                artists.any { it.isNotBlank() && (it.contains(wantArtist) || wantArtist.contains(it)) } &&
+                lengthFits(song, s.str("duration")?.toDoubleOrNull()?.div(1000))
         }.sortedBy { abs((it.str("duration")?.toLongOrNull() ?: 0L) / 1000 - song.durationSec) }
         // Several editions often match; not all of them carry lyrics.
         for (best in candidates.take(4)) {
@@ -549,7 +564,7 @@ class LyricsRepository(
             .firstNotNullOfOrNull { (getJson(search(it)).field("candidates") as? JsonArray)?.takeIf { c -> c.isNotEmpty() } } ?: return null
         val best = candidates.minByOrNull {
             abs((it.str("duration")?.toLongOrNull() ?: 0L) - song.durationSec * 1000L)
-        } ?: return null
+        }?.takeIf { lengthFits(song, it.str("duration")?.toDoubleOrNull()?.div(1000)) } ?: return null
         val id = best.str("id") ?: return null
         val key = best.str("accesskey") ?: return null
         fun download(fmt: String) = "https://lyrics.kugou.com/download".toHttpUrl().newBuilder()
@@ -599,9 +614,10 @@ class LyricsRepository(
         val title = norm(cleanTitle(song.title))
         // Prefer word-timed editions, then line-timed, then the closest length.
         fun timingRank(t: String?) = when (t) { "word" -> 0; "line" -> 1; else -> 2 }
-        val best = results.filter { norm(it.str("track_name") ?: "").let { t -> t == title || t.startsWith(title) } }
+        val fitting = results.filter { lengthFits(song, it.str("duration")?.toDoubleOrNull()) }
+        val best = fitting.filter { norm(it.str("track_name") ?: "").let { t -> t == title || t.startsWith(title) } }
             .sortedWith(compareBy({ timingRank(it.str("timing_type")) }, { abs((it.str("duration")?.toIntOrNull() ?: 0) - song.durationSec) }))
-            .firstOrNull() ?: results.firstOrNull() ?: return null
+            .firstOrNull() ?: fitting.firstOrNull() ?: return null
         val doc = best.str("lyricsUrl")?.takeIf { it.startsWith("https://") } ?: return null
         return getText(doc.toHttpUrl())?.takeIf { it.contains("<tt") }
     }
@@ -676,9 +692,13 @@ class LyricsRepository(
             // NetEase and KuGou answers from before they went word-by-word are fetched again once.
             val upgrade = source in setOf(LyricsSource.NETEASE, LyricsSource.KUGOU) && cached.fetchedAt < WORDS_SINCE &&
                 !cached.content.startsWith(WordFormat.PREFIX)
-            if (cached.content.isNotEmpty() && !upgrade) return@withContext build(source, cached.content)
+            // Answers from before the length check ([lengthFits]) may be another edit's timings: asked again once.
+            val recheck = source in LENGTH_CHECKED && cached.fetchedAt < LENGTH_CHECK_SINCE
+            if (cached.content.isNotEmpty() && !upgrade && !recheck) return@withContext build(source, cached.content)
             if (cached.content.isEmpty() && System.currentTimeMillis() - cached.fetchedAt < 86_400_000L) return@withContext null
         }
+        // If asking again fails (no network), what was saved still serves.
+        val saved = if (force) null else dao.get(song.id, source.name)?.content?.takeIf { it.isNotEmpty() }
         val text = try {
             when (source) {
                 LyricsSource.APPLE -> fetchApple(song)
@@ -697,7 +717,7 @@ class LyricsRepository(
             throw e
         } catch (e: Exception) {
             // Network trouble isn't an answer either; don't cache it.
-            return@withContext null
+            return@withContext saved?.let { build(source, it) }
         }
         val lyrics = build(source, text)
         dao.put(LyricsEntity(song.id, source.name, lyrics?.synced == true, if (lyrics == null) "" else text ?: "", System.currentTimeMillis()))
@@ -707,6 +727,11 @@ class LyricsRepository(
     private companion object {
         /** When NetEase and KuGou started returning word-by-word lyrics (Oct 2026). */
         const val WORDS_SINCE = 1_791_080_000_000L
+        /** How far (s) a source's edition may differ in length from the song playing. */
+        const val MAX_LENGTH_GAP_SEC = 8.0
+        /** When the length check came in (2026-10-14); saved answers from these sources before it are checked again. */
+        const val LENGTH_CHECK_SINCE = 1_791_936_000_000L
+        val LENGTH_CHECKED = setOf(LyricsSource.KUGOU, LyricsSource.NETEASE, LyricsSource.LRCLIB, LyricsSource.BINI)
 
         /** Sources that can have a timing for every word. */
         val WORD_SOURCES = setOf(
@@ -782,6 +807,7 @@ class LyricsRepository(
      * sources in the user's order, preferring synced lyrics when enabled.
      */
     suspend fun auto(song: Song, force: Boolean = false): Lyrics? {
+        if (song.isEpisode) return null
         if (!force) {
             chosen(song)?.let { src -> fetch(song, src)?.let { return it } }
             saved(song)?.let { return it }

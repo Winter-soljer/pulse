@@ -295,7 +295,7 @@ private fun copy(context: Context, text: String) {
 }
 
 /** The share target for a song. */
-fun Song.shareTarget() = ShareTarget(title, artistText, if (isVideo) "Video" else "Song", thumbnail, com.prism.music.data.ShareLinks.song(id))
+fun Song.shareTarget() = ShareTarget(title, artistText, when { isEpisode -> "Episode"; isVideo -> "Video"; else -> "Song" }, thumbnail, com.prism.music.data.ShareLinks.song(id))
 
 /** The share target for a card ([art]: the picture shown for it, e.g. a custom playlist cover). */
 fun com.prism.music.data.model.BrowseItem.shareTarget(art: String? = thumbnail): ShareTarget {
@@ -308,6 +308,7 @@ fun com.prism.music.data.model.BrowseItem.shareTarget(art: String? = thumbnail):
             ShareTarget(title, parts.filter { it != kind && !it.matches(Regex("\\d{4}")) }.joinToString(", "), kind, art, url)
         }
         is com.prism.music.data.model.ArtistItem -> ShareTarget(title, parts.filter { it != "Artist" }.joinToString(" · "), "Artist", art, url, round = true)
+        is com.prism.music.data.model.PodcastItem -> ShareTarget(title, subtitle, "Podcast", art, url)
         else -> ShareTarget(title, parts.filter { it != "Playlist" }.joinToString(" · "), "Playlist", art, url)
     }
 }

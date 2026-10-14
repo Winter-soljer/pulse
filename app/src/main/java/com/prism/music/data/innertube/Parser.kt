@@ -5,8 +5,10 @@ import com.prism.music.data.model.AlbumRef
 import com.prism.music.data.model.ArtistItem
 import com.prism.music.data.model.ArtistRef
 import com.prism.music.data.model.BrowseItem
+import com.prism.music.data.model.Episode
 import com.prism.music.data.model.MoodItem
 import com.prism.music.data.model.PlaylistItem
+import com.prism.music.data.model.PodcastItem
 import com.prism.music.data.model.Shelf
 import com.prism.music.data.model.Song
 import com.prism.music.data.model.SongItem
@@ -22,6 +24,9 @@ object Parser {
     private const val PLAYLIST = "MUSIC_PAGE_TYPE_PLAYLIST"
     /** Artists in the signed-in library: browse id "MPLA" + the channel id. */
     private const val LIBRARY_ARTIST = "MUSIC_PAGE_TYPE_LIBRARY_ARTIST"
+    /** A podcast show: browse id "MPSP" + its playlist id. */
+    private const val PODCAST = "MUSIC_PAGE_TYPE_PODCAST_SHOW_DETAIL_PAGE"
+    private const val EPISODE_VIDEO = "MUSIC_VIDEO_TYPE_PODCAST_EPISODE"
     private val typeLabels = setOf(
         "Song", "Video", "Album", "Single", "EP", "Artist", "Playlist", "Episode", "Podcast", "Profile", "Station",
     )
@@ -70,6 +75,7 @@ object Parser {
         wrapper.obj("musicResponsiveListItemRenderer")?.let { return responsive(it) }
         wrapper.obj("musicTwoRowItemRenderer")?.let { return twoRow(it) }
         wrapper.obj("musicNavigationButtonRenderer")?.let { return mood(it) }
+        wrapper.obj("musicMultiRowListItemRenderer")?.let { return episode(it)?.song?.let(::SongItem) }
         wrapper.obj("playlistPanelVideoRenderer")?.let { return panelVideo(it)?.let(::SongItem) }
         return null
     }
@@ -92,6 +98,18 @@ object Parser {
         val restRuns = cols.drop(1).flatten()
         val browse = r.obj("navigationEndpoint")
 
+        // A podcast episode (search's Episodes): "Sep 30 • The Show", the show linked.
+        if (videoId != null && videoType(watch) == EPISODE_VIDEO) {
+            val show = restRuns.firstOrNull { pageType(it["navigationEndpoint"]) == PODCAST }
+            return SongItem(
+                Song(
+                    id = videoId, title = title,
+                    artists = listOfNotNull(show?.str("text")?.let { ArtistRef(it) }),
+                    thumbnail = thumb, isEpisode = true,
+                    podcastId = show?.str("navigationEndpoint", "browseEndpoint", "browseId"),
+                )
+            )
+        }
         if (videoId != null && pageType(browse) == null) {
             val duration = r.arr("fixedColumns")?.firstOrNull()
                 ?.obj("musicResponsiveListItemFixedColumnRenderer", "text").text()
@@ -120,8 +138,39 @@ object Parser {
             ARTIST, CHANNEL -> ArtistItem(browseId, title, subtitle, thumb)
             LIBRARY_ARTIST -> ArtistItem(browseId.removePrefix("MPLA"), title, subtitle, thumb)
             PLAYLIST -> PlaylistItem(browseId.removePrefix("VL"), title, subtitle, thumb)
+            PODCAST -> PodcastItem(browseId, title, subtitle, thumb)
             else -> null
         }
+    }
+
+    /**
+     * A podcast episode row (a show's page, "Popular episodes"): the title, the show it's from
+     * ("secondTitle", linked), "663K views • 1d ago", its length ("2 hr 54 min") and description.
+     */
+    fun episode(r: JsonObject, show: PodcastItem? = null): Episode? {
+        val watch = r.obj("onTap", "watchEndpoint")
+            ?: r.obj("overlay", "musicItemThumbnailOverlayRenderer", "content", "musicPlayButtonRenderer", "playNavigationEndpoint", "watchEndpoint")
+        val id = watch.str("videoId") ?: return null
+        val title = r.obj("title").text() ?: return null
+        val showRun = r.obj("secondTitle").runs().firstOrNull { pageType(it["navigationEndpoint"]) == PODCAST }
+        val progress = r.obj("playbackProgress", "musicPlaybackProgressRenderer")
+        val subtitle = r.obj("subtitle").runs().map { it.str("text") ?: "" }.filter { !isSeparator(it) }
+        return Episode(
+            song = Song(
+                id = id,
+                title = title,
+                artists = listOfNotNull((showRun?.str("text") ?: show?.title)?.let { ArtistRef(it) }),
+                durationSec = parseDuration(progress.obj("durationText").runs().lastOrNull().str("text")),
+                thumbnail = r.obj("thumbnail").bestThumbnail() ?: show?.thumbnail,
+                isEpisode = true,
+                podcastId = showRun?.str("navigationEndpoint", "browseEndpoint", "browseId") ?: show?.id,
+            ),
+            // The date, without the view count.
+            date = subtitle.lastOrNull { !it.contains("view", ignoreCase = true) },
+            description = r.obj("description").runs().joinToString("") { it.str("text") ?: "" }.takeIf { it.isNotBlank() },
+            progress = (progress.str("playbackProgressPercentage")?.toFloatOrNull() ?: 0f) / 100f,
+            played = progress.obj("playedText") != null && (progress.str("playbackProgressPercentage")?.toFloatOrNull() ?: 0f) >= 99f,
+        )
     }
 
     fun twoRow(r: JsonObject): BrowseItem? {
@@ -145,6 +194,15 @@ object Parser {
             }
             id ?: return null
             val vt = videoType(w)
+            if (vt == EPISODE_VIDEO) {
+                val show = subtitleRuns.firstOrNull { pageType(it["navigationEndpoint"]) == PODCAST }
+                return SongItem(
+                    Song(
+                        id = id, title = title, artists = listOfNotNull(show?.str("text")?.let { ArtistRef(it) }),
+                        thumbnail = thumb, isEpisode = true, podcastId = show?.str("navigationEndpoint", "browseEndpoint", "browseId"),
+                    )
+                )
+            }
             return SongItem(
                 Song(
                     id = id, title = title, artists = artistsFromRuns(subtitleRuns),
@@ -165,6 +223,7 @@ object Parser {
             )
             ARTIST, CHANNEL -> ArtistItem(browseId, title, subtitle, thumb)
             LIBRARY_ARTIST -> ArtistItem(browseId.removePrefix("MPLA"), title, subtitle, thumb)
+            PODCAST -> PodcastItem(browseId, title, subtitle, thumb)
             else -> if (browseId.startsWith("VL") || browseId.startsWith("RD") || browseId.startsWith("PL")) {
                 PlaylistItem(browseId.removePrefix("VL"), title, subtitle, thumb)
             } else null
