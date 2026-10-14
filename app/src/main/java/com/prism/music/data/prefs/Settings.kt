@@ -258,6 +258,8 @@ data class AppSettings(
     /** Playlists shown as tiles after the shortcuts. */
     val homePlaylists: List<PinnedPlaylist> = emptyList(),
     val homeCustomizeButton: Boolean = true,
+    /** The round Customize button at the top of Home (beside Podcasts); separate from the one at the bottom. */
+    val homeCustomizeTopButton: Boolean = true,
     // Interface
     val fontChoice: FontChoice = FontChoice.CONDENSED,
     val textScale: Float = 1f,
@@ -367,6 +369,7 @@ class SettingsRepository(private val context: Context, scope: CoroutineScope) {
         val homeRecentTiles = intPreferencesKey("home_recent_tiles")
         val homePlaylists = stringPreferencesKey("home_playlists")
         val homeCustomizeButton = booleanPreferencesKey("home_customize_button")
+        val homeCustomizeTopButton = booleanPreferencesKey("home_customize_top_button")
         val fontChoice = stringPreferencesKey("font_choice")
         val textScale = floatPreferencesKey("text_scale")
         val corners = stringPreferencesKey("corners")
@@ -491,6 +494,7 @@ class SettingsRepository(private val context: Context, scope: CoroutineScope) {
             homeRecentTiles = p[K.homeRecentTiles] ?: d.homeRecentTiles,
             homePlaylists = p[K.homePlaylists]?.let { runCatching { json.decodeFromString<List<PinnedPlaylist>>(it) }.getOrNull() } ?: d.homePlaylists,
             homeCustomizeButton = p[K.homeCustomizeButton] ?: d.homeCustomizeButton,
+            homeCustomizeTopButton = p[K.homeCustomizeTopButton] ?: d.homeCustomizeTopButton,
             fontChoice = p.enum(K.fontChoice, d.fontChoice),
             textScale = p[K.textScale] ?: d.textScale,
             corners = p.enum(K.corners, d.corners),
@@ -620,6 +624,7 @@ class SettingsRepository(private val context: Context, scope: CoroutineScope) {
     fun setHomeRecentTiles(v: Int) = edit { it[K.homeRecentTiles] = v }
     fun setHomePlaylists(v: List<PinnedPlaylist>) = edit { it[K.homePlaylists] = json.encodeToString<List<PinnedPlaylist>>(v) }
     fun setHomeCustomizeButton(v: Boolean) = edit { it[K.homeCustomizeButton] = v }
+    fun setHomeCustomizeTopButton(v: Boolean) = edit { it[K.homeCustomizeTopButton] = v }
     fun setFontChoice(v: FontChoice) = edit { it[K.fontChoice] = v.name }
     fun setTextScale(v: Float) = edit { it[K.textScale] = v }
     fun setCorners(v: Corners) = edit { it[K.corners] = v.name }

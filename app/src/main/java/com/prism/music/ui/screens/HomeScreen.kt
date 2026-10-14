@@ -247,9 +247,12 @@ private fun HomeTopBar() {
             )
         }
         // Podcasts live a tap away from Home (as on Spotify's), in the same quiet round button as Customize.
+        // With the top Customize button off, Podcasts moves over into its place, beside the account.
         com.prism.music.ui.components.RoundAction(Icons.Rounded.Podcasts, "Podcasts") { nav.go(Routes.PODCASTS) }
-        Spacer(Modifier.width(8.dp))
-        com.prism.music.ui.components.RoundAction(Icons.Rounded.Dashboard, "Customize home") { nav.go(Routes.CATALOGUE) }
+        if (settings.homeCustomizeTopButton) {
+            Spacer(Modifier.width(8.dp))
+            com.prism.music.ui.components.RoundAction(Icons.Rounded.Dashboard, "Customize home") { nav.go(Routes.CATALOGUE) }
+        }
         Spacer(Modifier.width(8.dp))
         Box(
             Modifier.size(42.dp).clip(CircleShape).background(quietFill(MaterialTheme.colorScheme.primaryContainer)).clickable { nav.go(Routes.SETTINGS) },

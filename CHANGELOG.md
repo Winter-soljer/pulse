@@ -2,10 +2,13 @@
 
 What changed in each release. Older releases are described on the [Releases page](https://github.com/Yigder/Prism/releases).
 
-## 1.6.1
+## 1.6.2
+
+Everything since 1.6.0 (1.6.1 was tagged but never released).
 
 ### New
 - **Podcasts.** The round podcasts button at the top of Home, beside Customize, opens them.
+  - **Customize button at the top** (Settings → Home screen) can be turned off; Podcasts then takes its place.
   - **Continue listening:** episodes you've started pick up where you left off.
   - **Your shows** and **Episodes for later** from your YouTube Music account, when signed in.
   - **Popular shows and episodes**, by category.
@@ -23,6 +26,7 @@ What changed in each release. Older releases are described on the [Releases page
   - lyric files that shift their own timing (an `[offset]` line) were read without the shift, so every line was early or late;
   - some sources used an extended or radio edit's lyrics, which ran early or late; versions more than 8 seconds off are now turned down, and lyrics saved from those sources are checked again once;
   - while paused, lyrics no longer creep ahead and jump back.
+- **Uncensored lyrics:** words starred out whole (`****`, as Apple Music's lyrics do) are filled in now, as in Childish Gambino's "IV. Sweatpants". Songs with a guest in the title find their full words again, and YouTube Music's or LRCLIB's lyrics fill in when Genius doesn't have the song.
 - **Menus:** swiping a menu down (like the player's ⋯) could stutter, or pop back up after being flung away.
 - **Player:** an interrupted swipe down could leave the player stuck part of the way down.
 

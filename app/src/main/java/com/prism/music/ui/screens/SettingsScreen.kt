@@ -192,6 +192,7 @@ fun SettingsScreen(bottomPadding: Dp, section: SettingsSection? = null) {
                         Item("Customize Home", "Reorder, hide and restyle Home's sections, shortcuts and greeting", onClick = { nav.go(Routes.CATALOGUE) }) { Chevron() }
                         Toggle("Add new sections automatically", "New shelves from YouTube Music show up on Home as they appear", s.autoAddSections) { c.settings.setAutoAddSections(it) }
                         Toggle("\"Customize Home\" button", "At the very bottom of Home", s.homeCustomizeButton) { c.settings.setHomeCustomizeButton(it) }
+                        Toggle("Customize button at the top", "The round button at the top right of Home. Off, the Podcasts button takes its place", s.homeCustomizeTopButton) { c.settings.setHomeCustomizeTopButton(it) }
                     }
                     ContentCountrySetting()
                 }
