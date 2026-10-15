@@ -11,7 +11,7 @@
 [![License: GPL-3.0-or-later](https://img.shields.io/badge/license-GPL--3.0--or--later-blue)](LICENSE)
 [![Support on Ko-fi](https://img.shields.io/badge/Ko--fi-support%20Prism-ff5e5b?logo=ko-fi&logoColor=white)](https://ko-fi.com/yigder)
 
-**[⬇ Download Prism.apk](../../releases/latest/download/Prism.apk)** · [Release notes](../../releases/latest) · [▶ Watch the showcase (1:48)](promo/prism-showcase.mp4)
+**[⬇ Download Prism.apk](../../releases/latest/download/Prism.apk)** · [Release notes](../../releases/latest) · [▶ Watch the showcase (1:55)](promo/prism-showcase.mp4)
 
 <img src="docs/screenshots/home-dark.jpg" width="22%" alt="Home">
 <img src="docs/screenshots/player.jpg" width="22%" alt="Now playing">
