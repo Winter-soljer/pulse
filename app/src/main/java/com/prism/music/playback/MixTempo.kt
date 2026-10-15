@@ -314,15 +314,23 @@ class MixTempo(
 
     /**
      * Scans the song now if it hasn't been ([network]: whether its audio may be downloaded when it isn't on the phone),
-     * and returns its tempo; null when it has none that's clear, or it can't be scanned yet.
+     * and returns its tempo; null when it has none that's clear, or it can't be scanned yet. [edges]: a song scanned
+     * before its fade-out and intro were measured is scanned again (only Crossfade's automatic length needs them).
      */
-    suspend fun measure(id: String, network: Boolean = true): Tempo? {
-        if ((scanned(id) && !old(id)) || id in failed) return cached(id)
+    suspend fun measure(id: String, network: Boolean = true, edges: Boolean = true): Tempo? {
+        if ((scanned(id) && !(edges && old(id))) || id in failed) return cached(id)
         return lock.withLock {
-            if (scanned(id) && !old(id)) return@withLock cached(id)
+            if (scanned(id) && !(edges && old(id))) return@withLock cached(id)
             withContext(Dispatchers.IO) {
                 val started = System.nanoTime()
-                val r = runCatching { scan(id, network) }.onFailure { Log.w(TAG, "scan of $id failed: $it") }
+                // Decoding a whole song is heavy: at background priority, so the playing song's own loading comes first.
+                val before = android.os.Process.getThreadPriority(android.os.Process.myTid())
+                android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND)
+                val r = try {
+                    runCatching { scan(id, network) }.onFailure { Log.w(TAG, "scan of $id failed: $it") }
+                } finally {
+                    android.os.Process.setThreadPriority(before)
+                }
                 val s = r.getOrNull()
                 when {
                     r.isFailure -> { failed += id; cached(id) }

@@ -521,9 +521,12 @@ class PlaybackService : MediaLibraryService(), Player.Listener {
     }
 
     /**
-     * Scans the playing and next songs ([MixTempo]): where their music starts and ends and their beat, for Mix, and
+     * Scans the playing and next songs ([MixTempo]): how their music starts and ends and their beat, for Crossfade, and
      * their loudness, for normalization. From the phone when the song's there (downloaded, cached, a local file),
      * else a small download, on Wi-Fi unless mobile data is allowed. Each song is scanned once.
+     *
+     * Not until the playing song is under way: a scan fetches a whole song (and asks YouTube for its streams) and
+     * decodes it, and run as a song changed it held up that song's own start, which buffered for longer.
      */
     private fun scanAhead(vararg items: MediaItem?) {
         val s = c.settings.current
@@ -531,9 +534,13 @@ class PlaybackService : MediaLibraryService(), Player.Listener {
         val network = s.mixTempoOnCellular || getSystemService(android.net.ConnectivityManager::class.java)?.isActiveNetworkMetered == false
         val songs = items.mapNotNull { it?.toSong() }.filter { !it.isLive && !it.isEpisode }.distinctBy { it.id }
         if (songs.isEmpty()) return
+        // Songs scanned before fade-outs and intros were measured are scanned again only for Crossfade's automatic length.
+        val edges = s.mix && s.mixAuto
+        val playing = player.currentMediaItem?.mediaId
         scope.launch {
+            if (playing != null) untilUnderWay(playing)
             for (song in songs) {
-                c.mixTempo.measure(song.id, network)
+                c.mixTempo.measure(song.id, network, edges)
                 // Measured while it's just begun: its own figure takes over (later in the song, a jump would be heard).
                 if (trackedSong?.id == song.id && player.currentPosition < 4_000) applyNormalization()
             }
