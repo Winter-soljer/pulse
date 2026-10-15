@@ -12,6 +12,7 @@ What changed in each release. Older releases are described on the [Releases page
 - **Load ahead** (Settings → Playback & sound): besides the next song's first seconds (as before), the next song or the next three can be loaded whole while one plays, so they play without buffering even if the signal drops. On Wi-Fi, or on mobile data too if you allow it (for the next song's start as well).
 - **Swipe a song** in an album or playlist (Liked songs, Downloads and Local files too): right to **play it next**, left to **add it to the end of the queue**.
 
+- **Android Auto lyrics: Keep the song title** (Settings → Lyrics → Android Auto, with the Karaoke or Line by line style): the lyrics show only on the cover, so the car's small media card reads as usual and its full player shows the lyric card big.
 - **Settings tidied:** the Player page has separate Artwork, Immersive mode and Animated covers groups, and "On the player" lists things top to bottom as they sit on the player ("Hide volume bar" is now "Volume bar"). Lyrics sources and how they're picked share one group. The same bar is called the progress bar everywhere.
 
 ### Fixed

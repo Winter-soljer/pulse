@@ -139,7 +139,8 @@ class CarLyrics(
     private var background: Bitmap? = null
     private var loadJob: Job? = null
     private var tickJob: Job? = null
-    private var shown: Triple<Int, Int, CarLyricsStyle>? = null
+    /** What the car was last sent: the line, words sung, style, and whether the song's own title was kept. */
+    private var shown: Pair<Triple<Int, Int, CarLyricsStyle>, Boolean>? = null
     private var lastArtAt = 0L
 
     /** Call when the song, the settings, the car connection or play/pause changes. */
@@ -193,10 +194,12 @@ class CarLyrics(
         val next = lines.drop(idx + 1).firstOrNull { !it.isGap && it.text.isNotBlank() }
         if (line.endMs > 0 && pos > line.endMs + 1_500 && (next == null || next.timeMs - pos > 2_500)) { clear(); return }
         val sung = if (style == CarLyricsStyle.KARAOKE && line.isWordSynced) line.words.count { it.startMs <= pos } else -1
-        val key = Triple(idx, sung, style)
+        // Lyrics on the cover only: the title stays the song's (with "Title only" there'd be nothing to show).
+        val keepTitle = c.settings.current.carLyricsKeepTitle && style != CarLyricsStyle.TEXT
+        val key = Triple(idx, sung, style) to keepTitle
         if (key == shown) return
         val now = System.currentTimeMillis()
-        val sameLine = shown?.first == idx && shown?.third == style
+        val sameLine = shown?.first?.first == idx && shown?.first?.third == style && shown?.second == keepTitle
         // Word steps are spaced out a little: each one sends a new picture to the car.
         if (sameLine && now - lastArtAt < 280) return
         val art = if (style == CarLyricsStyle.TEXT) null else withContext(Dispatchers.Default) {
@@ -205,7 +208,10 @@ class CarLyrics(
         if (songId != s.id) return
         lastArtAt = now
         shown = key
-        overlay.show(LyricsOverlayPlayer.Overlay(s.id, line.text, "${s.title} · ${s.artistText}", art))
+        overlay.show(
+            if (keepTitle) LyricsOverlayPlayer.Overlay(s.id, s.title, s.artistText, art)
+            else LyricsOverlayPlayer.Overlay(s.id, line.text, "${s.title} · ${s.artistText}", art)
+        )
     }
 
     private fun clear() {

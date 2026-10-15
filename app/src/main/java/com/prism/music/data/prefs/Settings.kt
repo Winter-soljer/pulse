@@ -28,8 +28,8 @@ enum class GlassKind(val label: String) { REGULAR("Regular"), CLEAR("Clear") }
 enum class AudioQuality(val label: String) { HIGH("High"), NORMAL("Normal"), LOW("Low") }
 /** How lyrics show on Android Auto's player. */
 enum class CarLyricsStyle(val label: String, val detail: String) {
-    KARAOKE("Karaoke", "The line on the cover art, lighting up word by word, and as the title"),
-    LINES("Line by line", "The current and next line on the cover art, and as the title"),
+    KARAOKE("Karaoke", "The line on the cover art, lighting up word by word, and as the title (unless the title's kept)"),
+    LINES("Line by line", "The current and next line on the cover art, and as the title (unless the title's kept)"),
     TEXT("Title only", "The current line in place of the song title; the cover stays as it is"),
 }
 
@@ -224,6 +224,11 @@ data class AppSettings(
     val carLyricsStyle: CarLyricsStyle = CarLyricsStyle.TEXT,
     /** Also on the phone's own media controls (notification, lock screen) when not in the car. */
     val carLyricsOnPhone: Boolean = false,
+    /**
+     * The song's title and artist stay as they are and the lyrics show only on the cover (Karaoke and Line by line):
+     * the car's small media card reads as usual, while its full player shows the lyric card big.
+     */
+    val carLyricsKeepTitle: Boolean = false,
     // Playback
     val showNerdStats: Boolean = false,
     /** Downloaded songs save their animated cover too. */
@@ -381,6 +386,7 @@ class SettingsRepository(private val context: Context, scope: CoroutineScope) {
         val carLyrics = booleanPreferencesKey("car_lyrics")
         val carLyricsStyle = stringPreferencesKey("car_lyrics_style")
         val carLyricsOnPhone = booleanPreferencesKey("car_lyrics_on_phone")
+        val carLyricsKeepTitle = booleanPreferencesKey("car_lyrics_keep_title")
         val showNerdStats = booleanPreferencesKey("nerd_stats")
         val showQuality = booleanPreferencesKey("show_quality")
         val canvasWithDownloads = booleanPreferencesKey("canvas_with_downloads")
@@ -514,6 +520,7 @@ class SettingsRepository(private val context: Context, scope: CoroutineScope) {
             carLyrics = p[K.carLyrics] ?: d.carLyrics,
             carLyricsStyle = p.enum(K.carLyricsStyle, d.carLyricsStyle),
             carLyricsOnPhone = p[K.carLyricsOnPhone] ?: d.carLyricsOnPhone,
+            carLyricsKeepTitle = p[K.carLyricsKeepTitle] ?: d.carLyricsKeepTitle,
             showNerdStats = p[K.showNerdStats] ?: d.showNerdStats,
             showQuality = p[K.showQuality] ?: d.showQuality,
             canvasWithDownloads = p[K.canvasWithDownloads] ?: d.canvasWithDownloads,
@@ -665,6 +672,7 @@ class SettingsRepository(private val context: Context, scope: CoroutineScope) {
     fun setCarLyrics(v: Boolean) = edit { it[K.carLyrics] = v }
     fun setCarLyricsStyle(v: CarLyricsStyle) = edit { it[K.carLyricsStyle] = v.name }
     fun setCarLyricsOnPhone(v: Boolean) = edit { it[K.carLyricsOnPhone] = v }
+    fun setCarLyricsKeepTitle(v: Boolean) = edit { it[K.carLyricsKeepTitle] = v }
     fun setShowNerdStats(v: Boolean) = edit { it[K.showNerdStats] = v }
     fun setShowQuality(v: Boolean) = edit { it[K.showQuality] = v }
     fun setCanvasWithDownloads(v: Boolean) = edit { it[K.canvasWithDownloads] = v }

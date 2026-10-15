@@ -825,6 +825,11 @@ private fun LyricsSettings() {
                 Chips(CarLyricsStyle.entries, s.carLyricsStyle, { it.label }) { prefs.setCarLyricsStyle(it) }
                 Note(s.carLyricsStyle.detail)
                 CarLyricsPreview(s.carLyricsStyle)
+                if (s.carLyricsStyle != CarLyricsStyle.TEXT) Toggle(
+                    "Keep the song title",
+                    "Lyrics on the cover only. The car's small media card then reads as usual (its cover is tiny), and the full player shows the lyric card big. Android Auto doesn't tell apps which of the two is showing",
+                    s.carLyricsKeepTitle,
+                ) { prefs.setCarLyricsKeepTitle(it) }
                 Toggle("On this phone too", "Also show them on the lock screen and in the media notification when you're not driving", s.carLyricsOnPhone) { prefs.setCarLyricsOnPhone(it) }
             }
         }
