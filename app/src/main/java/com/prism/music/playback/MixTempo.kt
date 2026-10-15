@@ -34,6 +34,10 @@ import kotlin.math.sqrt
  * @property lastSoundMs where the music ends (trailing silence or a fade-out's tail begins).
  * @property firstBeatMs the first beat at or after [firstSoundMs].
  * @property outroBeatMs a beat close to [lastSoundMs]; the song's last bars lie on `outroBeatMs + k × periodMs`.
+ * @property fadeOutMs how long the song takes to die away before [lastSoundMs] (its fade-out, or a quiet last
+ *   passage), up to 20 s; about 0 for a song that ends on a hit. -1 when measured before this was.
+ * @property quietIntroMs how long after [firstSoundMs] the song stays quiet before it comes up to full level, up to
+ *   20 s; about 0 for one that starts at full tilt. -1 when measured before this was.
  */
 data class Tempo(
     val bpm: Double,
@@ -42,23 +46,35 @@ data class Tempo(
     val lastSoundMs: Long,
     val firstBeatMs: Long,
     val outroBeatMs: Long,
+    val fadeOutMs: Long = -1,
+    val quietIntroMs: Long = -1,
 ) {
     val periodMs: Double get() = 60_000.0 / bpm
     /** Clear enough to line beats up on. */
     val steady: Boolean get() = confidence >= MIN_CONFIDENCE
 
-    fun encode() = "$VERSION|$bpm|$confidence|$firstSoundMs|$lastSoundMs|$firstBeatMs|$outroBeatMs"
+    fun encode() = "$VERSION|$bpm|$confidence|$firstSoundMs|$lastSoundMs|$firstBeatMs|$outroBeatMs|$fadeOutMs|$quietIntroMs"
+
+    /** Measured before the song's fade-out and intro were (Mix's Auto length measures it again). */
+    val edgesUnknown: Boolean get() = fadeOutMs < 0 || quietIntroMs < 0
 
     companion object {
         const val MIN_CONFIDENCE = 3.0
         /** Bumped when [analyze] changes, so songs measured the old way are measured again. */
-        private const val VERSION = 2
+        private const val VERSION = 3
 
+        /** Version 2 (no fade-out or intro measured) still reads; [MixTempo.measure] scans those songs again. */
         fun decode(s: String): Tempo? = runCatching {
             val p = s.split('|')
-            if (p[0].toInt() != VERSION) return null
-            Tempo(p[1].toDouble(), p[2].toDouble(), p[3].toLong(), p[4].toLong(), p[5].toLong(), p[6].toLong())
+            when (p[0].toInt()) {
+                VERSION -> Tempo(p[1].toDouble(), p[2].toDouble(), p[3].toLong(), p[4].toLong(), p[5].toLong(), p[6].toLong(), p[7].toLong(), p[8].toLong())
+                2 -> Tempo(p[1].toDouble(), p[2].toDouble(), p[3].toLong(), p[4].toLong(), p[5].toLong(), p[6].toLong())
+                else -> null
+            }
         }.getOrNull()
+
+        /** Whether a stored reading is from before [VERSION] 3. */
+        fun isOld(s: String) = s.startsWith("2|")
 
         /**
          * Reads tempo and edges from a song's band energies ([VideoSync.bandFeatures]: log energy per band, one frame
@@ -202,6 +218,7 @@ data class Tempo(
             var outroBeat = outroAnchor
             while (outroBeat + lag <= last) outroBeat += lag
 
+            val (fadeOut, quietIntro) = edges(loud, first, last, fps)
             return Tempo(
                 bpm = bpm,
                 confidence = confidence,
@@ -209,8 +226,45 @@ data class Tempo(
                 lastSoundMs = (last * frameMs + offsetMs).toLong(),
                 firstBeatMs = (firstBeat * frameMs + offsetMs).toLong(),
                 outroBeatMs = (outroBeat * frameMs + offsetMs).toLong(),
+                fadeOutMs = (fadeOut * frameMs).toLong(),
+                quietIntroMs = (quietIntro * frameMs).toLong(),
             )
         }
+
+        /**
+         * How the song dies away and comes in, in frames: from where its level (averaged over a second) last stands
+         * near the song's typical level to where its music ends, and from where its music starts to where that level
+         * is first reached. [loud] is per-frame log power over the music [first]..[last].
+         */
+        private fun edges(loud: FloatArray, first: Int, last: Int, fps: Double): Pair<Int, Int> {
+            // A second's level is its energy averaged (not its log): the quiet gaps between beats would otherwise weigh as
+            // much as the beats, and hide a fade until it was nearly over.
+            val ref = loud.max()
+            val half = (fps / 2).toInt().coerceAtLeast(1)
+            val sums = DoubleArray(loud.size + 1).also { for (i in loud.indices) it[i + 1] = it[i] + exp((loud[i] - ref).toDouble()) }
+            fun level(t: Int): Double {
+                val lo = max(first, t - half); val hi = min(last + 1, t + half + 1)
+                return ln(((sums[hi] - sums[lo]) / (hi - lo)).coerceAtLeast(1e-30)) + ref
+            }
+            // The song's usual level: the median of its seconds.
+            val seconds = (first..last step half).map(::level).sorted()
+            val typical = seconds[seconds.size / 2]
+            val reach = (EDGE_MAX_S * fps).toInt()
+            // Back from the end: the last moment the song is still near its usual level begins its fade.
+            var fadeFrom = last
+            while (fadeFrom > max(first, last - reach) && level(fadeFrom) < typical - FADE_BELOW) fadeFrom--
+            // On from the start: the intro is quiet until it first comes near the usual level.
+            var fullFrom = first
+            while (fullFrom < min(last, first + reach) && level(fullFrom) < typical - INTRO_BELOW) fullFrom++
+            return (last - fadeFrom) to (fullFrom - first)
+        }
+
+        /** A song's edges are looked for this far in (s): a longer fade or intro counts as this long. */
+        private const val EDGE_MAX_S = 20.0
+        /** Under the song's typical level by this much (log power: 4.5 dB), its ending is fading. */
+        private const val FADE_BELOW = 1.04
+        /** Under it by this much (6 dB), its intro is still quiet. */
+        private const val INTRO_BELOW = 1.38
 
         /** Below the song's loud parts by this much (natural log of power: 40 dB), it counts as silence. */
         private const val SILENCE_BELOW_PEAK = 9.2f
@@ -253,6 +307,9 @@ class MixTempo(
 
     private fun scanned(id: String) = loudPrefs.contains(id)
 
+    /** Scanned before the song's fade-out and intro were measured (for Mix's Auto length): scanned again once. */
+    private fun old(id: String) = prefs.getString(id, null)?.let(Tempo::isOld) == true
+
     private class Scan(val tempo: Tempo?, val lufs: Float?)
 
     /**
@@ -260,9 +317,9 @@ class MixTempo(
      * and returns its tempo; null when it has none that's clear, or it can't be scanned yet.
      */
     suspend fun measure(id: String, network: Boolean = true): Tempo? {
-        if (scanned(id) || id in failed) return cached(id)
+        if ((scanned(id) && !old(id)) || id in failed) return cached(id)
         return lock.withLock {
-            if (scanned(id)) return@withLock cached(id)
+            if (scanned(id) && !old(id)) return@withLock cached(id)
             withContext(Dispatchers.IO) {
                 val started = System.nanoTime()
                 val r = runCatching { scan(id, network) }.onFailure { Log.w(TAG, "scan of $id failed: $it") }

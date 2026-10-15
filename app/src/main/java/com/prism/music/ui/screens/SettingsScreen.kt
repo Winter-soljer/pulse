@@ -669,17 +669,22 @@ private fun SoundPage() {
             Toggle("Keep playing videos", "While a music video is showing, the next song plays as its video too, until you switch back to Song", s.videoContinues) { prefs.setVideoContinues(it) }
             Toggle("Skip silence", "Trims silent gaps at the start and end of songs", s.skipSilence) { prefs.setSkipSilence(it) }
         }
-        Group("Mix") {
+        Group("Crossfade") {
             Toggle(
-                "Mix songs together",
-                "When a song runs into the next, the two blend like a DJ set instead of stopping and starting. Not between an album's own tracks",
+                "Crossfade songs",
+                "As a song ends, it fades out while the next one fades in, as on Spotify. Not between an album's own tracks",
                 s.mix,
             ) { prefs.setMix(it) }
             if (s.mix) {
-                SliderSetting("Blend", s.mixSeconds.toFloat(), 2f..12f, { "${it.roundToInt()} s" }, steps = 9) { prefs.setMixSeconds(it.roundToInt()) }
                 Toggle(
-                    "Match tempo and beats",
-                    "Prism measures each song's tempo and lines up the beats, playing the next song at the same tempo while they overlap",
+                    "Automatic length",
+                    "Prism listens to how each song ends and the next begins: it crossfades over a fade-out or a quiet intro, and only briefly between two hard edges",
+                    s.mixAuto,
+                ) { prefs.setMixAuto(it) }
+                if (!s.mixAuto) SliderSetting("Length", s.mixSeconds.toFloat(), 1f..12f, { "${it.roundToInt()} s" }, steps = 10) { prefs.setMixSeconds(it.roundToInt()) }
+                Toggle(
+                    "Match tempo and beats (DJ-style)",
+                    "Lines up the songs' beats and plays the next song at the ending one's tempo while they overlap, then eases it back. Off, they crossfade at their own speed",
                     s.mixBeatMatch,
                 ) { prefs.setMixBeatMatch(it) }
             }
@@ -728,7 +733,7 @@ private fun SoundPage() {
             ) { prefs.setNormalize(it) }
             if (s.normalize || s.mix) Toggle(
                 "Measure songs on mobile data",
-                "Normalize volume and Mix measure each song once (its loudness, where its music starts and ends, its beat). Songs " +
+                "Normalize volume and Crossfade measure each song once (its loudness, how its music starts and ends, its beat). Songs " +
                     "on your phone are measured from there; others need a small copy of the song (1–4 MB). Off: that waits for Wi-Fi",
                 s.mixTempoOnCellular,
             ) { prefs.setMixTempoOnCellular(it) }

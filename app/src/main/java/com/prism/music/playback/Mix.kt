@@ -22,16 +22,18 @@ import kotlin.math.ln
 import kotlin.math.sin
 
 /**
- * Mix (after Spotify's): when a song runs into the next one, the two blend instead of one stopping and the next
- * starting.
+ * Crossfade (after Spotify's): when a song runs into the next one, the ending song fades out while the next one fades
+ * in, both at their own speed, instead of one stopping and the next starting. Its length is the listener's, or with
+ * [auto] it's worked out for each pair of songs ([autoLengthMs]): over the ending song's own fade-out when it has
+ * one, over the next song's quiet intro when the ending is abrupt, and briefly when neither gives room.
  *
  * How a blend goes: a few seconds before it, a second player ([buildTail]) gets the ending song ready at the same
  * spot, muted. Just before the blend it starts playing along, and its audio is shifted until it's in step with the
  * main player (it's still silent). At the blend the main player hands over: the tail carries on the ending song,
  * and the main player moves to the next song, starting where its music starts (or on its first beat), silent, then
- * fading in while the tail fades out (equal power, so the loudness holds). With beat matching, the next song plays
- * at the ending song's tempo while they overlap (pitch kept), its beats lined up with the ending song's, and drifts
- * back to its own tempo once the ending song is gone.
+ * fading in while the tail fades out (equal power, so the loudness holds). With beat matching (a DJ-style option,
+ * off unless chosen), the next song plays at the ending song's tempo while they overlap (pitch kept), its beats lined
+ * up with the ending song's, and drifts back to its own tempo once the ending song is gone.
  *
  * The main player moves on to the next song as the blend starts (as Spotify's does), so the player, lyrics,
  * history and the car's screen are all about the incoming song from then on.
@@ -41,8 +43,10 @@ class MixEngine(
     private val main: ExoPlayer,
     private val scope: CoroutineScope,
     private val tempo: MixTempo,
-    /** Blend length in ms, or null when Mix is off. */
+    /** Blend length in ms, or null when crossfade is off. */
     private val mixMs: () -> Long?,
+    /** The length is worked out for each pair of songs ([autoLengthMs]) instead of [mixMs]'s. */
+    private val auto: () -> Boolean,
     private val beatMatch: () -> Boolean,
     /** Whether this transition may blend at all (video, live, Listen Together, an album's next track…). */
     private val allowed: (from: MediaItem, to: MediaItem) -> Boolean,
@@ -134,7 +138,9 @@ class MixEngine(
         }
     }
 
-    private fun idle(length: Long): Long {
+    private fun idle(chosen: Long): Long {
+        // With Auto, plans are made as early as the longest blend could need.
+        val length = if (auto()) AUTO_MAX_MS else chosen
         if (!main.isPlaying) return 500
         val item = main.currentMediaItem ?: return 500
         val dur = main.duration.takeIf { it != C.TIME_UNSET && it > 0 } ?: return 500
@@ -145,7 +151,7 @@ class MixEngine(
         // Not scanned yet (on mobile data, say): by now the rest of the song is usually buffered, so it's scanned from
         // the song cache, to know where its music really ends (a fade-out or a silent tail would otherwise be blended
         // over, and sound like the song stopping before the next one came in).
-        if (dur - main.currentPosition < length + 60_000 && scanAskedFor != item.mediaId && tempo.cached(item.mediaId) == null) {
+        if (dur - main.currentPosition < length + 60_000 && scanAskedFor != item.mediaId && tempo.cached(item.mediaId)?.edgesUnknown != false) {
             scanAskedFor = item.mediaId
             scanFromPhone(item.mediaId)
         }
@@ -184,8 +190,8 @@ class MixEngine(
         val a = tempo.cached(item.mediaId)
         val b = tempo.cached(next.mediaId)
         val nextDur = (next.mediaMetadata.durationMs ?: 0L).takeIf { it > 0 } ?: Long.MAX_VALUE
-        val len = minOf(length, dur / 3, nextDur / 3)
-        if (len < 1500 || dur < 30_000) return null
+        val len = minOf(if (auto()) autoLengthMs(a, b) else length, dur / 3, nextDur / 3)
+        if (len < 1000 || dur < 30_000) return null
         val end = (a?.lastSoundMs?.takeIf { it in dur / 2..dur } ?: dur)
         var start = end - len
         // Silence before the next song's music is skipped (up to 10 s; a quiet intro is music, and stays).
@@ -436,6 +442,30 @@ class MixEngine(
 
     companion object {
         private const val TAG = "PrismMix"
+
+        /**
+         * Auto crossfade's length for [ending] running into [next] (their scans; null or [Tempo.edgesUnknown] when not
+         * known yet). A song that fades out is crossfaded over its fade (so it's heard dying away under the next one,
+         * not cut off); an abrupt ending runs into a quiet intro over that intro; two hard edges just touch briefly.
+         */
+        fun autoLengthMs(ending: Tempo?, next: Tempo?): Long {
+            val fade = ending?.fadeOutMs?.takeIf { it >= 0 } ?: return AUTO_UNKNOWN_MS
+            val intro = next?.quietIntroMs?.takeIf { it >= 0 } ?: 0L
+            return when {
+                fade >= AUTO_SHORT_MS -> fade
+                intro >= AUTO_SHORT_MS -> minOf(intro, AUTO_INTRO_MAX_MS)
+                else -> AUTO_SHORT_MS
+            }.coerceIn(AUTO_SHORT_MS, AUTO_MAX_MS)
+        }
+
+        /** Auto's longest crossfade, as Spotify's slider's. */
+        const val AUTO_MAX_MS = 12_000L
+        /** Auto's shortest: two hard edges barely overlap. */
+        private const val AUTO_SHORT_MS = 1_500L
+        /** The most of an abrupt ending that's faded over a quiet intro (more would cut off the song's last bars). */
+        private const val AUTO_INTRO_MAX_MS = 4_000L
+        /** Auto's length while the ending song hasn't been scanned yet. */
+        private const val AUTO_UNKNOWN_MS = 6_000L
         /** The tail starts playing along this long before the blend, to get in step while still silent. */
         private const val LEAD_MS = 5000L
         /** The last moments before the blend, when the two players (same song, in step) cross over. */

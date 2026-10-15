@@ -93,7 +93,50 @@ class MixTempoTest {
 
     @Test
     fun encodesAndDecodes() {
-        val t = Tempo(123.4, 5.6, 1000, 200_000, 1100, 199_500)
+        val t = Tempo(123.4, 5.6, 1000, 200_000, 1100, 199_500, 6200, 3100)
         assertEquals(t, Tempo.decode(t.encode()))
+        // Read before the edges were measured: still a tempo, its edges unknown (so it's scanned again).
+        val old = Tempo.decode("2|123.4|5.6|1000|200000|1100|199500")!!
+        assertTrue(old.edgesUnknown)
+        assertTrue(Tempo.isOld("2|123.4|5.6|1000|200000|1100|199500"))
+    }
+
+    @Test
+    fun fadeOutAndQuietIntroAreMeasured() {
+        val lead = 2.0; val seconds = 60
+        val pcm = song(120.0, seconds, lead, 3.0, seed = 3)
+        val start = (lead * sr).toInt(); val end = start + seconds * sr
+        // A quiet first 6 s (-15 dB), then full; the last 8 s fade out (amplitude straight down to nothing).
+        for (i in start until start + 6 * sr) pcm[i] *= 0.18f
+        for (i in end - 8 * sr until end) pcm[i] *= (end - i).toFloat() / (8 * sr)
+        val t = read(pcm)
+        println("fade-out ${t.fadeOutMs} ms, quiet intro ${t.quietIntroMs} ms")
+        // The fade is heard from where it's dropped a few dB to where the music ends.
+        assertTrue("fade-out ${t.fadeOutMs} ms", t.fadeOutMs in 3_500..8_500)
+        assertEquals("quiet intro", 6_000.0, t.quietIntroMs.toDouble(), 700.0)
+    }
+
+    @Test
+    fun hardEdgesHaveNoFadeOrIntro() {
+        val t = read(song(128.0, 60, 2.0, 3.0, seed = 5))
+        println("hard edges: fade-out ${t.fadeOutMs} ms, quiet intro ${t.quietIntroMs} ms")
+        assertTrue("fade-out ${t.fadeOutMs} ms", t.fadeOutMs < 1_000)
+        assertTrue("quiet intro ${t.quietIntroMs} ms", t.quietIntroMs < 1_000)
+    }
+
+    @Test
+    fun autoCrossfadeLength() {
+        fun edges(fade: Long, intro: Long) = Tempo(120.0, 5.0, 0, 200_000, 0, 199_500, fade, intro)
+        val plain = edges(0, 0)
+        // Over the ending song's own fade-out, up to 12 s.
+        assertEquals(7_000L, com.prism.music.playback.MixEngine.autoLengthMs(edges(7_000, 0), plain))
+        assertEquals(12_000L, com.prism.music.playback.MixEngine.autoLengthMs(edges(20_000, 0), plain))
+        // An abrupt ending into a quiet intro: over the intro, at most 4 s.
+        assertEquals(3_000L, com.prism.music.playback.MixEngine.autoLengthMs(plain, edges(0, 3_000)))
+        assertEquals(4_000L, com.prism.music.playback.MixEngine.autoLengthMs(plain, edges(0, 15_000)))
+        // Two hard edges: a brief touch.
+        assertEquals(1_500L, com.prism.music.playback.MixEngine.autoLengthMs(plain, plain))
+        // Not scanned yet: a middling length.
+        assertEquals(6_000L, com.prism.music.playback.MixEngine.autoLengthMs(null, plain))
     }
 }

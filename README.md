@@ -43,14 +43,14 @@ Updating works the same way: install the new APK over the old one, and your down
 | 🔗 **Share anything** | Story cards and links for songs, albums, playlists and artists, plus "Play in Prism" for YouTube links. |
 | 📥 **Offline** | Downloads, Smart Downloads and your own music files, with lyrics saved alongside every song. |
 | 🎚️ **Sound** | 10-band EQ, loudness normalization, Prism Spatial, skip silence and lossless playback. |
-| 🎛️ **Mix** | Songs blend into each other like a DJ set, with tempos matched and beats lined up. |
+| 🎛️ **Crossfade** | Songs fade into each other as on Spotify, with the length worked out for each pair, or beat-matched like a DJ set. |
 | 🚗 **Android Auto** | Shuffle play, extra player buttons and lyrics on the car screen. |
 
 ## Features
 
 ### Listening
 - **Lyrics, word by word.** Better Lyrics (Apple Music's timed lyrics), QQ Music, NetEase, KuGou, LyricsPlus, Bini, LRCLIB, Unison, Genius and YouTube Music. Starred-out swear words ("f**k") are filled back in from Genius's full text, keeping the word-by-word timing. Lyrics in another language can show a translation under each line.
-- **Mix.** When a song runs into the next, the two blend instead of stopping and starting. Prism measures each song's tempo on the phone (on Wi-Fi), starts the next song on the beat and plays it at the same tempo while they overlap, then eases it back to its own. Blends last 2 to 12 seconds, and an album's own tracks still play straight through.
+- **Crossfade.** When a song runs into the next, the ending song fades out while the next one fades in, as on Spotify. With **Automatic length**, Prism listens to how each song ends and the next begins (measured on the phone, on Wi-Fi): it crossfades over a song's fade-out or the next song's quiet intro, and only briefly between two hard edges; or pick 1 to 12 seconds yourself. **Match tempo and beats** makes it DJ-style: the next song starts on the beat and plays at the same tempo while they overlap, then eases back to its own. An album's own tracks still play straight through.
 - **Player.** Full-bleed artwork and animated covers (saved with downloads, for offline), in three cover sizes up to full width. Shows the codec and bitrate (or Lossless / Downloaded) under the progress bar, with stats in an in-player panel.
 - **Lyrics in any direction.** Arabic, Hebrew and other right-to-left lyrics sit on the right and light up from the right.
 - **Podcasts.** Popular shows, your followed shows when signed in, episodes that pick up where you left off, and 0.75× to 2× speed.
@@ -150,7 +150,7 @@ Prism doesn't ship artwork, fonts or code copied from other apps, but several id
 - **Signatures** use fonts already on the phone, such as Android's own Dancing Script for the Autograph style.
 - **BitChord** (itself modelled on Apple Music) inspired the Now Playing screen.
 - **Spotify Wrapped** inspired the Replay story, including its "what's playing" card.
-- **Spotify's Mix** inspired Mix, the beat-matched blends between songs.
+- **Spotify's Crossfade and Mix** inspired Crossfade and its beat-matched blends between songs.
 - **Lyrics:** [Better Lyrics](https://betterlyrics.org) (Apple Music TTML and QQ Music "Portato"), NetEase, KuGou, LyricsPlus, Bini, [LRCLIB](https://lrclib.net), Unison, Genius and YouTube Music. Lyrics belong to their rights holders.
 - **Animated covers** come from Apple Music, Tidal and the ViVi Music canvas list.
 - **Playlist import** hands off to [TuneMyMusic](https://www.tunemymusic.com), the transfer service YouTube Music's own app uses. It's a separate service; Prism shares nothing with it.

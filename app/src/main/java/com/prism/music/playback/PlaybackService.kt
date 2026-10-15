@@ -208,6 +208,7 @@ class PlaybackService : MediaLibraryService(), Player.Listener {
             scope = scope,
             tempo = c.mixTempo,
             mixMs = { c.settings.current.let { s -> if (s.mix) s.mixSeconds * 1000L else null } },
+            auto = { c.settings.current.mixAuto },
             beatMatch = { c.settings.current.mixBeatMatch },
             allowed = ::mayBlend,
             scanFromPhone = { id -> scope.launch { c.mixTempo.measure(id, network = false) } },

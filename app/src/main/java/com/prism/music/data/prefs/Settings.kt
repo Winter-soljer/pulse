@@ -234,12 +234,14 @@ data class AppSettings(
     val losslessLocal: Boolean = false,
     val normalize: Boolean = true,
     val skipSilence: Boolean = false,
-    /** Mix: songs blend into each other when one runs into the next (after Spotify's Mix), instead of stopping and starting. */
+    /** Crossfade: songs fade into each other when one runs into the next (after Spotify's), instead of stopping and starting. */
     val mix: Boolean = false,
-    /** How long a Mix blend lasts, in seconds. */
+    /** How long a crossfade lasts, in seconds, when it isn't [mixAuto]. */
     val mixSeconds: Int = 6,
-    /** Mix lines up the songs' beats and plays the incoming song at the outgoing one's tempo during the blend. */
-    val mixBeatMatch: Boolean = true,
+    /** Crossfade works out the best length for each pair of songs, from how one ends and the next begins. */
+    val mixAuto: Boolean = true,
+    /** DJ-style: lines up the songs' beats and plays the incoming song at the outgoing one's tempo during the crossfade. */
+    val mixBeatMatch: Boolean = false,
     /** Tempo analysis (a 1–4 MB download per song) may use mobile data, not only Wi-Fi. */
     val mixTempoOnCellular: Boolean = false,
     val videoMaxHeight: Int = 1080,
@@ -381,6 +383,7 @@ class SettingsRepository(private val context: Context, scope: CoroutineScope) {
         val skipSilence = booleanPreferencesKey("skip_silence")
         val mix = booleanPreferencesKey("mix")
         val mixSeconds = intPreferencesKey("mix_seconds")
+        val mixAuto = booleanPreferencesKey("mix_auto")
         val mixBeatMatch = booleanPreferencesKey("mix_beat_match")
         val mixTempoOnCellular = booleanPreferencesKey("mix_tempo_cellular")
         val contentCountry = stringPreferencesKey("content_country")
@@ -508,7 +511,8 @@ class SettingsRepository(private val context: Context, scope: CoroutineScope) {
             losslessLocal = p[K.losslessLocal] ?: d.losslessLocal,
             normalize = p[K.normalize] ?: d.normalize,
             mix = p[K.mix] ?: d.mix,
-            mixSeconds = (p[K.mixSeconds] ?: d.mixSeconds).coerceIn(2, 12),
+            mixSeconds = (p[K.mixSeconds] ?: d.mixSeconds).coerceIn(1, 12),
+            mixAuto = p[K.mixAuto] ?: d.mixAuto,
             mixBeatMatch = p[K.mixBeatMatch] ?: d.mixBeatMatch,
             mixTempoOnCellular = p[K.mixTempoOnCellular] ?: d.mixTempoOnCellular,
             contentCountry = p[K.contentCountry] ?: d.contentCountry,
@@ -655,7 +659,8 @@ class SettingsRepository(private val context: Context, scope: CoroutineScope) {
     fun setLosslessLocal(v: Boolean) = edit { it[K.losslessLocal] = v }
     fun setNormalize(v: Boolean) = edit { it[K.normalize] = v }
     fun setMix(v: Boolean) = edit { it[K.mix] = v }
-    fun setMixSeconds(v: Int) = edit { it[K.mixSeconds] = v.coerceIn(2, 12) }
+    fun setMixSeconds(v: Int) = edit { it[K.mixSeconds] = v.coerceIn(1, 12) }
+    fun setMixAuto(v: Boolean) = edit { it[K.mixAuto] = v }
     fun setMixBeatMatch(v: Boolean) = edit { it[K.mixBeatMatch] = v }
     fun setMixTempoOnCellular(v: Boolean) = edit { it[K.mixTempoOnCellular] = v }
     fun setContentCountry(v: String) = edit { it[K.contentCountry] = v }
