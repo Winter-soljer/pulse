@@ -496,6 +496,12 @@ class PlaybackService : MediaLibraryService(), Player.Listener {
     /** The normalization gain now applied (the ending song's, when a Mix blend's tail takes it over). */
     private var normalizeGainDb = 0f
 
+    /**
+     * The playing song is still just starting (loading, or in its first [SETTLE_MS] of sound): a better loudness figure
+     * may still set its volume. After that the volume stays put for the rest of the song.
+     */
+    private fun settling() = player.currentPosition < SETTLE_MS
+
     private fun applyNormalization() {
         // The song's own measured loudness (integrated LUFS, from [MixTempo]'s scan) is the real figure. YouTube's
         // loudnessDb hardly differs between a loud master and a quiet one, so it only stands in until the song is
@@ -537,12 +543,22 @@ class PlaybackService : MediaLibraryService(), Player.Listener {
         // Songs scanned before fade-outs and intros were measured are scanned again only for Crossfade's automatic length.
         val edges = s.mix && s.mixAuto
         val playing = player.currentMediaItem?.mediaId
-        scope.launch {
-            if (playing != null) untilUnderWay(playing)
-            for (song in songs) {
+        scanJob?.cancel()
+        scanJob = scope.launch {
+            if (playing != null) untilUnderWay(playing, UNDER_WAY_MS)
+            // YouTube's loudness figure for each queued song not known yet: quick, and enough to start it at the right
+            // volume if it comes up before it's been measured (a skip).
+            if (s.normalize) for (song in songs) {
+                if (song.id == playing || song.isLocal || c.loudness.contains(song.id) || c.mixTempo.loudness(song.id) != null) continue
+                withContext(Dispatchers.IO) { runCatching { c.ytm.playerExtras(song.id, c.streams.signatureTimestamp()).loudnessDb } }
+                    .getOrNull()?.let { c.loudness.edit().putFloat(song.id, it.toFloat()).apply() }
+            }
+            // Then measured, the queued songs first (their volume is set as they start); the playing one last (only
+            // Crossfade needs it, near its end).
+            for (song in songs.sortedBy { it.id == playing }) {
                 c.mixTempo.measure(song.id, network, edges)
                 // Measured while it's just begun: its own figure takes over (later in the song, a jump would be heard).
-                if (trackedSong?.id == song.id && player.currentPosition < 4_000) applyNormalization()
+                if (trackedSong?.id == song.id && settling()) applyNormalization()
             }
         }
     }
@@ -558,7 +574,9 @@ class PlaybackService : MediaLibraryService(), Player.Listener {
             val ex = runCatching { withContext(Dispatchers.IO) { c.ytm.playerExtras(song.id, c.streams.signatureTimestamp()) } }.getOrNull()
             ex?.loudnessDb?.toFloat()?.let { loud ->
                 c.loudness.edit().putFloat(song.id, loud).apply()
-                if (trackedSong?.id == song.id) { songLoudness = loud; applyNormalization() }
+                // Only while the song is just starting: later, the volume jumping mid-song is worse than a figure
+                // that's a little off (it's kept, so the song plays at it from the start next time).
+                if (trackedSong?.id == song.id && settling()) { songLoudness = loud; applyNormalization() }
             }
             if (ex != null && c.settings.current.isLoggedIn) {
                 withContext(Dispatchers.IO) { runCatching { c.ytm.registerPlayback(ex) } }
@@ -650,14 +668,30 @@ class PlaybackService : MediaLibraryService(), Player.Listener {
         }
     }
 
-    /** Returns once [songId] has played ~10 s (or something else is playing: it was lined up as the next song). */
-    private suspend fun untilUnderWay(songId: String) {
-        delay(3_000)
+    /** Returns once [songId] has played [afterMs] (~10 s; or something else is playing: it was lined up as the next song). */
+    private suspend fun untilUnderWay(songId: String, afterMs: Long = 10_000) {
+        delay(minOf(3_000, afterMs))
         repeat(60) {
-            if (player.currentMediaItem?.mediaId != songId || (player.isPlaying && player.currentPosition > 10_000)) return
+            if (player.currentMediaItem?.mediaId != songId || (player.isPlaying && player.currentPosition > afterMs)) return
             delay(1_000)
         }
     }
+
+    /** The next [n] songs in the order they'll play (shuffled or not). */
+    private fun upcoming(n: Int): List<MediaItem> {
+        val tl = player.currentTimeline
+        val out = ArrayList<MediaItem>(n)
+        var i = player.currentMediaItemIndex
+        while (out.size < n) {
+            i = tl.getNextWindowIndex(i, Player.REPEAT_MODE_OFF, player.shuffleModeEnabled)
+            if (i == C.INDEX_UNSET) break
+            out += player.getMediaItemAt(i)
+        }
+        return out
+    }
+
+    /** The queued songs' scans and loudness figures, under way (a newer queue replaces it). */
+    private var scanJob: kotlinx.coroutines.Job? = null
 
     /**
      * Resolves the next song's stream while this one plays (the slow part of starting a song), so
@@ -668,14 +702,10 @@ class PlaybackService : MediaLibraryService(), Player.Listener {
         if (i == C.INDEX_UNSET) return
         val next = player.getMediaItemAt(i).mediaId.takeIf { it.isNotBlank() } ?: return
         warmedNext = next
-        // Mix's song edges and beats, and normalization's loudness: measured now, well ahead of the song.
-        scanAhead(player.currentMediaItem, player.getMediaItemAt(i))
+        // The next few queued songs' loudness (for normalization) and edges (for Crossfade), ready well before they
+        // play, so each starts at its own volume from its first second. Once this song is under way ([scanAhead]).
+        scanAhead(player.currentMediaItem, *upcoming(QUEUE_AHEAD).toTypedArray())
         if (next.startsWith(Song.LOCAL_PREFIX)) return
-        // YouTube's own loudness figure, until the song has been measured (so it's right from the first second).
-        if (c.settings.current.normalize && !c.loudness.contains(next) && c.mixTempo.loudness(next) == null) scope.launch(Dispatchers.IO) {
-            runCatching { c.ytm.playerExtras(next, c.streams.signatureTimestamp()).loudnessDb }.getOrNull()
-                ?.let { c.loudness.edit().putFloat(next, it.toFloat()).apply() }
-        }
         if (c.downloads.isDownloaded(next)) { armNextVideo(); return }
         scope.launch(Dispatchers.IO) {
             c.warmUp(next)
@@ -1271,3 +1301,10 @@ class PlaybackService : MediaLibraryService(), Player.Listener {
 
 /** Normalization's level: songs are brought to this loudness (integrated LUFS, as Spotify and YouTube use). */
 private const val TARGET_LUFS = -14f
+
+/** A song's volume (normalization) can still be set this far into it; after that it stays put for the song. */
+private const val SETTLE_MS = 2_000L
+/** Queued songs are got ready once the playing one has played this long (not as it starts: that slowed its loading). */
+private const val UNDER_WAY_MS = 5_000L
+/** How many queued songs ahead are got ready (their loudness and edges). */
+private const val QUEUE_AHEAD = 3
