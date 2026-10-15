@@ -13,6 +13,8 @@
 
 **[⬇ Download Prism.apk](../../releases/latest/download/Prism.apk)** · [Release notes](../../releases/latest) · [▶ Watch the showcase (1:55)](promo/prism-showcase.mp4)
 
+**New in [1.6.6](../../releases/tag/v1.6.6):** hold previous / next to seek, Local files as a tab, "Hey Google, play … on Prism", an audio-only player option and fixes for Podcasts and right-to-left lyrics.
+
 <img src="docs/screenshots/home-dark.jpg" width="22%" alt="Home">
 <img src="docs/screenshots/player.jpg" width="22%" alt="Now playing">
 <img src="docs/screenshots/lyrics.jpg" width="22%" alt="Word-by-word lyrics">
@@ -51,7 +53,7 @@ Updating works the same way: install the new APK over the old one, and your down
 ### Listening
 - **Lyrics, word by word.** Better Lyrics (Apple Music's timed lyrics), QQ Music, NetEase, KuGou, LyricsPlus, Bini, LRCLIB, Unison, Genius and YouTube Music. Starred-out swear words ("f**k") are filled back in from Genius's full text, keeping the word-by-word timing. Lyrics in another language can show a translation under each line.
 - **Crossfade.** When a song runs into the next, the ending song fades out while the next one fades in, as on Spotify. With **Automatic length**, Prism listens to how each song ends and the next begins (measured on the phone, on Wi-Fi): it crossfades over a song's fade-out or the next song's quiet intro, and only briefly between two hard edges; or pick 1 to 12 seconds yourself. **Match tempo and beats** makes it DJ-style: the next song starts on the beat and plays at the same tempo while they overlap, then eases back to its own. An album's own tracks still play straight through.
-- **Player.** Full-bleed artwork and animated covers (saved with downloads, for offline), in three cover sizes up to full width, with optional shuffle and repeat buttons beside play. Shows the codec and bitrate (or Lossless / Downloaded) under the progress bar, with stats in an in-player panel.
+- **Player.** Full-bleed artwork and animated covers (saved with downloads, for offline), in three cover sizes up to full width, with optional shuffle and repeat buttons beside play. Hold previous or next to jump back or forward (1 to 20 seconds a step, your pick), and hide the Song / Video switch if you only want audio. Shows the codec and bitrate (or Lossless / Downloaded) under the progress bar, with stats in an in-player panel.
 - **Lyrics in any direction.** Arabic, Hebrew and other right-to-left lyrics sit on the right and light up from the right.
 - **Podcasts.** Popular shows, your followed shows when signed in, episodes that pick up where you left off, and 0.75× to 2× speed.
 - **Music videos.** Tap the video toggle under the player to switch any song to its official music video. Playback carries on from the same spot, and the lyrics stay in sync. Fit or fill the frame, go full screen, or turn the phone sideways for edge-to-edge landscape. Video quality goes from 480p up to 1440p in Playback & sound.
@@ -67,7 +69,7 @@ Updating works the same way: install the new APK over the old one, and your down
 
 ### Your library
 - **Home your way.** Custom greeting, shortcut tiles and pinned playlists.
-- **Downloads** work like a playlist, with counts, size, saved lyrics, sorting and bulk delete. Smart Downloads is one space for music on the phone: the songs you stream, plus the ones you're likely to play next, downloaded ahead (on Wi-Fi, or mobile data if you allow it). Library → Local files plays the music files already on your phone, by song, artist or album.
+- **Downloads** work like a playlist, with counts, size, saved lyrics, sorting and bulk delete. Smart Downloads is one space for music on the phone: the songs you stream, plus the ones you're likely to play next, downloaded ahead (on Wi-Fi, or mobile data if you allow it). Library → Local files plays the music files already on your phone, by song, artist or album, and can be a tab of its own in the bottom bar.
 - **Replay.** Minutes, top songs, artists and genres. Play or shuffle your top 250.
 - **Custom playlist pictures** and **backgrounds** for Home, Search, Library, Replay and Settings.
 - Signed in, likes, playlists, albums and artists sync both ways. **Add albums and playlists to your library**, **star your favourite artists** (they lead Library → Artists and are subscribed on YouTube Music), **make new playlists**, and add songs to them from a searchable sheet.
@@ -78,9 +80,10 @@ Updating works the same way: install the new APK over the old one, and your down
 - **Listen together.** Start a session and friends on the same Wi-Fi (or your hotspot) join with a four-digit code. They can play the same music on their own phones, kept in step with yours, or just add songs to your queue, party style. You decide whether guests can also play, pause and skip. Phones talk to each other directly: there's no Prism server, and nothing is shared once the session ends.
 - **Share** any song, album, playlist or artist as a link or as a story card made from its artwork. A private playlist's link only works for you, so the share sheet offers to make it unlisted. Liked songs and Downloads share as a card and a track list.
 - **Play in Prism:** share a YouTube or YouTube Music link from any app to Prism to open it.
+- **"Hey Google, play … on Prism":** Google Assistant and Gemini can play songs in Prism by voice; "play music on Prism" carries on with your last queue.
 
 ### Android Auto
-- Browse Home, Liked songs, your library and recent plays, and search by voice.
+- Browse Home, Liked songs, your library and recent plays, and search or ask Google Assistant / Gemini by voice.
 - Every song list starts with **Shuffle play**.
 - Extra buttons: like, shuffle, repeat, lyrics on/off, start radio and "not for me".
 - **Lyrics on the car screen.** The sung line replaces the title, and the cover becomes a lyric card that lights up word by word.
