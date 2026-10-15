@@ -237,9 +237,9 @@ fun ImmersivePlayer(
             Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
-                .fillMaxHeight(0.42f)
+                .fillMaxHeight(0.5f)
                 // Room underneath for the settings button.
-                .padding(start = 28.dp, end = 28.dp, bottom = insets.calculateBottomPadding() + 92.dp),
+                .padding(start = 28.dp, end = 28.dp, bottom = insets.calculateBottomPadding() + 132.dp),
             contentAlignment = Alignment.BottomCenter,
         ) {
             ImmersiveLyrics(song, lyricsState, isPlaying)
