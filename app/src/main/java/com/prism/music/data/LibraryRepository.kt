@@ -30,6 +30,10 @@ class LibraryRepository(private val c: AppContainer) {
     val recent = songs.recentFlow(40).map { list -> list.map { it.toSong() } }
         .stateIn(c.scope, SharingStarted.Eagerly, emptyList())
 
+    /** Ids of the phone's own files, most recently played first. */
+    val recentLocalIds: StateFlow<List<String>> = songs.recentLocalIdsFlow()
+        .stateIn(c.scope, SharingStarted.Lazily, emptyList())
+
     val playlists = MutableStateFlow<List<BrowseItem>>(emptyList())
     val albums = MutableStateFlow<List<BrowseItem>>(emptyList())
     val artists = MutableStateFlow<List<BrowseItem>>(emptyList())

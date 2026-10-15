@@ -125,16 +125,17 @@ class YouTubeMusic(private val api: InnerTube) {
 
     /** The card at the top of YouTube Music's unfiltered search, if it shows one. */
     suspend fun youtubeTopResult(query: String): BrowseItem? {
-        val res = api.post("search", buildJsonObject { put("query", query) })
+        val res = api.postAnonymous("search", buildJsonObject { put("query", query) })
         return res.findAll("musicCardShelfRenderer").firstOrNull()?.let { Parser.card(it) }
     }
 
     suspend fun search(query: String, filter: SearchFilter, continuation: String? = null): SearchResult {
         if (filter == SearchFilter.LIVE) return searchLive(query, continuation)
+        // Without the account: signed in, YouTube keeps every search in the account's history (#27).
         val res = if (continuation != null) {
-            api.post("search", buildJsonObject { put("continuation", continuation) }, "&ctoken=$continuation&continuation=$continuation&type=next")
+            api.postAnonymous("search", buildJsonObject { put("continuation", continuation) }, "&ctoken=$continuation&continuation=$continuation&type=next")
         } else {
-            api.post("search", buildJsonObject {
+            api.postAnonymous("search", buildJsonObject {
                 put("query", query)
                 filter.params?.let { put("params", it.replace("%3D", "=")) }
             })
@@ -197,7 +198,7 @@ class YouTubeMusic(private val api: InnerTube) {
             kind = CollectionKind.ALBUM,
             title = title,
             subtitle = artistLine,
-            secondSubtitle = header.obj("subtitle").text() ?: "",
+            secondSubtitle = Parser.canonical(header.obj("subtitle").text() ?: ""),
             description = header.obj("description").findFirst("description").text()
                 ?: header.obj("description").text(),
             thumbnail = thumb,

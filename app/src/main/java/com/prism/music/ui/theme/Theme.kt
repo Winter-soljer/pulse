@@ -232,12 +232,20 @@ fun PrismTheme(settings: AppSettings, artworkColor: Color?, content: @Composable
     } else remember(seed, dark, settings.pureBlack) { schemeFromSeed(seed, dark, settings.pureBlack) }
 
     val ui = remember(settings.corners, settings.uiDensity, settings.cardSize, settings.titleSize, settings.reduceMotion) { PrismUi.from(settings) }
-    val typography = remember(settings.fontChoice) { prismTypography(AppFonts.family(settings.fontChoice)) }
+    val typography = remember(settings.fontChoice, settings.fontStamp) { prismTypography(AppFonts.family(settings.fontChoice)) }
+    // Settings → Appearance → Text → "Lyrics font" (#12): null keeps each lyric style's own face.
+    val lyricsFont = remember(settings.lyricsFont, settings.fontStamp) {
+        when (settings.lyricsFont) {
+            "" -> null
+            com.prism.music.data.prefs.FontChoice.CUSTOM.name -> AppFonts.custom(AppFonts.FontSlot.LYRICS)
+            else -> com.prism.music.data.prefs.FontChoice.entries.firstOrNull { it.name == settings.lyricsFont }?.let(AppFonts::family)
+        }
+    }
     val density = LocalDensity.current
     // The app's own text size sits on top of the phone's.
     val scaled = remember(density, settings.textScale) { Density(density.density, density.fontScale * settings.textScale) }
 
-    CompositionLocalProvider(LocalAppSettings provides settings, LocalIsDark provides dark, LocalUi provides ui, LocalDensity provides scaled) {
+    CompositionLocalProvider(LocalAppSettings provides settings, LocalIsDark provides dark, LocalUi provides ui, LocalDensity provides scaled, LocalLyricsFont provides lyricsFont) {
         MaterialTheme(colorScheme = scheme, typography = typography, shapes = ui.materialShapes) {
             // Text and icons outside a Surface read LocalContentColor, which
             // otherwise defaults to black — unreadable in dark mode.

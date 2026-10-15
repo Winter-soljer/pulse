@@ -49,6 +49,50 @@ class IconRenderTest {
         group(v.root)
     }
 
+    /**
+     * A few icons in each Settings → Appearance → Icons style (#19), as `PrismIcons.line` draws them: Thin / Regular /
+     * Bold, rounded and square, onto icon-previews/icon-styles.png.
+     */
+    @Test
+    fun styles() {
+        val sample = icons.take(30)
+        val styles = com.prism.music.ui.theme.IconWeight.entries.flatMap { w -> listOf(w to true, w to false) }
+        val cell = 96
+        val bmp = Bitmap.createBitmap(sample.size * cell, styles.size * cell, Bitmap.Config.ARGB_8888)
+        CanvasDrawScope().draw(Density(1f), LayoutDirection.Ltr, Canvas(bmp.asImageBitmap()), Size(bmp.width.toFloat(), bmp.height.toFloat())) {
+            drawRect(Color(0xFF121212))
+            styles.forEachIndexed { r, (weight, rounded) ->
+                sample.forEachIndexed { i, v ->
+                    translate(i * cell + 12f, r * cell + 12f) {
+                        scale(3f, Offset.Zero) {
+                            fun group(g: VectorGroup) {
+                                for (node in g) when (node) {
+                                    is VectorPath -> {
+                                        val path = node.pathData.toPath().apply { fillType = node.pathFillType }
+                                        if (node.fill != null) drawPath(path, Color.White)
+                                        // Restyle the current (Regular, rounded) icon the way IconStyle would build it.
+                                        if (node.stroke != null) drawPath(
+                                            path, Color.White,
+                                            style = Stroke(
+                                                node.strokeLineWidth / com.prism.music.ui.theme.IconStyle.weight.scale * weight.scale,
+                                                cap = if (rounded) androidx.compose.ui.graphics.StrokeCap.Round else androidx.compose.ui.graphics.StrokeCap.Butt,
+                                                join = if (rounded) androidx.compose.ui.graphics.StrokeJoin.Round else androidx.compose.ui.graphics.StrokeJoin.Miter,
+                                            ),
+                                        )
+                                    }
+                                    is VectorGroup -> rotate(node.rotation, Offset(node.pivotX, node.pivotY)) { group(node) }
+                                }
+                            }
+                            group(v.root)
+                        }
+                    }
+                }
+            }
+        }
+        val dir = File("build/icon-previews").apply { mkdirs() }
+        File(dir, "icon-styles.png").outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
+    }
+
     @Test
     fun contactSheet() {
         val cell = 120

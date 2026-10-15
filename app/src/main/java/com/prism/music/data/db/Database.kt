@@ -139,6 +139,10 @@ interface SongDao {
     @Query("SELECT * FROM songs WHERE lastPlayed > 0 ORDER BY lastPlayed DESC LIMIT :limit")
     fun recentFlow(limit: Int = 30): Flow<List<SongEntity>>
 
+    /** The phone's own files, most recently played first (Local files → Recently played). */
+    @Query("SELECT id FROM songs WHERE lastPlayed > 0 AND id LIKE 'local:%' ORDER BY lastPlayed DESC LIMIT :limit")
+    fun recentLocalIdsFlow(limit: Int = 100): Flow<List<String>>
+
     @Query("UPDATE songs SET smartDownload = :v WHERE id = :id")
     suspend fun setSmart(id: String, v: Boolean)
 

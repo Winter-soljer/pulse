@@ -41,18 +41,15 @@
         android:theme="@style/Theme.Prism"
         tools:targetApi="36">
 
+        <!-- The app's one screen. Its launcher entries are the aliases below, one per app icon (#20). -->
         <activity
-            android:name=".MainActivity"
+            android:name=".PrismActivity"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|uiMode"
             android:exported="true"
             android:launchMode="singleTask"
             android:supportsPictureInPicture="true"
             android:resizeableActivity="true"
             android:windowSoftInputMode="adjustResize">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -67,6 +64,34 @@
                 <data android:mimeType="text/plain" />
             </intent-filter>
         </activity>
+
+        <!-- App icons (Settings → Appearance → App icon, #20): exactly one of these launcher entries is enabled
+             (`AppIcons`). The classic one keeps the old ".MainActivity" name, so home-screen icons from before
+             1.6.7 still point at it. -->
+        <activity-alias android:name=".MainActivity" android:targetActivity=".PrismActivity" android:exported="true"
+            android:enabled="true" android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher">
+            <intent-filter><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LAUNCHER" /></intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".IconSpectrum" android:targetActivity=".PrismActivity" android:exported="true"
+            android:enabled="false" android:icon="@mipmap/ic_launcher_spectrum" android:roundIcon="@mipmap/ic_launcher_spectrum">
+            <intent-filter><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LAUNCHER" /></intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".IconSolid" android:targetActivity=".PrismActivity" android:exported="true"
+            android:enabled="false" android:icon="@mipmap/ic_launcher_solid" android:roundIcon="@mipmap/ic_launcher_solid">
+            <intent-filter><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LAUNCHER" /></intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".IconLight" android:targetActivity=".PrismActivity" android:exported="true"
+            android:enabled="false" android:icon="@mipmap/ic_launcher_light" android:roundIcon="@mipmap/ic_launcher_light">
+            <intent-filter><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LAUNCHER" /></intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".IconWave" android:targetActivity=".PrismActivity" android:exported="true"
+            android:enabled="false" android:icon="@mipmap/ic_launcher_wave" android:roundIcon="@mipmap/ic_launcher_wave">
+            <intent-filter><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LAUNCHER" /></intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".IconMidnight" android:targetActivity=".PrismActivity" android:exported="true"
+            android:enabled="false" android:icon="@mipmap/ic_launcher_midnight" android:roundIcon="@mipmap/ic_launcher_midnight">
+            <intent-filter><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LAUNCHER" /></intent-filter>
+        </activity-alias>
 
         <!-- "Hey Google, play … on Prism": Assistant / Gemini only offer apps that take this as music sources. -->
         <activity

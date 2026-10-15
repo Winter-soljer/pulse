@@ -44,6 +44,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
@@ -175,7 +176,8 @@ fun SettingsScreen(bottomPadding: Dp, section: SettingsSection? = null) {
                     Group("Home") {
                         Item("Customize Home", "Reorder, hide and restyle Home's sections, shortcuts and greeting", onClick = { nav.go(Routes.CATALOGUE) }) { Chevron() }
                         Toggle("Add new sections automatically", "New shelves from YouTube Music show up on Home as they appear", s.autoAddSections) { c.settings.setAutoAddSections(it) }
-                        Toggle("Customize button at the top", "The round button at the top right of Home. Off, the Podcasts button takes its place", s.homeCustomizeTopButton) { c.settings.setHomeCustomizeTopButton(it) }
+                        Toggle("Podcasts button", "The round Podcasts button at the top of Home. Off, Podcasts opens from Library → Playlists", s.homePodcastsButton) { c.settings.setHomePodcastsButton(it) }
+                        Toggle("Customize button at the top", "The round button at the top right of Home", s.homeCustomizeTopButton) { c.settings.setHomeCustomizeTopButton(it) }
                         Toggle("Customize button at the bottom", "The \"Customize Home\" button at the very end of Home", s.homeCustomizeButton) { c.settings.setHomeCustomizeButton(it) }
                     }
                     ContentCountrySetting()
@@ -358,6 +360,8 @@ private fun androidx.compose.foundation.lazy.LazyListScope.appearance() {
         }
     }
     item(key = "type") { TypeSettings() }
+    item(key = "icons") { IconSettings() }
+    item(key = "app-icon") { AppIconSettings() }
     item(key = "shape") { ShapeSettings() }
     item(key = "backgrounds") {
         val s = LocalAppSettings.current
@@ -399,21 +403,134 @@ private fun androidx.compose.foundation.lazy.LazyListScope.appearance() {
 private fun TypeSettings() {
     val s = LocalAppSettings.current
     val prefs = LocalContainer.current.settings
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val scope = rememberCoroutineScope()
+    var error by remember { mutableStateOf<String?>(null) }
+    // A font file from the phone (#12), copied into Prism: for the whole app, or only for the lyrics.
+    fun importer(slot: AppFonts.FontSlot, done: (String) -> Unit) = { uri: android.net.Uri? ->
+        if (uri != null) scope.launch {
+            val r = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { runCatching { AppFonts.import(context, uri, slot) } }
+            r.onSuccess { error = null; done(it) }.onFailure { error = it.message ?: "That font couldn't be used" }
+        }
+        Unit
+    }
+    val fontTypes = arrayOf("font/ttf", "font/otf", "font/sfnt", "application/x-font-ttf", "application/x-font-otf", "application/vnd.ms-opentype", "application/octet-stream")
+    val pickApp = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.OpenDocument(),
+        importer(AppFonts.FontSlot.APP) { name -> prefs.setAppFont(name); prefs.setFontChoice(FontChoice.CUSTOM) })
+    val pickLyrics = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.OpenDocument(),
+        importer(AppFonts.FontSlot.LYRICS) { name -> prefs.setLyricsFontFile(name); prefs.setLyricsFont(FontChoice.CUSTOM.name) })
+    val hasAppFont = remember(s.fontStamp) { AppFonts.customFile(AppFonts.FontSlot.APP) != null }
+    val hasLyricsFont = remember(s.fontStamp) { AppFonts.customFile(AppFonts.FontSlot.LYRICS) != null }
     Group("Text") {
         Label("Font")
-        FontPicker(s.fontChoice) { prefs.setFontChoice(it) }
+        FontPicker(s.fontChoice, customName = s.appFontName.takeIf { hasAppFont }, stamp = s.fontStamp) { f ->
+            if (f == FontChoice.CUSTOM && !hasAppFont) pickApp.launch(fontTypes) else prefs.setFontChoice(f)
+        }
+        Item(
+            if (hasAppFont) "Your font: ${s.appFontName}" else "Use a font from your phone",
+            if (hasAppFont) "Tap to pick a different .ttf or .otf file" else "Pick a .ttf or .otf file (Inter, SF Pro…). Prism keeps its own copy",
+            onClick = { pickApp.launch(fontTypes) },
+        ) { Chevron() }
+        if (hasAppFont) Item("Remove your font", "Back to a built-in font", onClick = {
+            AppFonts.remove(AppFonts.FontSlot.APP)
+            if (s.fontChoice == FontChoice.CUSTOM) prefs.setFontChoice(FontChoice.CONDENSED)
+            prefs.setAppFont("")
+        })
+        Label("Lyrics font")
+        // "App font" keeps each lyric view's own face (the app's); the rest are the same fonts as above, or a file just for lyrics.
+        val lyricOptions = listOf("") + FontChoice.entries.filter { it != FontChoice.CUSTOM && AppFonts.available(it) }.map { it.name } + FontChoice.CUSTOM.name
+        Chips(lyricOptions, s.lyricsFont, { v ->
+            when (v) {
+                "" -> "App font"
+                FontChoice.CUSTOM.name -> if (hasLyricsFont) s.lyricsFontName.ifBlank { "Your font" } else "From a file…"
+                else -> FontChoice.valueOf(v).label
+            }
+        }) { v -> if (v == FontChoice.CUSTOM.name && !hasLyricsFont) pickLyrics.launch(fontTypes) else prefs.setLyricsFont(v) }
+        if (hasLyricsFont) {
+            Item("Lyrics font file: ${s.lyricsFontName}", "Tap to pick a different file", onClick = { pickLyrics.launch(fontTypes) }) { Chevron() }
+            Item("Remove the lyrics font file", null, onClick = {
+                AppFonts.remove(AppFonts.FontSlot.LYRICS)
+                if (s.lyricsFont == FontChoice.CUSTOM.name) prefs.setLyricsFont("")
+                prefs.setLyricsFontFile("")
+            })
+        }
+        error?.let { Note(it) }
         SliderSetting("Text size", s.textScale, 0.85f..1.25f, { "${(it * 100).roundToInt()}%" }, steps = 7) { prefs.setTextScale(it) }
         Note("On top of your phone's own text size.")
+    }
+}
+
+/**
+ * Icon weight and ends (#19). Prism's icons are built as it starts, so a change is saved for the next start and a
+ * Restart button appears; [com.prism.music.ui.theme.IconStyle] holds what's drawn now.
+ */
+@Composable
+private fun IconSettings() {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val drawn = com.prism.music.ui.theme.IconStyle.weight to com.prism.music.ui.theme.IconStyle.rounded
+    var saved by remember { mutableStateOf(com.prism.music.ui.theme.IconStyle.saved(context)) }
+    fun save(v: Pair<com.prism.music.ui.theme.IconWeight, Boolean>) {
+        saved = v
+        com.prism.music.ui.theme.IconStyle.save(context, v.first, v.second)
+    }
+    Group("Icons") {
+        Label("Weight")
+        Chips(com.prism.music.ui.theme.IconWeight.entries, saved.first, { it.label }) { save(it to saved.second) }
+        Toggle("Rounded", "Round line ends and softer corners. Off, icons have square ends and sharper corners", saved.second) { save(saved.first to it) }
+        if (saved != drawn) {
+            Item("Restart Prism to see them", "Icons are drawn as Prism starts. Playback stops for a moment", onClick = {
+                val launch = context.packageManager.getLaunchIntentForPackage(context.packageName)
+                if (launch != null) {
+                    context.startActivity(android.content.Intent.makeRestartActivityTask(launch.component).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
+                    Runtime.getRuntime().exit(0)
+                }
+            }) { Chevron() }
+        }
+    }
+}
+
+/** The launcher icon (#20), each shown as its own two layers in a rounded square. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun AppIconSettings() {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val scheme = MaterialTheme.colorScheme
+    var current by remember { mutableStateOf(com.prism.music.ui.theme.AppIcons.current(context)) }
+    Group("App icon") {
+        FlowRow(Modifier.padding(horizontal = 16.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            com.prism.music.ui.theme.AppIcon.entries.forEach { icon ->
+                val on = icon == current
+                Column(
+                    Modifier.width(72.dp).clip(RoundedCornerShape(14.dp)).clickable {
+                        if (!on) { com.prism.music.ui.theme.AppIcons.set(context, icon); current = icon }
+                    }.padding(4.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Box(
+                        Modifier.size(60.dp).border(if (on) 3.dp else 0.dp, if (on) scheme.primary else Color.Transparent, RoundedCornerShape(18.dp))
+                            .padding(if (on) 4.dp else 0.dp).clip(RoundedCornerShape(15.dp)),
+                    ) {
+                        // An adaptive icon's layers are 108 units with the visible 72 in the middle: draw them 1.5× and crop.
+                        androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(icon.background), null, Modifier.fillMaxSize().scale(1.5f))
+                        androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(icon.foreground), null, Modifier.fillMaxSize().scale(1.5f))
+                    }
+                    Spacer(Modifier.height(4.dp))
+                    Text(icon.label, style = MaterialTheme.typography.labelMedium, color = if (on) scheme.onSurface else scheme.onSurfaceVariant, maxLines = 1)
+                }
+            }
+        }
+        Note("Your launcher can take a few seconds to show the new icon. An icon on the home screen may need adding again.")
     }
 }
 
 /** Each font's name, set in that font. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun FontPicker(current: FontChoice, onPick: (FontChoice) -> Unit) {
+private fun FontPicker(current: FontChoice, customName: String?, stamp: Long, onPick: (FontChoice) -> Unit) {
     val scheme = MaterialTheme.colorScheme
     val ui = LocalUi.current
-    val missing = remember { FontChoice.entries.filterNot(AppFonts::available) }
+    // "Your font" is always pickable: without a file yet, picking it asks for one.
+    val missing = remember(stamp) { FontChoice.entries.filterNot { it == FontChoice.CUSTOM || AppFonts.available(it) } }
     FlowRow(Modifier.padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         FontChoice.entries.forEach { f ->
             val on = f == current
@@ -427,7 +544,11 @@ private fun FontPicker(current: FontChoice, onPick: (FontChoice) -> Unit) {
                     .padding(10.dp),
             ) {
                 Text("Aa", style = TextStyle(fontFamily = AppFonts.family(f), fontWeight = FontWeight.Bold, fontSize = MaterialTheme.typography.headlineSmall.fontSize), color = if (on) scheme.onPrimaryContainer else scheme.onSurface)
-                Text(f.label, style = MaterialTheme.typography.labelMedium.copy(fontFamily = AppFonts.family(f)), color = if (on) scheme.onPrimaryContainer else scheme.onSurfaceVariant, maxLines = 1)
+                Text(
+                    if (f == FontChoice.CUSTOM) customName ?: "Your font…" else f.label,
+                    style = MaterialTheme.typography.labelMedium.copy(fontFamily = AppFonts.family(f)), color = if (on) scheme.onPrimaryContainer else scheme.onSurfaceVariant,
+                    maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                )
             }
         }
     }

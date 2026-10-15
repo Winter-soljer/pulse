@@ -113,12 +113,33 @@ object SearchRank {
      */
     private const val CARD_PRIOR = 0.95
 
-    /** "444M monthly audience", "3.55K subscribers" -> a number. */
-    private fun audience(subtitle: String): Long {
-        val m = Regex("([\\d.,]+)\\s*([KMB])?\\s*(monthly|subscriber)", RegexOption.IGNORE_CASE).find(subtitle) ?: return 0
-        val n = m.groupValues[1].replace(",", "").toDoubleOrNull() ?: return 0
-        return (n * when (m.groupValues[2].uppercase()) { "K" -> 1e3; "M" -> 1e6; "B" -> 1e9; else -> 1.0 }).toLong()
+    /**
+     * "444M monthly audience", "3.55K subscribers" -> a number. In other languages too ("월간 시청자 7250만명",
+     * "65 Mio. Zuschauer/Monat", "72,5 jt audiens bulanan", "มีผู้ชมรายเดือน 65 ล้าน คน"): the first number in the
+     * artist's subtitle with the size word right after it.
+     */
+    internal fun audience(subtitle: String): Long {
+        val text = subtitle.substringAfter(" • ", subtitle)
+        val m = audienceRegex.find(text) ?: return 0
+        val raw = m.groupValues[1]
+        // "72,5" / "7.25" are decimals, "789 000" / "1,234" thousands.
+        val number = Regex("[.,](\\d{1,2})$").find(raw)?.let { d ->
+            (raw.dropLast(d.value.length).replace(Regex("[.,  ]"), "") + "." + d.groupValues[1]).toDoubleOrNull()
+        } ?: raw.replace(Regex("[.,  ]"), "").toDoubleOrNull() ?: return 0
+        val unit = m.groupValues[2].lowercase().trimEnd('.')
+        val mult = audienceUnits.entries.firstOrNull { (k, _) -> unit.startsWith(k) }?.value ?: 1.0
+        return (number * mult).toLong()
     }
+
+    // Letters plus combining marks: Thai "ล้าน" and Hindi "लाख" carry vowel signs.
+    private val audienceRegex = Regex("(\\d[\\d.,  ]*\\d|\\d)\\s*([\\p{L}\\p{M}.]*)")
+    private val audienceUnits = linkedMapOf(
+        // Checked in order by prefix: longer words before the shorter ones they start with ("mil" before "mi", "mln" before "m").
+        "mrd" to 1e9, "bn" to 1e9, "億" to 1e8, "亿" to 1e8, "억" to 1e8, "crore" to 1e7, "क" to 1e7, "lakh" to 1e5, "लाख" to 1e5,
+        "mil" to 1e3, "mio" to 1e6, "mln" to 1e6, "млн" to 1e6, "mn" to 1e6, "mi" to 1e6, "jt" to 1e6, "tr" to 1e6, "ล้าน" to 1e6,
+        "مليون" to 1e6, "ألف" to 1e3, "萬" to 1e4, "万" to 1e4, "만" to 1e4, "тыс" to 1e3, "тис" to 1e3, "tys" to 1e3, "tsd" to 1e3,
+        "rb" to 1e3, "k" to 1e3, "m" to 1e6, "b" to 1e9,
+    )
 
     /** How strongly each kind of result answers an exact match. */
     private fun weight(item: BrowseItem): Double = when (item) {

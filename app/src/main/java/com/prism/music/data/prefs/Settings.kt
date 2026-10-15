@@ -7,6 +7,7 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.CoroutineScope
@@ -61,7 +62,11 @@ enum class SectionStyle(val label: String) { CAROUSEL("Carousel"), GRID("Grid"),
 // ---------------------------------------------------------------- Look & layout
 
 /** The app's typeface. Device fonts are used where the phone has them, with a fallback otherwise. */
-enum class FontChoice(val label: String) { SYSTEM("Default"), GOOGLE_SANS("Google Sans"), ROUNDED("Rounded"), CONDENSED("Condensed"), SERIF("Serif"), MONO("Mono") }
+enum class FontChoice(val label: String) {
+    SYSTEM("Default"), GOOGLE_SANS("Google Sans"), ROUNDED("Rounded"), CONDENSED("Condensed"), SERIF("Serif"), MONO("Mono"),
+    /** A .ttf / .otf the listener imported (#12; `AppFonts.FontSlot`). */
+    CUSTOM("Your font"),
+}
 
 /** How round cards, tiles and artwork are. */
 enum class Corners(val label: String, val scale: Float) { SHARP("Sharp", 0.2f), SUBTLE("Subtle", 0.6f), ROUND("Round", 1f), EXTRA("Extra", 1.5f) }
@@ -79,6 +84,12 @@ enum class NavBarStyle(val label: String) { FLOATING("Floating"), DOCKED("Docked
 enum class NavLabels(val label: String) { ALWAYS("Always"), SELECTED("Selected"), NEVER("Never") }
 
 /** Tabs the bottom bar can hold. */
+/** The sections along the top of Local files, in the order the listener picked (#29). */
+enum class LocalSection(val label: String) {
+    SONGS("Songs"), FAVOURITES("Favourites"), ARTISTS("Artists"), ALBUMS("Albums"),
+    ADDED_SONGS("Recently added"), ADDED_ALBUMS("Added albums"), DOWNLOADS("Downloads"),
+}
+
 enum class NavTab(val label: String) { HOME("Home"), SEARCH("Search"), LIBRARY("Library"), REPLAY("Replay"), SETTINGS("Settings"), LOCAL("Local files") }
 
 enum class MiniPlayerStyle(val label: String) { CARD("Card"), SLIM("Slim"), PILL("Pill") }
@@ -304,8 +315,16 @@ data class AppSettings(
     val homeCustomizeButton: Boolean = true,
     /** The round Customize button at the top of Home (beside Podcasts); separate from the one at the bottom. */
     val homeCustomizeTopButton: Boolean = true,
+    /** The Podcasts button at the top of Home. Off, Podcasts opens from a Library tile instead (#28). */
+    val homePodcastsButton: Boolean = true,
     // Interface
     val fontChoice: FontChoice = FontChoice.CONDENSED,
+    /** The imported app font's name, and when it (or the lyrics font) was last imported, so the UI picks it up. */
+    val appFontName: String = "",
+    val fontStamp: Long = 0,
+    /** The lyrics' font: "" = the app's, else a [FontChoice] name (CUSTOM = its own imported file, [lyricsFontName]). */
+    val lyricsFont: String = "",
+    val lyricsFontName: String = "",
     val textScale: Float = 1f,
     val corners: Corners = Corners.ROUND,
     val uiDensity: UiDensity = UiDensity.COMFORTABLE,
@@ -317,6 +336,10 @@ data class AppSettings(
     val navLabels: NavLabels = NavLabels.ALWAYS,
     val navHideOnScroll: Boolean = true,
     val navTabs: List<NavTab> = listOf(NavTab.HOME, NavTab.LIBRARY, NavTab.SEARCH, NavTab.REPLAY),
+    /** Local files' sections, shown in this order. */
+    val localSections: List<LocalSection> = LocalSection.entries.toList(),
+    /** Local files → Songs' order (a name from the page's sort list). */
+    val localSort: String = "TITLE",
     val startTab: NavTab = NavTab.HOME,
     val miniPlayerStyle: MiniPlayerStyle = MiniPlayerStyle.CARD,
     val miniSkipButtons: Boolean = true,
@@ -430,7 +453,12 @@ class SettingsRepository(private val context: Context, scope: CoroutineScope) {
         val homePlaylists = stringPreferencesKey("home_playlists")
         val homeCustomizeButton = booleanPreferencesKey("home_customize_button")
         val homeCustomizeTopButton = booleanPreferencesKey("home_customize_top_button")
+        val homePodcastsButton = booleanPreferencesKey("home_podcasts_button")
         val fontChoice = stringPreferencesKey("font_choice")
+        val appFontName = stringPreferencesKey("app_font_name")
+        val fontStamp = longPreferencesKey("font_stamp")
+        val lyricsFont = stringPreferencesKey("lyrics_font")
+        val lyricsFontName = stringPreferencesKey("lyrics_font_name")
         val textScale = floatPreferencesKey("text_scale")
         val corners = stringPreferencesKey("corners")
         val uiDensity = stringPreferencesKey("ui_density")
@@ -441,6 +469,8 @@ class SettingsRepository(private val context: Context, scope: CoroutineScope) {
         val navLabels = stringPreferencesKey("nav_labels")
         val navHideOnScroll = booleanPreferencesKey("nav_hide_on_scroll")
         val navTabs = stringPreferencesKey("nav_tabs")
+        val localSections = stringPreferencesKey("local_sections")
+        val localSort = stringPreferencesKey("local_sort")
         val startTab = stringPreferencesKey("start_tab")
         val miniPlayerStyle = stringPreferencesKey("mini_player_style")
         val miniSkipButtons = booleanPreferencesKey("mini_skip_buttons")
@@ -576,7 +606,12 @@ class SettingsRepository(private val context: Context, scope: CoroutineScope) {
             homePlaylists = p[K.homePlaylists]?.let { runCatching { json.decodeFromString<List<PinnedPlaylist>>(it) }.getOrNull() } ?: d.homePlaylists,
             homeCustomizeButton = p[K.homeCustomizeButton] ?: d.homeCustomizeButton,
             homeCustomizeTopButton = p[K.homeCustomizeTopButton] ?: d.homeCustomizeTopButton,
+            homePodcastsButton = p[K.homePodcastsButton] ?: d.homePodcastsButton,
             fontChoice = p.enum(K.fontChoice, d.fontChoice),
+            appFontName = p[K.appFontName] ?: d.appFontName,
+            fontStamp = p[K.fontStamp] ?: d.fontStamp,
+            lyricsFont = p[K.lyricsFont] ?: d.lyricsFont,
+            lyricsFontName = p[K.lyricsFontName] ?: d.lyricsFontName,
             textScale = p[K.textScale] ?: d.textScale,
             corners = p.enum(K.corners, d.corners),
             uiDensity = p.enum(K.uiDensity, d.uiDensity),
@@ -587,6 +622,8 @@ class SettingsRepository(private val context: Context, scope: CoroutineScope) {
             navLabels = p.enum(K.navLabels, d.navLabels),
             navHideOnScroll = p[K.navHideOnScroll] ?: d.navHideOnScroll,
             navTabs = p[K.navTabs]?.split(",")?.mapNotNull { n -> NavTab.entries.firstOrNull { it.name == n } }?.takeIf { it.isNotEmpty() } ?: d.navTabs,
+            localSections = p[K.localSections]?.split(",")?.mapNotNull { n -> LocalSection.entries.firstOrNull { it.name == n } }?.takeIf { it.isNotEmpty() } ?: d.localSections,
+            localSort = p[K.localSort] ?: d.localSort,
             startTab = p.enum(K.startTab, d.startTab),
             miniPlayerStyle = p.enum(K.miniPlayerStyle, d.miniPlayerStyle),
             miniSkipButtons = p[K.miniSkipButtons] ?: d.miniSkipButtons,
@@ -722,7 +759,12 @@ class SettingsRepository(private val context: Context, scope: CoroutineScope) {
     fun setHomePlaylists(v: List<PinnedPlaylist>) = edit { it[K.homePlaylists] = json.encodeToString<List<PinnedPlaylist>>(v) }
     fun setHomeCustomizeButton(v: Boolean) = edit { it[K.homeCustomizeButton] = v }
     fun setHomeCustomizeTopButton(v: Boolean) = edit { it[K.homeCustomizeTopButton] = v }
+    fun setHomePodcastsButton(v: Boolean) = edit { it[K.homePodcastsButton] = v }
     fun setFontChoice(v: FontChoice) = edit { it[K.fontChoice] = v.name }
+    /** After importing (or removing, [name] blank) the app's own font. */
+    fun setAppFont(name: String) = edit { it[K.appFontName] = name; it[K.fontStamp] = System.currentTimeMillis() }
+    fun setLyricsFont(v: String) = edit { it[K.lyricsFont] = v }
+    fun setLyricsFontFile(name: String) = edit { it[K.lyricsFontName] = name; it[K.fontStamp] = System.currentTimeMillis() }
     fun setTextScale(v: Float) = edit { it[K.textScale] = v }
     fun setCorners(v: Corners) = edit { it[K.corners] = v.name }
     fun setUiDensity(v: UiDensity) = edit { it[K.uiDensity] = v.name }
@@ -733,6 +775,8 @@ class SettingsRepository(private val context: Context, scope: CoroutineScope) {
     fun setNavLabels(v: NavLabels) = edit { it[K.navLabels] = v.name }
     fun setNavHideOnScroll(v: Boolean) = edit { it[K.navHideOnScroll] = v }
     fun setNavTabs(v: List<NavTab>) = edit { it[K.navTabs] = v.joinToString(",") { t -> t.name } }
+    fun setLocalSections(v: List<LocalSection>) = edit { it[K.localSections] = v.joinToString(",") { t -> t.name } }
+    fun setLocalSort(v: String) = edit { it[K.localSort] = v }
     fun setStartTab(v: NavTab) = edit { it[K.startTab] = v.name }
     fun setMiniPlayerStyle(v: MiniPlayerStyle) = edit { it[K.miniPlayerStyle] = v.name }
     fun setMiniSkipButtons(v: Boolean) = edit { it[K.miniSkipButtons] = v }

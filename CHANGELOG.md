@@ -2,6 +2,21 @@
 
 What changed in each release. Older releases are described on the [Releases page](https://github.com/Yigder/Prism/releases).
 
+## 1.6.7
+
+### New
+- **Your own fonts** (Settings → Appearance → Text): pick a .ttf or .otf file from your phone (Inter, SF Pro…) for the whole app, and choose a separate **lyrics font**: the app's, any built-in font, or a file of its own. Variable fonts get all their weights (#12).
+- **Icon style** (Settings → Appearance → Icons): Thin, Regular or Bold icons, rounded or square. Applies after a quick restart, from the button that appears (#19).
+- **App icons** (Settings → Appearance → App icon): Classic, Spectrum, Solid, Light, Wave and Midnight (#20).
+- **Local files, reworked** (#29): Play, Shuffle and **Recently played** at the top, the song and album count under the title, songs sorted by title by default (the order you pick is kept), and new sections: **Favourites** (liked songs from your phone), **Recently added**, **Added albums** and **Downloads**. Tap **Edit** at the end of the bar to choose and order the sections.
+- **Hide the Podcasts button** on Home (Settings → Home screen → Podcasts button); Podcasts then opens from Library (#28).
+
+### Fixed
+- **Lossless FLAC at double speed with harsh noise** on Samsung phones (#25): Samsung's FLAC decoder mishandled 16-bit (CD-quality) files in lossless mode. They're now decoded at 16-bit, which loses nothing; 24-bit files stay hi-res.
+- **Searches showing up in your YouTube search history** (#27): Prism's searches, every keystroke and the lookups it makes for songs, were saved to your YouTube account. Searches no longer go out with your account.
+- **Podcasts "Requested entity was not found"** (#18): in countries where YouTube Music has no Podcasts page, Prism shows your followed shows and saved episodes, and points to Search, instead of an error.
+- **Phones in other languages** (Korean, Spanish and more): YouTube answers in your phone's language, and Prism misread its words for "Song", "Single", "Album", years ("2026년") and listener counts, which mixed up artists, album types and search ranking. They're understood in 20 languages now. The date on Home follows your language's order. (Prism's own screens are still in English.)
+
 ## 1.6.6
 
 ### New

@@ -1,5 +1,6 @@
 package com.prism.music.ui.player
 
+import com.prism.music.ui.theme.withLyricsFont
 import com.prism.music.ui.theme.PrismIcons
 import android.os.Build
 import androidx.compose.animation.AnimatedContent
@@ -312,7 +313,7 @@ fun CurrentLyricStrip(state: LyricsState, isPlaying: Boolean, onClick: () -> Uni
                 }
                 // A right-to-left line (Arabic, Hebrew…) runs from the right of the strip, its arrow at its end on the left.
                 val rtl = !instrumental && isRtl(text)
-                val stripStyle = MaterialTheme.typography.titleMedium.copy(textDirection = androidx.compose.ui.text.style.TextDirection.Content)
+                val stripStyle = MaterialTheme.typography.titleMedium.copy(textDirection = androidx.compose.ui.text.style.TextDirection.Content).withLyricsFont()
                 StripRow(onClick, note = instrumental, rtl = rtl) {
                     AnimatedContent(
                         index to text,
@@ -600,7 +601,8 @@ fun LyricsPanel(
             val style = (if (synced) TextStyle(fontSize = (34 * scale).sp, lineHeight = (41 * scale).sp) else TextStyle(fontSize = (30 * scale).sp, lineHeight = (38 * scale).sp))
                 .copy(
                     fontWeight = FontWeight.ExtraBold,
-                    fontFamily = MaterialTheme.typography.bodyLarge.fontFamily,
+                    // The lyrics font when one is picked (Settings → Appearance → Text), else the app's.
+                    fontFamily = com.prism.music.ui.theme.LocalLyricsFont.current ?: MaterialTheme.typography.bodyLarge.fontFamily,
                     textAlign = when { line.alignEnd -> TextAlign.End; centred -> TextAlign.Center; else -> TextAlign.Start },
                     textDirection = androidx.compose.ui.text.style.TextDirection.Content,
                 )

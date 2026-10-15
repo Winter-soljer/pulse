@@ -20,6 +20,39 @@ import kotlin.math.sin
  * switching tabs only fills it in. Drawn here rather than taken from an icon library, so there's no extra dependency
  * or license. `IconRenderTest` draws them all onto app/build/icon-previews/icons.png for a look.
  */
+/** How heavy Prism's line icons are drawn (#19). */
+enum class IconWeight(val label: String, val scale: Float) { THIN("Thin", 0.64f), REGULAR("Regular", 1f), BOLD("Bold", 1.45f) }
+
+/**
+ * The icon style picked in Settings → Appearance → Icons (#19): line weight, and rounded or square ends and corners.
+ * The icons are built once, as Prism starts, so this is read then ([load], from plain shared preferences so it's there
+ * before anything draws) and a change shows after Prism restarts.
+ */
+object IconStyle {
+    private const val PREFS = "icon_style"
+    @Volatile var weight = IconWeight.REGULAR
+        private set
+    @Volatile var rounded = true
+        private set
+
+    fun load(context: android.content.Context) {
+        val (w, r) = saved(context)
+        weight = w; rounded = r
+    }
+
+    /** What's saved (it may differ from what's drawn until a restart). */
+    fun saved(context: android.content.Context): Pair<IconWeight, Boolean> {
+        val p = context.getSharedPreferences(PREFS, android.content.Context.MODE_PRIVATE)
+        val w = IconWeight.entries.firstOrNull { it.name == p.getString("weight", null) } ?: IconWeight.REGULAR
+        return w to p.getBoolean("rounded", true)
+    }
+
+    fun save(context: android.content.Context, weight: IconWeight, rounded: Boolean) {
+        context.getSharedPreferences(PREFS, android.content.Context.MODE_PRIVATE).edit()
+            .putString("weight", weight.name).putBoolean("rounded", rounded).apply()
+    }
+}
+
 object PrismIcons {
     private const val STROKE = 1.8f
 
@@ -28,8 +61,9 @@ object PrismIcons {
         ImageVector.Builder(name, 24.dp, 24.dp, 24f, 24f, autoMirror = mirror).apply(block).build()
 
     private fun ImageVector.Builder.line(width: Float = STROKE, d: PathBuilder.() -> Unit) = path(
-        fill = null, stroke = SolidColor(Color.Black), strokeLineWidth = width,
-        strokeLineCap = StrokeCap.Round, strokeLineJoin = StrokeJoin.Round, pathBuilder = d,
+        fill = null, stroke = SolidColor(Color.Black), strokeLineWidth = width * IconStyle.weight.scale,
+        strokeLineCap = if (IconStyle.rounded) StrokeCap.Round else StrokeCap.Butt,
+        strokeLineJoin = if (IconStyle.rounded) StrokeJoin.Round else StrokeJoin.Miter, pathBuilder = d,
     )
 
     private fun ImageVector.Builder.solid(evenOdd: Boolean = false, d: PathBuilder.() -> Unit) = path(
@@ -43,7 +77,9 @@ object PrismIcons {
         close()
     }
 
-    private fun PathBuilder.roundRect(l: Float, t: Float, r: Float, b: Float, rad: Float) {
+    private fun PathBuilder.roundRect(l: Float, t: Float, r: Float, b: Float, radius: Float) {
+        // Square style: corners mostly squared off.
+        val rad = if (IconStyle.rounded) radius else radius * 0.3f
         moveTo(l + rad, t)
         lineTo(r - rad, t); quadTo(r, t, r, t + rad)
         lineTo(r, b - rad); quadTo(r, b, r - rad, b)

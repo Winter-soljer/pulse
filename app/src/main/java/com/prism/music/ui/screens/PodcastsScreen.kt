@@ -87,8 +87,14 @@ fun PodcastsScreen(bottomPadding: Dp) {
         coroutineScope {
             val shows = async { if (signedIn) runCatching { c.ytm.libraryPodcasts() }.getOrDefault(emptyList()) else emptyList() }
             val saved = async { if (signedIn) c.ytm.savedEpisodes() else emptyList() }
-            val home = async { c.ytm.podcastsHome() }
-            PodcastsHome(shows.await(), saved.await(), home.await())
+            // YouTube decides by the network's country whether there's a Podcasts page at all: where there isn't
+            // (Egypt, #18) it answers "Requested entity was not found", signed in or not. The rest of the page still shows.
+            val home = async { runCatching { c.ytm.podcastsHome() } }
+            val h = home.await()
+            val yours = shows.await()
+            val later = saved.await()
+            if (h.isFailure && yours.isEmpty() && later.isEmpty() && h.exceptionOrNull() !is com.prism.music.data.innertube.InnerTubeException) throw h.exceptionOrNull()!!
+            PodcastsHome(yours, later, h.getOrDefault(emptyList()))
         }
     }
     val resume by c.episodes.inProgress.collectAsState()
@@ -131,7 +137,7 @@ fun PodcastsScreen(bottomPadding: Dp) {
                 }
                 home.shelves.forEach { shelf -> shelfItems(shelf) { nav.open(it, onSong) } }
                 if (home.shelves.isEmpty() && home.yourShows.isEmpty()) item {
-                    EmptyState(PrismIcons.Podcasts, "No podcasts here", "YouTube Music didn't list any podcasts for your country. Try another content country in Settings → Home screen.")
+                    EmptyState(PrismIcons.Podcasts, "No Podcasts page here", "YouTube Music doesn't show its Podcasts page in your country. Search can still find shows and episodes: search, then pick Podcasts or Episodes.")
                 }
             }
         }

@@ -226,7 +226,11 @@ private fun HomeTopBar() {
     val greeting = settings.greetingText.trim().ifBlank {
         when (hour) { in 5..11 -> "Good morning"; in 12..17 -> "Good afternoon"; else -> "Good evening" }
     }
-    val today = remember { java.text.SimpleDateFormat("EEEE d MMMM", java.util.Locale.getDefault()).format(java.util.Date()) }
+    // In the language's own order ("Thursday 15 October", "10월 15일 목요일"), not English's with translated words.
+    val today = remember {
+        val locale = java.util.Locale.getDefault()
+        java.text.SimpleDateFormat(android.text.format.DateFormat.getBestDateTimePattern(locale, "EEEEdMMMM"), locale).format(java.util.Date())
+    }
     val ui = com.prism.music.ui.theme.LocalUi.current
     Row(
         Modifier.fillMaxWidth().statusBarsPadding().padding(start = 20.dp, end = 14.dp, top = ui.gap(14.dp)),
@@ -241,9 +245,10 @@ private fun HomeTopBar() {
         }
         // Podcasts live a tap away from Home (as on Spotify's), in the same quiet round button as Customize.
         // With the top Customize button off, Podcasts moves over into its place, beside the account.
-        com.prism.music.ui.components.RoundAction(PrismIcons.Podcasts, "Podcasts") { nav.go(Routes.PODCASTS) }
+        // Settings → Home screen → "Podcasts button" off (#28): Podcasts opens from Library instead.
+        if (settings.homePodcastsButton) com.prism.music.ui.components.RoundAction(PrismIcons.Podcasts, "Podcasts") { nav.go(Routes.PODCASTS) }
         if (settings.homeCustomizeTopButton) {
-            Spacer(Modifier.width(8.dp))
+            if (settings.homePodcastsButton) Spacer(Modifier.width(8.dp))
             com.prism.music.ui.components.RoundAction(PrismIcons.Customize, "Customize home") { nav.go(Routes.CATALOGUE) }
         }
         Spacer(Modifier.width(8.dp))

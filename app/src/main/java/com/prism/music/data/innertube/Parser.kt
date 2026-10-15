@@ -30,6 +30,35 @@ object Parser {
     private val typeLabels = setOf(
         "Song", "Video", "Album", "Single", "EP", "Artist", "Playlist", "Episode", "Podcast", "Profile", "Station",
     )
+    /**
+     * YouTube answers in the phone's language ("노래 • 아이유 • 2026년", "Canción • IU • 3:13"), but Prism reads type labels
+     * and years in English ("Song", "Single", "2026"). These are YouTube Music's own words for them, collected from its
+     * answers in 20 languages; [canonical] puts the English back. Only a subtitle's first segment (the type) is matched,
+     * so an album that happens to be called "Música" isn't touched.
+     */
+    private val localTypeWords: Map<String, String> = buildMap {
+        fun add(english: String, vararg words: String) = words.forEach { put(it.lowercase(), english) }
+        add("Song", "노래", "Canción", "Música", "Titre", "Titel", "Brano", "曲", "歌曲", "أغنية", "Композиция", "Şarkı", "Lagu", "गाना", "Bài hát", "เพลง", "Nummer", "Utwór", "Пісня", "Låt")
+        add("Video", "동영상", "Vídeo", "Vidéo", "動画", "视频", "影片", "فيديو", "Видео", "वीडियो", "วิดีโอ", "Film", "Відео")
+        add("Album", "앨범", "Álbum", "アルバム", "专辑", "專輯", "ألبوم", "Альбом", "Albüm", "एल्‍बम", "एल्बम", "Đĩa nhạc", "อัลบั้ม")
+        add("Single", "싱글", "シングル", "单曲", "單曲", "أغنية منفردة", "Сингл", "सिंगल", "Đĩa đơn", "ซิงเกิล", "Singolo", "Singiel", "Singel")
+        add("Artist", "아티스트", "Artista", "Artiste", "Künstler", "アーティスト", "音乐人", "藝人", "فنان", "Исполнитель", "Sanatçı", "Artis", "कलाकार", "Nghệ sĩ", "ศิลปิน", "Artiest", "Wykonawca", "Виконавець")
+        add("Playlist", "재생목록", "Lista de reproducción", "プレイリスト", "播放列表", "播放清單", "قائمة تشغيل", "Плейлист", "Oynatma listesi", "प्लेलिस्ट", "Danh sách phát", "เพลย์ลิสต์", "Playlista", "Список відтворення", "Spellista")
+        add("Episode", "에피소드", "Episodio", "Episódio", "Épisode", "Folge", "Puntata", "エピソード", "分集", "單集", "حلقة", "Выпуск", "Bölüm", "एपिसोड", "Tập podcast", "ตอน", "Aflevering", "Odcinek", "Серія", "Avsnitt")
+        add("Podcast", "팟캐스트", "Pódcast", "ポッドキャスト", "播客", "بودكاست", "Подкаст", "पॉडकास्ट", "พอดแคสต์", "Podd")
+        add("Profile", "프로필", "Perfil", "Profil", "Profilo", "プロフィール", "个人资料", "個人資料", "ملف شخصي", "Профиль", "प्रोफ़ाइल", "Hồ sơ", "โปรไฟล์", "Profiel", "Профіль")
+    }
+    private val localYear = Regex("^(\\d{4})\\s*[년年]$")
+
+    /** A subtitle ("노래 • 아이유 • 2026년") with its type label and year in English ("Song • 아이유 • 2026"). */
+    fun canonical(subtitle: String): String {
+        if (subtitle.isEmpty()) return subtitle
+        val parts = subtitle.split(" • ").toMutableList()
+        localTypeWords[parts[0].trim().lowercase()]?.let { parts[0] = it }
+        localYear.matchEntire(parts.last().trim())?.let { parts[parts.lastIndex] = it.groupValues[1] }
+        return parts.joinToString(" • ")
+    }
+
     private val durationRegex = Regex("^\\d{1,2}(:\\d{2}){1,2}$")
     private val playsRegex = Regex("^([\\d.,]+)\\s*([KMB])?\\s+plays?$", RegexOption.IGNORE_CASE)
 
@@ -61,7 +90,7 @@ object Parser {
         }
         if (linked.isNotEmpty()) return linked
         // Unlinked: "Artist • Album • 3:10" or "Song • Artist • 3:10"
-        val segments = runs.joinToString("") { it.str("text") ?: "" }.split(" • ").map { it.trim() }
+        val segments = canonical(runs.joinToString("") { it.str("text") ?: "" }).split(" • ").map { it.trim() }
         val name = segments.firstOrNull { it.isNotBlank() && it !in typeLabels && !durationRegex.matches(it) && !it.contains(" views") && !playsRegex.matches(it) }
         return if (name != null) name.split(", ", " & ").map { ArtistRef(it) } else emptyList()
     }
@@ -132,7 +161,7 @@ object Parser {
             )
         }
         val browseId = browse.str("browseEndpoint", "browseId") ?: return null
-        val subtitle = restRuns.joinToString("") { it.str("text") ?: "" }
+        val subtitle = canonical(restRuns.joinToString("") { it.str("text") ?: "" })
         return when (pageType(browse)) {
             ALBUM -> AlbumItem(browseId, title, subtitle, thumb)
             ARTIST, CHANNEL -> ArtistItem(browseId, title, subtitle, thumb)
@@ -181,7 +210,7 @@ object Parser {
         val titleRun = r.obj("title").runs().firstOrNull() ?: return null
         val title = r.obj("title").text()?.takeIf { it.isNotBlank() } ?: return null
         val subtitleRuns = r.obj("subtitle").runs()
-        val subtitle = subtitleRuns.joinToString("") { it.str("text") ?: "" }
+        val subtitle = canonical(subtitleRuns.joinToString("") { it.str("text") ?: "" })
         val thumb = r.obj("thumbnail").bestThumbnail()
         val nav = titleRun.obj("navigationEndpoint") ?: r.obj("onTap")
         nav.obj("watchEndpoint")?.let { watch ->
@@ -211,7 +240,7 @@ object Parser {
     fun twoRow(r: JsonObject): BrowseItem? {
         val title = r.obj("title").text() ?: return null
         val subtitleRuns = r.obj("subtitle").runs()
-        val subtitle = subtitleRuns.joinToString("") { it.str("text") ?: "" }
+        val subtitle = canonical(subtitleRuns.joinToString("") { it.str("text") ?: "" })
         val thumb = r.obj("thumbnailRenderer").bestThumbnail()
         val nav = r.obj("navigationEndpoint")
         nav.obj("watchEndpoint")?.let { w ->

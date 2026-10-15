@@ -13,7 +13,7 @@
 
 **[⬇ Download Prism.apk](../../releases/latest/download/Prism.apk)** · [Release notes](../../releases/latest) · [▶ Watch the showcase (1:55)](promo/prism-showcase.mp4)
 
-**New in [1.6.6](../../releases/tag/v1.6.6):** hold previous / next to seek, Local files as a tab, "Hey Google, play … on Prism", an audio-only player option and fixes for Podcasts and right-to-left lyrics.
+**New in [1.6.7](../../releases/tag/v1.6.7):** your own fonts (and a separate lyrics font), icon weights, six app icons, a reworked Local files page, and fixes for FLAC on Samsung phones, search history and phones in other languages.
 
 <img src="docs/screenshots/home-dark.jpg" width="22%" alt="Home">
 <img src="docs/screenshots/player.jpg" width="22%" alt="Now playing">
@@ -69,9 +69,10 @@ Updating works the same way: install the new APK over the old one, and your down
 
 ### Your library
 - **Home your way.** Custom greeting, shortcut tiles and pinned playlists.
-- **Downloads** work like a playlist, with counts, size, saved lyrics, sorting and bulk delete. Smart Downloads is one space for music on the phone: the songs you stream, plus the ones you're likely to play next, downloaded ahead (on Wi-Fi, or mobile data if you allow it). Library → Local files plays the music files already on your phone, by song, artist or album, and can be a tab of its own in the bottom bar.
+- **Downloads** work like a playlist, with counts, size, saved lyrics, sorting and bulk delete. Smart Downloads is one space for music on the phone: the songs you stream, plus the ones you're likely to play next, downloaded ahead (on Wi-Fi, or mobile data if you allow it). Library → Local files plays the music files already on your phone, by song, artist or album, with Favourites, Recently added, Recently played and your downloads alongside (sections you choose and order), and can be a tab of its own in the bottom bar.
 - **Replay.** Minutes, top songs, artists and genres. Play or shuffle your top 250.
 - **Custom playlist pictures** and **backgrounds** for Home, Search, Library, Replay and Settings.
+- **Make it yours:** your own font file (and a separate one for lyrics), thin, regular or bold icons, and six app icons to pick from.
 - Signed in, likes, playlists, albums and artists sync both ways. **Add albums and playlists to your library**, **star your favourite artists** (they lead Library → Artists and are subscribed on YouTube Music), **make new playlists**, and add songs to them from a searchable sheet.
 - **Your playlists, your way:** rename them, rewrite the description, choose private, unlisted or public, take songs out, or delete them.
 - **Import playlists from Spotify, Apple Music and more** with [TuneMyMusic](https://www.tunemymusic.com) (Library → Import playlists). It copies them into your YouTube Music account, and Prism syncs them in when you come back.

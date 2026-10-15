@@ -199,9 +199,6 @@ object ArtistTypography {
     }
 
     /** "444M monthly audience", "63.5M subscribers", "1.2K" -> a number. */
-    fun parseAudience(text: String?): Long {
-        val m = Regex("([\\d.,]+)\\s*([KMB])?", RegexOption.IGNORE_CASE).find(text ?: return 0) ?: return 0
-        val n = m.groupValues[1].replace(",", "").toDoubleOrNull() ?: return 0
-        return (n * when (m.groupValues[2].uppercase()) { "K" -> 1e3; "M" -> 1e6; "B" -> 1e9; else -> 1.0 }).toLong()
-    }
+    /** "444M monthly audience", in any language YouTube answers in ("월간 시청자 7250만명"). */
+    fun parseAudience(text: String?): Long = com.prism.music.data.innertube.SearchRank.audience(text ?: return 0)
 }

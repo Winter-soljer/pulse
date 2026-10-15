@@ -52,6 +52,9 @@ class PrismApp : Application() {
         super.onCreate()
         // A restore from a backup goes in before anything opens the files it replaces.
         com.prism.music.data.Backup.applyPending(this)
+        // Before any icon is built: they're drawn in the style picked in Settings → Appearance → Icons.
+        com.prism.music.ui.theme.IconStyle.load(this)
+        com.prism.music.ui.theme.AppFonts.init(this)
         container = AppContainer(this)
         runCatching { container.backup.resumeDownloads() }
     }

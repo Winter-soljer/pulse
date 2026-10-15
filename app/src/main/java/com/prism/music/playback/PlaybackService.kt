@@ -109,6 +109,15 @@ class PlaybackService : MediaLibraryService(), Player.Listener {
                     .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
                     .setAudioProcessors(arrayOf(spatial, normalizer))
                     .build()
+
+            override fun buildAudioRenderers(
+                context: Context, extensionRendererMode: Int, mediaCodecSelector: androidx.media3.exoplayer.mediacodec.MediaCodecSelector,
+                enableDecoderFallback: Boolean, audioSink: AudioSink, eventHandler: android.os.Handler,
+                eventListener: androidx.media3.exoplayer.audio.AudioRendererEventListener, out: ArrayList<androidx.media3.exoplayer.Renderer>,
+            ) {
+                super.buildAudioRenderers(context, extensionRendererMode, mediaCodecSelector, enableDecoderFallback, audioSink, eventHandler, eventListener, out)
+                FlacFloatGuardRenderer.install(out, context, mediaCodecSelector, enableDecoderFallback, audioSink, eventHandler, eventListener)
+            }
         }
         player = ExoPlayer.Builder(this, renderers)
             // Start (and resume after a switch to video) once 1 s is buffered rather than 2.5 s.
@@ -154,7 +163,7 @@ class PlaybackService : MediaLibraryService(), Player.Listener {
             .setSessionActivity(
                 PendingIntent.getActivity(
                     this, 0,
-                    Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
+                    Intent(this, com.prism.music.PrismActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
                     PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
                 )
             )
@@ -254,6 +263,15 @@ class PlaybackService : MediaLibraryService(), Player.Listener {
                     .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
                     .setAudioProcessors(arrayOf(shift, tailSpatial, tailNormalizer))
                     .build()
+
+            override fun buildAudioRenderers(
+                context: Context, extensionRendererMode: Int, mediaCodecSelector: androidx.media3.exoplayer.mediacodec.MediaCodecSelector,
+                enableDecoderFallback: Boolean, audioSink: AudioSink, eventHandler: android.os.Handler,
+                eventListener: androidx.media3.exoplayer.audio.AudioRendererEventListener, out: ArrayList<androidx.media3.exoplayer.Renderer>,
+            ) {
+                super.buildAudioRenderers(context, extensionRendererMode, mediaCodecSelector, enableDecoderFallback, audioSink, eventHandler, eventListener, out)
+                FlacFloatGuardRenderer.install(out, context, mediaCodecSelector, enableDecoderFallback, audioSink, eventHandler, eventListener)
+            }
         }
         return ExoPlayer.Builder(this, renderers)
             .setMediaSourceFactory(

@@ -123,7 +123,11 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.math.abs
 
-class MainActivity : ComponentActivity() {
+/**
+ * The app's screen. Declared in the manifest as [PrismActivity], so that ".MainActivity" can be the classic app-icon
+ * alias (#20) and home-screen icons made before stay valid.
+ */
+open class MainActivity : ComponentActivity() {
     private val deepLink = MutableStateFlow<Uri?>(null)
 
     private val notificationPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) {}

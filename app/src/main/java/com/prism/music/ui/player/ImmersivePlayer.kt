@@ -1,5 +1,6 @@
 package com.prism.music.ui.player
 
+import com.prism.music.ui.theme.withLyricsFont
 import android.app.Activity
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
@@ -314,7 +315,7 @@ private fun LineAtATime(song: Song, state: LyricsState, active: Boolean, align: 
     val lineStyle = MaterialTheme.typography.headlineMedium.copy(
         fontSize = 30.sp, lineHeight = 36.sp, fontWeight = FontWeight.ExtraBold,
         textAlign = TextAlign.Center, textDirection = TextDirection.Content, shadow = lineShadow,
-    )
+    ).withLyricsFont()
     if (lines.isEmpty() || !synced) {
         // Plain lyrics can't be followed along: the song's name stays up, as at the start of a lyric video.
         TitleCard(song)
@@ -460,7 +461,7 @@ private fun LyricsOverAll(song: Song, state: LyricsState, active: Boolean, modif
     val style = MaterialTheme.typography.headlineMedium.copy(
         fontSize = 28.sp, lineHeight = 34.sp, fontWeight = FontWeight.ExtraBold,
         textAlign = TextAlign.Center, textDirection = TextDirection.Content, shadow = lineShadow,
-    )
+    ).withLyricsFont()
     LaunchedEffect(lines, index) {
         val target = index.coerceAtLeast(0)
         // Glide to a line on screen; jump to one further off (a seek).

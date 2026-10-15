@@ -106,7 +106,6 @@ class InnerTube(
 
     private fun context(anonymous: Boolean = false): JsonObject = buildJsonObject {
         val s = current
-        val plainContext = plainContext || anonymous
         putJsonObject("client") {
             put("clientName", "WEB_REMIX")
             put("clientVersion", clientVersion)
@@ -129,7 +128,7 @@ class InnerTube(
         header("X-Origin", ORIGIN)
         header("X-YouTube-Client-Name", "67")
         header("X-YouTube-Client-Version", clientVersion)
-        if (visitorData.isNotBlank() && !plainContext && !anonymous) header("X-Goog-Visitor-Id", visitorData)
+        if (visitorData.isNotBlank() && !plainContext) header("X-Goog-Visitor-Id", visitorData)
         if (s.isLoggedIn && !anonymous) {
             header("Cookie", s.cookie)
             authorization()?.let { header("Authorization", it) }
@@ -199,8 +198,9 @@ class InnerTube(
         }
 
     /**
-     * The same request as a signed-out visitor. For public pages YouTube refuses an account: Podcasts answers
-     * "Requested entity was not found" for accounts in countries where YouTube Music has no podcasts.
+     * The same request without the account (no cookies, no brand-account delegation; the visitor id stays). For
+     * searches, which YouTube otherwise saves to the account's search history, every keystroke's and every
+     * "title artist" lookup's included (#27), and for public pages YouTube refuses an account.
      */
     suspend fun postAnonymous(endpoint: String, body: JsonObject = JsonObject(emptyMap()), query: String = ""): JsonObject =
         withContext(Dispatchers.IO) {
