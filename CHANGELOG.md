@@ -2,7 +2,7 @@
 
 What changed in each release. Older releases are described on the [Releases page](https://github.com/Yigder/Prism/releases).
 
-## Unreleased
+## 1.6.5
 
 ### New
 - **Immersive mode** (the player's ⋯ menu, or Settings → Player): the cover fills the whole screen, its animated version first when it has one, and the lyrics play over its lower part a line at a time, like a lyric video. Everything else hides; tap the screen for a settings button (back to the normal player, lyrics timing and source, the song's options). Drag down to close the player.
