@@ -69,15 +69,34 @@ import com.prism.music.ui.components.RoundAction
 import com.prism.music.ui.components.runAction
 import com.prism.music.ui.theme.PrismIcons
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlin.math.abs
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animate
+import androidx.compose.animation.core.spring
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.requiredSize
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.unit.lerp
+import com.prism.music.data.prefs.ImmersiveArt
+import com.prism.music.ui.theme.LocalContainer
+import com.prism.music.ui.theme.rememberHaptics
 
 /** The lines' look: big, bold and centred, like a lyric video's. */
 private val lineShadow = Shadow(Color.Black.copy(alpha = 0.6f), androidx.compose.ui.geometry.Offset(0f, 2f), 14f)
 
 /**
- * Immersive mode (the player's ⋯ menu): the cover fills the whole screen (its animated version when it has one) and the
- * lyrics play over its lower part, a line at a time, as in a lyric video. Nothing else shows; a tap brings up a
- * settings button for a few seconds (back to the normal player, lyrics timing and source, the song's options).
- * A drag down closes the player, as it does the normal one.
+ * Immersive mode (the player's ⋯ menu): the cover fills the screen (its animated version when it has one) and the
+ * lyrics play over its lower part, a line at a time, as in a lyric video. How much of the cover shows is up to the
+ * listener ([ImmersiveArt]): zoomed out, it sits at the top and dissolves into a blurred copy of itself. Nothing else
+ * shows; a tap brings up a settings button for a few seconds (back to the normal player, artwork size, lyrics timing
+ * and source, the song's options). Swipe left or right for the next or previous song, as on the normal player; a drag
+ * down closes the player.
  */
 @Composable
 fun ImmersivePlayer(
@@ -96,6 +115,11 @@ fun ImmersivePlayer(
     onCollapse: () -> Unit,
 ) {
     val view = LocalView.current
+    val c = LocalContainer.current
+    val settings by c.settings.flow.collectAsState()
+    val art = settings.immersiveArt
+    val haptics = rememberHaptics()
+    val scope = rememberCoroutineScope()
     var menu by remember { mutableStateOf(false) }
     var button by remember { mutableStateOf(false) }
     val hold = covered || menu
@@ -116,6 +140,9 @@ fun ImmersivePlayer(
     }
 
     var drag by remember { mutableFloatStateOf(0f) }
+    // Sideways, the cover follows the finger a little; past the mark, letting go changes the song.
+    var swipe by remember { mutableFloatStateOf(0f) }
+    val blurred = rememberFullArtworkBlur(song.thumbnail)
     Box(
         Modifier
             .fillMaxSize()
@@ -127,17 +154,61 @@ fun ImmersivePlayer(
                     onDragEnd = { if (drag > 220f) onCollapse(); drag = 0f },
                     onDragCancel = { drag = 0f },
                 ) { change, amount -> change.consume(); drag += amount }
+            }
+            .pointerInput(Unit) {
+                val mark = 72.dp.toPx()
+                fun settle() { val from = swipe; scope.launch { animate(from, 0f, animationSpec = spring(stiffness = Spring.StiffnessMediumLow)) { v, _ -> swipe = v } } }
+                detectHorizontalDragGestures(
+                    onDragEnd = {
+                        // Left for the next song, right for the previous one (or the start of this one), as on the player.
+                        if (swipe <= -mark) { haptics.gestureEnd(); c.player.next() }
+                        else if (swipe >= mark) { haptics.gestureEnd(); c.player.previous() }
+                        settle()
+                    },
+                    onDragCancel = { settle() },
+                ) { change, d ->
+                    change.consume()
+                    if ((abs(swipe) < mark) != (abs(swipe + d) < mark)) haptics.threshold()
+                    swipe += d
+                }
             },
     ) {
-        // ---- The cover, filling the screen; the animated one over it once its first frame is in.
-        var canvasCover by remember(canvas) { mutableFloatStateOf(0f) }
-        AsyncImage(
-            hiRes(song.thumbnail, 1200), null, contentScale = ContentScale.Crop,
-            modifier = Modifier.fillMaxSize().graphicsLayer { alpha = 1f - canvasCover },
-        )
-        // A tall version of the clip (when there is one) fits a phone held upright better than the square one.
-        val clip = remember(canvas) { canvas?.let { c -> c.fallbackUrl?.let { tall -> c.copy(url = tall, fallbackUrl = c.url) } ?: c } }
-        clip?.let { CanvasPlayer(it, canvasSaved, isPlaying, Modifier.fillMaxSize(), onCoverChanged = { v -> canvasCover = v }, hold = hold) }
+        // ---- Behind a zoomed-out cover, the cover blurred, so it still fills the screen.
+        if (art != ImmersiveArt.FILL) FullArtworkBlurBackdrop(blurred, scrim = 0.8f)
+
+        // ---- The cover; the animated one over it once its first frame is in.
+        BoxWithConstraints(Modifier.fillMaxSize()) {
+            val fill = art == ImmersiveArt.FILL
+            // Zoomed out, a square from the top: as wide as the screen at most (the whole cover), as tall at least.
+            val side = lerp(minOf(maxWidth, maxHeight), maxOf(maxWidth, maxHeight), art.zoom)
+            val fade = if (fill) 0f else 0.3f
+            var canvasCover by remember(canvas) { mutableFloatStateOf(0f) }
+            Box(
+                (if (fill) Modifier.fillMaxSize() else Modifier.align(Alignment.TopCenter).requiredSize(side))
+                    .graphicsLayer { translationX = swipe * 0.35f },
+            ) {
+                AsyncImage(
+                    hiRes(song.thumbnail, 1200), null, contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .graphicsLayer { alpha = 1f - canvasCover; compositingStrategy = CompositingStrategy.Offscreen }
+                        .drawWithContent {
+                            drawContent()
+                            if (fade > 0f) drawRect(
+                                Brush.verticalGradient(listOf(Color.Black, Color.Transparent), startY = size.height * (1f - fade), endY = size.height),
+                                blendMode = BlendMode.DstIn,
+                            )
+                        },
+                )
+                // Filling a phone held upright, a tall version of the clip (when there is one) fits better than the square one.
+                val clip = remember(canvas, fill) {
+                    canvas?.let { cv -> if (fill) cv.fallbackUrl?.let { tall -> cv.copy(url = tall, fallbackUrl = cv.url) } ?: cv else cv }
+                }
+                clip?.let {
+                    CanvasPlayer(it, canvasSaved, isPlaying, Modifier.fillMaxSize(), bottomFade = fade, onCoverChanged = { v -> canvasCover = v }, hold = hold)
+                }
+            }
+        }
 
         // ---- Shade, top and bottom, so the lyrics (and the button) read over any cover.
         Box(
@@ -177,6 +248,10 @@ fun ImmersivePlayer(
             "Immersive mode",
             listOf(
                 ActionItem(PrismIcons.FullscreenExit, "Show the player", onClick = onExit),
+                // Fill the screen → zoomed out → the whole cover, round again.
+                ActionItem(PrismIcons.AspectRatio, "Artwork", value = art.label, keepOpen = true) {
+                    c.settings.setImmersiveArt(ImmersiveArt.entries[(art.ordinal + 1) % ImmersiveArt.entries.size])
+                },
                 ActionItem(PrismIcons.More, "Song options", onClick = onSongOptions),
             ),
         ) { runAction(it, close) }

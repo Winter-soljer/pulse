@@ -578,6 +578,10 @@ private fun PlayerSettings() {
             )
             Toggle("Full-bleed artwork", "Cover art runs edge to edge at the top of the player", s.fullBleedArtwork) { prefs.setFullBleedArtwork(it) }
             Toggle("Immersive mode", "The cover fills the screen with the lyrics over it, like a lyric video. Tap the screen for its settings; also in the player's ⋯ menu", s.immersivePlayer) { prefs.setImmersivePlayer(it) }
+            if (s.immersivePlayer) {
+                Label("Immersive artwork")
+                Chips(com.prism.music.data.prefs.ImmersiveArt.entries, s.immersiveArt, { it.label }) { prefs.setImmersiveArt(it) }
+            }
             Toggle("Shrink when paused", "The cover eases back a little while the music is paused", s.artShrinkOnPause) { prefs.setArtShrinkOnPause(it) }
             Toggle("Animated cover art", "Motion artwork and video covers, when a song has one. You can also turn it off for single songs from the player's ⋯ menu", s.canvasEnabled) { prefs.setCanvasEnabled(it) }
             if (s.canvasEnabled) Toggle("Animated covers on mobile data", "Saved covers play from the phone either way", s.canvasOnCellular) { prefs.setCanvasOnCellular(it) }
