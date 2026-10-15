@@ -382,7 +382,6 @@ fun NowPlayingScreen(onCollapse: () -> Unit) {
                 CanvasPlayer(
                     clip, canvasSaved, isPlaying,
                     Modifier.fillMaxWidth().height(heroHeight),
-                    hold = covered,
                     bottomFade = HERO_FADE,
                     presentationAlpha = { heroT.value * (1f - 2f * p()).coerceIn(0f, 1f) },
                     onCoverChanged = { canvasCover = it },
@@ -545,7 +544,7 @@ fun NowPlayingScreen(onCollapse: () -> Unit) {
                                 modifier = Modifier.fillMaxSize(),
                             )
                             if (!heroMode && !videoMode) canvas?.takeIf { !collapsePastHalf }?.let { clip ->
-                                CanvasPlayer(clip, canvasSaved, isPlaying, Modifier.fillMaxSize(), onCoverChanged = { canvasCover = it }, hold = covered)
+                                CanvasPlayer(clip, canvasSaved, isPlaying, Modifier.fillMaxSize(), onCoverChanged = { canvasCover = it })
                             }
                         }
                     }

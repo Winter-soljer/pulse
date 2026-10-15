@@ -69,6 +69,16 @@ import com.prism.music.ui.components.RoundAction
 import com.prism.music.ui.components.runAction
 import com.prism.music.ui.theme.PrismIcons
 import kotlinx.coroutines.delay
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.Icon
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import com.prism.music.ui.components.FloatingDisc
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 import androidx.compose.animation.core.Spring
@@ -106,7 +116,7 @@ fun ImmersivePlayer(
     canvasSaved: Boolean,
     isPlaying: Boolean,
     lyricsState: LyricsState,
-    /** A sheet is over the player: the clip and the lyrics hold still meanwhile. */
+    /** A sheet is over the player. The clip and the lyrics keep going under it (they used to freeze, which read as a bug). */
     covered: Boolean,
     onExit: () -> Unit,
     onLyricsTiming: () -> Unit,
@@ -122,9 +132,10 @@ fun ImmersivePlayer(
     val scope = rememberCoroutineScope()
     var menu by remember { mutableStateOf(false) }
     var button by remember { mutableStateOf(false) }
-    val hold = covered || menu
     // A tap shows the button for a few seconds; another tap (or the time) hides it.
-    LaunchedEffect(button, menu) { if (button && !menu) { delay(4000); button = false } }
+    // Held down, the button stays up however long that takes.
+    var pressing by remember { mutableStateOf(false) }
+    LaunchedEffect(button, menu, pressing) { if (button && !menu && !pressing) { delay(4000); button = false } }
 
     // Edge to edge for real: the system bars hide (a swipe from the edge shows them for a moment), and the screen stays on.
     DisposableEffect(Unit) {
@@ -205,7 +216,7 @@ fun ImmersivePlayer(
                     canvas?.let { cv -> if (fill) cv.fallbackUrl?.let { tall -> cv.copy(url = tall, fallbackUrl = cv.url) } ?: cv else cv }
                 }
                 clip?.let {
-                    CanvasPlayer(it, canvasSaved, isPlaying, Modifier.fillMaxSize(), bottomFade = fade, onCoverChanged = { v -> canvasCover = v }, hold = hold)
+                    CanvasPlayer(it, canvasSaved, isPlaying, Modifier.fillMaxSize(), bottomFade = fade, onCoverChanged = { v -> canvasCover = v })
                 }
             }
         }
@@ -227,18 +238,23 @@ fun ImmersivePlayer(
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
                 .fillMaxHeight(0.42f)
-                .padding(start = 28.dp, end = 28.dp, bottom = insets.calculateBottomPadding() + 40.dp),
+                // Room underneath for the settings button.
+                .padding(start = 28.dp, end = 28.dp, bottom = insets.calculateBottomPadding() + 92.dp),
             contentAlignment = Alignment.BottomCenter,
         ) {
-            ImmersiveLyrics(song, lyricsState, isPlaying && !hold)
+            ImmersiveLyrics(song, lyricsState, isPlaying)
         }
 
-        // ---- The settings button, on a tap.
+        // ---- The settings button, on a tap: low down, under the thumb. Held, it fills and leaves immersive mode.
         AnimatedVisibility(
-            button || menu, Modifier.align(Alignment.TopEnd).padding(top = insets.calculateTopPadding() + 12.dp, end = 16.dp),
+            button || menu, Modifier.align(Alignment.BottomCenter).padding(bottom = insets.calculateBottomPadding() + 28.dp),
             enter = fadeIn(tween(200)) + scaleIn(tween(200), initialScale = 0.85f), exit = fadeOut(tween(300)),
         ) {
-            RoundAction(PrismIcons.SettingsFilled, "Immersive mode settings", glass = true) { menu = true }
+            HoldToLeaveButton(
+                onTap = { menu = true },
+                onPressing = { pressing = it },
+                onHeld = { haptics.gestureEnd(); onExit() },
+            )
         }
     }
 
@@ -338,4 +354,64 @@ private fun List<LyricLine>.indexAtOrBefore(ms: Long): Int {
     var idx = -1
     for (i in indices) if (this[i].timeMs in 0..ms) idx = i else if (this[i].timeMs > ms) break
     return idx
+}
+
+/** How long the settings button is held to leave immersive mode. */
+private const val HOLD_TO_LEAVE_MS = 2500
+
+/**
+ * Immersive mode's settings button: a tap opens its settings; held down, a ring fills around it (with a hint above)
+ * and, once it's full, [onHeld] takes you back to the normal player. Letting go early empties the ring again.
+ */
+@Composable
+private fun HoldToLeaveButton(onTap: () -> Unit, onPressing: (Boolean) -> Unit, onHeld: () -> Unit) {
+    val scope = rememberCoroutineScope()
+    val progress = remember { androidx.compose.animation.core.Animatable(0f) }
+    var held by remember { mutableStateOf(false) }
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        AnimatedVisibility(held, enter = fadeIn(tween(200)), exit = fadeOut(tween(200))) {
+            Text(
+                "Keep holding to leave immersive mode", color = Color.White,
+                style = MaterialTheme.typography.labelLarge.copy(shadow = lineShadow),
+                modifier = Modifier.padding(bottom = 10.dp),
+            )
+        }
+        Box(
+            Modifier
+                .size(54.dp)
+                .pointerInput(Unit) {
+                    awaitEachGesture {
+                        awaitFirstDown().consume()
+                        held = true
+                        onPressing(true)
+                        val fill = scope.launch {
+                            progress.animateTo(1f, tween((HOLD_TO_LEAVE_MS * (1f - progress.value)).toInt(), easing = LinearEasing))
+                            onHeld()
+                        }
+                        val up = waitForUpOrCancellation()
+                        up?.consume()
+                        held = false
+                        onPressing(false)
+                        if (progress.value < 1f) {
+                            // A quick press is a tap; a longer one let go early just empties the ring.
+                            val tap = up != null && progress.value < 0.15f
+                            fill.cancel()
+                            scope.launch { progress.animateTo(0f, tween(250)) }
+                            if (tap) onTap()
+                        }
+                    }
+                }
+                .drawBehind {
+                    val stroke = 3.dp.toPx()
+                    val inset = stroke / 2
+                    val arc = androidx.compose.ui.geometry.Size(size.width - stroke, size.height - stroke)
+                    val at = androidx.compose.ui.geometry.Offset(inset, inset)
+                    if (progress.value > 0f || held) drawArc(Color.White.copy(alpha = 0.25f), 0f, 360f, false, at, arc, style = Stroke(stroke))
+                    drawArc(Color.White, -90f, 360f * progress.value, false, at, arc, style = Stroke(stroke, cap = StrokeCap.Round))
+                },
+            contentAlignment = Alignment.Center,
+        ) {
+            FloatingDisc { ink -> Icon(PrismIcons.SettingsFilled, "Immersive mode settings (hold to leave)", Modifier.size(22.dp), tint = ink) }
+        }
+    }
 }
