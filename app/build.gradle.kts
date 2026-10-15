@@ -18,6 +18,8 @@ android {
         versionCode = 31
         versionName = "1.6.5"
         vectorDrawables { useSupportLibrary = true }
+        // The name under the launcher icon; a side-by-side build (below) is called "Prism Dev" so it can't be mistaken for Prism.
+        manifestPlaceholders["appLabel"] = "@string/app_name"
         // Optional: `lastfm.apiKey=…` in local.properties lets genre detection ask Last.fm too.
         val localProps = Properties().apply {
             rootProject.file("local.properties").takeIf { it.exists() }?.inputStream()?.use { load(it) }
@@ -42,8 +44,12 @@ android {
 
     buildTypes {
         debug {
-            // `-PsideBySide`: a debug Prism that installs next to the real one (for trying changes on your own phone).
-            if (project.hasProperty("sideBySide")) applicationIdSuffix = ".dev"
+            // `-PsideBySide`: a debug Prism that installs next to the real one (for trying changes on your own phone), as
+            // "Prism Dev". `-PsideBySide=name` installs as com.prism.music.name instead of .dev, beside an older dev copy.
+            if (project.hasProperty("sideBySide")) {
+                applicationIdSuffix = "." + (project.property("sideBySide") as String).ifBlank { "dev" }
+                manifestPlaceholders["appLabel"] = "Prism Dev"
+            }
         }
         release {
             // Kept unminified: NewPipeExtractor + Rhino rely on reflection.
