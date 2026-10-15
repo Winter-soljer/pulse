@@ -236,7 +236,8 @@ class AppContainer(val app: Application) {
         if (downloadCache.fullyCached(id, 0, C.LENGTH_UNSET.toLong())) return
         val s = runCatching { streams.resolve(id) }.getOrNull() ?: return // live streams and failures: nothing to save
         val metered = app.getSystemService(android.net.ConnectivityManager::class.java)?.isActiveNetworkMetered != false
-        if (metered && !(whole && cellular)) return
+        // On mobile data only when allowed (Settings → Load ahead on mobile data).
+        if (metered && !cellular) return
         // [whole] (Settings → Load ahead): the whole song, so it plays without buffering; it needs the stream's size.
         if (whole && s.contentLength <= 0) return
         if (!whole && prebuffered.containsKey(id)) return

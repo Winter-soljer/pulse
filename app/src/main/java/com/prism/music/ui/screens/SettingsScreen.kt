@@ -679,13 +679,16 @@ private fun SoundPage() {
             Chips(com.prism.music.data.prefs.Preload.entries, s.preload, { it.label }) { prefs.setPreload(it) }
             Note(
                 when (s.preload) {
-                    com.prism.music.data.prefs.Preload.START -> "While a song plays, the next one's first seconds are loaded (on Wi-Fi), so it starts at once."
+                    com.prism.music.data.prefs.Preload.START -> "While a song plays, the next one's first seconds are loaded, so it starts at once."
                     else -> "While a song plays, what's next in the queue is loaded whole, so it plays without buffering even if the signal drops. It counts toward Smart Downloads' space."
                 }
             )
-            if (s.preload != com.prism.music.data.prefs.Preload.START) {
-                Toggle("Load ahead on mobile data", "Off, whole songs are loaded ahead only on Wi-Fi", s.preloadCellular) { prefs.setPreloadCellular(it) }
-            }
+            Toggle(
+                "Load ahead on mobile data",
+                if (s.preload == com.prism.music.data.prefs.Preload.START) "Off, only on Wi-Fi. The start of a song is about 0.3 MB"
+                else "Off, only on Wi-Fi. A whole song is about 3–8 MB",
+                s.preloadCellular,
+            ) { prefs.setPreloadCellular(it) }
         }
         Group("Crossfade") {
             Toggle(

@@ -194,7 +194,7 @@ data class AppSettings(
     val playerShuffleRepeat: Boolean = false,
     /** How much of what's queued is loaded ahead while a song plays ([Preload]). */
     val preload: Preload = Preload.START,
-    /** Whole songs are loaded ahead on mobile data too (else only on Wi-Fi). */
+    /** Songs are loaded ahead ([preload]: a start or whole songs) on mobile data too (else only on Wi-Fi). */
     val preloadCellular: Boolean = false,
     /** Animated cover art (motion artwork / video covers) over the sleeve. */
     val canvasEnabled: Boolean = true,

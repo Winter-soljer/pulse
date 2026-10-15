@@ -721,7 +721,7 @@ class PlaybackService : MediaLibraryService(), Player.Listener {
         if (next.startsWith(Song.LOCAL_PREFIX)) return
         if (c.downloads.isDownloaded(next)) { armNextVideo(); return }
         scope.launch(Dispatchers.IO) {
-            c.warmUp(next)
+            c.warmUp(next, cellular = c.settings.current.preloadCellular)
             // A live stream coming up is lined up as one, so it starts without a failed attempt first.
             if (runCatching { c.streams.isLive(next) }.getOrDefault(false)) withContext(Dispatchers.Main) {
                 val at = (0 until player.mediaItemCount).firstOrNull { player.getMediaItemAt(it).mediaId == next && it != player.currentMediaItemIndex }
