@@ -231,13 +231,16 @@ class AppContainer(val app: Application) {
      * NewPipe) and, on Wi-Fi, its first ~10 seconds are saved into the song cache, so playback opens on bytes
      * already here instead of waiting on googlevideo. Blocking; call it off the main thread.
      */
-    fun warmUp(id: String) {
+    fun warmUp(id: String, whole: Boolean = false, cellular: Boolean = false) {
         if (id.startsWith(com.prism.music.data.model.Song.LOCAL_PREFIX)) return // a file on the phone is ready already
         if (downloadCache.fullyCached(id, 0, C.LENGTH_UNSET.toLong())) return
         val s = runCatching { streams.resolve(id) }.getOrNull() ?: return // live streams and failures: nothing to save
         val metered = app.getSystemService(android.net.ConnectivityManager::class.java)?.isActiveNetworkMetered != false
-        if (metered || prebuffered.containsKey(id)) return
-        val bytes = PREBUFFER_BYTES.let { if (s.contentLength > 0) minOf(it, s.contentLength) else it }
+        if (metered && !(whole && cellular)) return
+        // [whole] (Settings → Load ahead): the whole song, so it plays without buffering; it needs the stream's size.
+        if (whole && s.contentLength <= 0) return
+        if (!whole && prebuffered.containsKey(id)) return
+        val bytes = if (whole) s.contentLength else PREBUFFER_BYTES.let { if (s.contentLength > 0) minOf(it, s.contentLength) else it }
         if (playerCache.isCached(id, 0, bytes)) return
         val spec = DataSpec.Builder().setUri(s.audioUrl).setKey(id).setPosition(0).setLength(bytes).build()
         val source = CacheDataSource(playerCache, OkHttpDataSource.Factory(streamHttp).createDataSource())

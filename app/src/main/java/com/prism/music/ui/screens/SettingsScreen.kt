@@ -603,6 +603,7 @@ private fun PlayerSettings() {
             Toggle("Stream quality", "The codec and bitrate (or \"Downloaded\") under the progress bar; tap it for the full stats", s.showQuality) { prefs.setShowQuality(it) }
             Toggle("Output device", "Where the sound is going, under the controls (tap it to switch)", s.showOutputDevice) { prefs.setShowOutputDevice(it) }
             Toggle("Hide volume bar", null, s.hideVolumeBar) { prefs.setHideVolumeBar(it) }
+            Toggle("Shuffle and repeat buttons", "On either side of play, always (they're also above the queue). Repeat goes all, one, off", s.playerShuffleRepeat) { prefs.setPlayerShuffleRepeat(it) }
         }
         Group("Feel") {
             Toggle("Haptics", "A light tap when you press player buttons or swipe the mini player and artwork to change songs", s.haptics) { prefs.setHaptics(it) }
@@ -668,6 +669,18 @@ private fun SoundPage() {
             Toggle("Autoplay", "When a song, album or playlist ends, keep going with similar music", s.autoplay) { prefs.setAutoplay(it) }
             Toggle("Keep playing videos", "While a music video is showing, the next song plays as its video too, until you switch back to Song", s.videoContinues) { prefs.setVideoContinues(it) }
             Toggle("Skip silence", "Trims silent gaps at the start and end of songs", s.skipSilence) { prefs.setSkipSilence(it) }
+            Label("Load ahead")
+            Chips(com.prism.music.data.prefs.Preload.entries, s.preload, { it.label }) { prefs.setPreload(it) }
+            Text(
+                when (s.preload) {
+                    com.prism.music.data.prefs.Preload.START -> "While a song plays, the next one's first seconds are loaded (on Wi-Fi), so it starts at once"
+                    else -> "While a song plays (once it's under way), what's next in the queue is loaded whole, so it plays without buffering even if the signal drops"
+                },
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            if (s.preload != com.prism.music.data.prefs.Preload.START) {
+                Toggle("Load ahead on mobile data", "Off, whole songs are loaded ahead only on Wi-Fi", s.preloadCellular) { prefs.setPreloadCellular(it) }
+            }
         }
         Group("Crossfade") {
             Toggle(

@@ -95,6 +95,9 @@ enum class TransportStyle(val label: String) { GLYPHS("Classic"), BUTTON("Play b
 /** How wide the player's cover is: [extra] is how far it reaches into each side margin. */
 enum class CoverSize(val label: String, val extra: Float) { STANDARD("Standard", 0f), LARGE("Large", 18f), FULL("Full width", 30f) }
 /** Immersive mode's cover: [zoom] 1 fills the screen (its sides cut off), 0 shows all of it across the width. */
+/** How much of the queue is loaded ahead while a song plays: the next song's first seconds, or whole songs. */
+enum class Preload(val label: String, val songs: Int) { START("Start of the next song", 0), NEXT("Next song", 1), NEXT3("Next 3 songs", 3) }
+
 /** Where immersive mode's lyrics go: a line at a time high, in the middle or low on the screen, or all of them over it. */
 enum class ImmersiveLyrics(val label: String) { HIGH("High"), MIDDLE("Middle"), LOW("Low"), FULL("Full screen") }
 enum class ImmersiveArt(val label: String, val zoom: Float) { FILL("Fill the screen", 1f), ZOOMED("Zoomed out", 0.4f), WHOLE("Whole cover", 0f) }
@@ -187,6 +190,12 @@ data class AppSettings(
     val immersivePlayer: Boolean = false,
     val immersiveArt: ImmersiveArt = ImmersiveArt.ZOOMED,
     val immersiveLyrics: ImmersiveLyrics = ImmersiveLyrics.LOW,
+    /** Shuffle and repeat buttons either side of the player's transport, always (not only with the queue up). */
+    val playerShuffleRepeat: Boolean = false,
+    /** How much of what's queued is loaded ahead while a song plays ([Preload]). */
+    val preload: Preload = Preload.START,
+    /** Whole songs are loaded ahead on mobile data too (else only on Wi-Fi). */
+    val preloadCellular: Boolean = false,
     /** Animated cover art (motion artwork / video covers) over the sleeve. */
     val canvasEnabled: Boolean = true,
     val canvasOnCellular: Boolean = true,
@@ -349,6 +358,9 @@ class SettingsRepository(private val context: Context, scope: CoroutineScope) {
         val immersivePlayer = booleanPreferencesKey("immersive_player")
         val immersiveArt = stringPreferencesKey("immersive_art")
         val immersiveLyrics = stringPreferencesKey("immersive_lyrics")
+        val playerShuffleRepeat = booleanPreferencesKey("player_shuffle_repeat")
+        val preload = stringPreferencesKey("preload")
+        val preloadCellular = booleanPreferencesKey("preload_cellular")
         val canvasEnabled = booleanPreferencesKey("canvas_enabled")
         val canvasOnCellular = booleanPreferencesKey("canvas_on_cellular")
         val hideVolumeBar = booleanPreferencesKey("hide_volume_bar")
@@ -442,7 +454,7 @@ class SettingsRepository(private val context: Context, scope: CoroutineScope) {
                 fontChoice, textScale, corners, uiDensity, titleSize, cardSize, reduceMotion, navStyle, navLabels, navHideOnScroll,
                 navTabs, startTab, miniPlayerStyle, miniSkipButtons, miniProgress, playerBackground, playerBackdropShow, playerArtCorners, transportStyle,
                 coverSize, scrubberStyle, artShrinkOnPause, showOutputDevice, lyricsAlign, libraryView, playlistHeroCover, frostedPages, replayThemeColors,
-                immersiveArt, immersiveLyrics,
+                immersiveArt, immersiveLyrics, playerShuffleRepeat,
             )
         }
     }
@@ -472,6 +484,9 @@ class SettingsRepository(private val context: Context, scope: CoroutineScope) {
             immersivePlayer = p[K.immersivePlayer] ?: d.immersivePlayer,
             immersiveArt = p.enum(K.immersiveArt, d.immersiveArt),
             immersiveLyrics = p.enum(K.immersiveLyrics, d.immersiveLyrics),
+            playerShuffleRepeat = p[K.playerShuffleRepeat] ?: d.playerShuffleRepeat,
+            preload = p.enum(K.preload, d.preload),
+            preloadCellular = p[K.preloadCellular] ?: d.preloadCellular,
             canvasEnabled = p[K.canvasEnabled] ?: d.canvasEnabled,
             canvasOnCellular = p[K.canvasOnCellular] ?: d.canvasOnCellular,
             hideVolumeBar = p[K.hideVolumeBar] ?: d.hideVolumeBar,
@@ -627,6 +642,9 @@ class SettingsRepository(private val context: Context, scope: CoroutineScope) {
     fun setImmersivePlayer(v: Boolean) = edit { it[K.immersivePlayer] = v }
     fun setImmersiveArt(v: ImmersiveArt) = edit { it[K.immersiveArt] = v.name }
     fun setImmersiveLyrics(v: ImmersiveLyrics) = edit { it[K.immersiveLyrics] = v.name }
+    fun setPlayerShuffleRepeat(v: Boolean) = edit { it[K.playerShuffleRepeat] = v }
+    fun setPreload(v: Preload) = edit { it[K.preload] = v.name }
+    fun setPreloadCellular(v: Boolean) = edit { it[K.preloadCellular] = v }
     fun setCanvasEnabled(v: Boolean) = edit { it[K.canvasEnabled] = v }
     fun setCanvasOnCellular(v: Boolean) = edit { it[K.canvasOnCellular] = v }
     fun setHideVolumeBar(v: Boolean) = edit { it[K.hideVolumeBar] = v }

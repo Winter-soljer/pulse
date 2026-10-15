@@ -213,9 +213,15 @@ fun TransportRow(isPlaying: Boolean, isLoading: Boolean, previousEnabled: Boolea
     val pc = LocalContainer.current.player
     val style = LocalAppSettings.current.transportStyle
     val playSize = if (compact) 58.dp else 74.dp
-    val playTouch = if (compact) 76.dp else 92.dp
+    // With shuffle and repeat beside it, play's touch area gives a little room back (narrow phones).
+    val playTouch = if (compact) 76.dp else if (LocalAppSettings.current.playerShuffleRepeat) 80.dp else 92.dp
     val skipSize = if (compact) 44.dp else 53.dp
+    // Settings → Player: shuffle and repeat either side of the transport.
+    val modes = LocalAppSettings.current.playerShuffleRepeat
+    val shuffle by pc.shuffle.collectAsState()
+    val repeat by pc.repeatMode.collectAsState()
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceAround, verticalAlignment = Alignment.CenterVertically) {
+        if (modes) ModeGlyph(PrismIcons.Shuffle, if (shuffle) "Shuffle on" else "Shuffle off", shuffle) { pc.toggleShuffle() }
         val prevIcon = if (style == TransportStyle.GLYPHS) PrismIcons.Backward else PrismIcons.Previous
         val nextIcon = if (style == TransportStyle.GLYPHS) PrismIcons.Forward else PrismIcons.Next
         val skip = if (style == TransportStyle.GLYPHS) skipSize else skipSize * 0.82f
@@ -232,6 +238,30 @@ fun TransportRow(isPlaying: Boolean, isLoading: Boolean, previousEnabled: Boolea
             PlayDisc(isPlaying, isLoading, filled = style == TransportStyle.BUTTON, size = if (compact) 64.dp else 78.dp) { pc.togglePlay() }
         }
         TransportGlyph(nextIcon, "Next", skip, 53.dp, if (style == TransportStyle.GLYPHS) 0.85f else 1f, nextEnabled) { pc.next() }
+        if (modes) ModeGlyph(
+            PrismIcons.Repeat,
+            when (repeat) { Player.REPEAT_MODE_ALL -> "Repeat all"; Player.REPEAT_MODE_ONE -> "Repeat one"; else -> "Repeat off" },
+            repeat != Player.REPEAT_MODE_OFF,
+            badge = if (repeat == Player.REPEAT_MODE_ONE) "1" else null,
+        ) { pc.cycleRepeat() }
+    }
+}
+
+/** Shuffle or repeat beside the transport: bright with a dot under it when on, dim when off; [badge] marks repeat one. */
+@Composable
+private fun ModeGlyph(icon: ImageVector, description: String, active: Boolean, badge: String? = null, onClick: () -> Unit) {
+    val haptics = rememberHaptics()
+    val alpha by animateFloatAsState(if (active) 1f else 0.45f, label = "modeAlpha")
+    Box(
+        Modifier.size(44.dp).clickable(remember { MutableInteractionSource() }, indication = null, onClickLabel = description) { haptics.tick(); onClick() },
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(icon, description, tint = Color.White.copy(alpha = alpha), modifier = Modifier.size(24.dp))
+        if (badge != null) Text(
+            badge, color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold,
+            modifier = Modifier.align(Alignment.TopEnd).padding(top = 6.dp, end = 6.dp),
+        )
+        if (active) Box(Modifier.align(Alignment.BottomCenter).padding(bottom = 3.dp).size(4.dp).clip(CircleShape).background(Color.White))
     }
 }
 

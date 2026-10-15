@@ -692,6 +692,8 @@ class PlaybackService : MediaLibraryService(), Player.Listener {
 
     /** The queued songs' scans and loudness figures, under way (a newer queue replaces it). */
     private var scanJob: kotlinx.coroutines.Job? = null
+    /** Whole queued songs being loaded ahead (Settings → Load ahead; a newer queue replaces it). */
+    private var preloadJob: kotlinx.coroutines.Job? = null
 
     /**
      * Resolves the next song's stream while this one plays (the slow part of starting a song), so
@@ -705,6 +707,17 @@ class PlaybackService : MediaLibraryService(), Player.Listener {
         // The next few queued songs' loudness (for normalization) and edges (for Crossfade), ready well before they
         // play, so each starts at its own volume from its first second. Once this song is under way ([scanAhead]).
         scanAhead(player.currentMediaItem, *upcoming(QUEUE_AHEAD).toTypedArray())
+        // Settings → Load ahead: the next song or three loaded whole, once this one is under way.
+        val preload = c.settings.current.preload
+        preloadJob?.cancel()
+        if (preload.songs > 0) {
+            val playing = player.currentMediaItem?.mediaId
+            val ids = upcoming(preload.songs).map { it.mediaId }.filter { it.isNotBlank() && !c.downloads.isDownloaded(it) }
+            preloadJob = scope.launch {
+                if (playing != null) untilUnderWay(playing, UNDER_WAY_MS)
+                for (id in ids) withContext(Dispatchers.IO) { c.warmUp(id, whole = true, cellular = c.settings.current.preloadCellular) }
+            }
+        }
         if (next.startsWith(Song.LOCAL_PREFIX)) return
         if (c.downloads.isDownloaded(next)) { armNextVideo(); return }
         scope.launch(Dispatchers.IO) {
