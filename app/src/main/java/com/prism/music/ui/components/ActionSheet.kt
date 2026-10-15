@@ -30,7 +30,6 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
@@ -91,8 +90,7 @@ fun ActionSheet(
                     // Never the whole screen tall: a menu that reached the top (the player's, with an animated cover's two
                     // extra rows) didn't follow the finger when pulled down, and stuck. Longer menus scroll inside.
                     val maxHeight = LocalConfiguration.current.screenHeightDp.dp * 0.86f
-                    val flings = androidx.compose.runtime.remember { KeepFlingsInside() }
-                    Column(Modifier.fillMaxWidth().heightIn(max = maxHeight).nestedScroll(flings).verticalScroll(rememberScrollState())) {
+                    Column(Modifier.fillMaxWidth().heightIn(max = maxHeight).verticalScroll(rememberScrollState())) {
                         Box(Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 12.dp), contentAlignment = Alignment.Center) {
                             Box(Modifier.size(36.dp, 4.dp).clip(CircleShape).background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)))
                         }
@@ -102,32 +100,6 @@ fun ActionSheet(
                 }
             }
         }
-    }
-}
-
-/**
- * A fling in a long menu stays in the menu. Flicked fast, what was left of it when the list hit its end went on into
- * the sheet, which lurched and snapped back (it read as a stutter). A drag that pulls the sheet down from the top of
- * the list still does, and its flick still closes the sheet.
- */
-private class KeepFlingsInside : androidx.compose.ui.input.nestedscroll.NestedScrollConnection {
-    /** This gesture moved the sheet itself (the list was already at its top). */
-    private var pulling = false
-
-    override fun onPostScroll(
-        consumed: androidx.compose.ui.geometry.Offset,
-        available: androidx.compose.ui.geometry.Offset,
-        source: androidx.compose.ui.input.nestedscroll.NestedScrollSource,
-    ): androidx.compose.ui.geometry.Offset =
-        if (source == androidx.compose.ui.input.nestedscroll.NestedScrollSource.UserInput) {
-            if (available.y != 0f) pulling = true
-            androidx.compose.ui.geometry.Offset.Zero
-        } else available
-
-    override suspend fun onPostFling(consumed: androidx.compose.ui.unit.Velocity, available: androidx.compose.ui.unit.Velocity): androidx.compose.ui.unit.Velocity {
-        val kept = if (pulling) androidx.compose.ui.unit.Velocity.Zero else available
-        pulling = false
-        return kept
     }
 }
 
