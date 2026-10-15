@@ -1,5 +1,6 @@
 package com.prism.music.ui.screens
 
+import com.prism.music.data.model.quickPicks
 import com.prism.music.ui.theme.PrismIcons
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -122,8 +123,9 @@ fun HomeScreen(bottomPadding: androidx.compose.ui.unit.Dp) {
     val shelves = (home.state as? Load.Ok)?.value ?: emptyList()
     val layout = remember(settings.homeLayout, shelves, settings.autoAddSections) {
         val known = settings.homeLayout.map { it.key }.toSet()
+        val picks = shelves.quickPicks()
         val extra = if (settings.autoAddSections) shelves
-            .filter { shelfKey(it.title) !in known && !it.title.equals("Quick picks", true) }
+            .filter { shelfKey(it.title) !in known && it !== picks }
             .map { HomeSectionConfig(shelfKey(it.title), it.title) } else emptyList()
         settings.homeLayout.filter { it.visible } + extra
     }
@@ -152,12 +154,12 @@ fun HomeScreen(bottomPadding: androidx.compose.ui.unit.Dp) {
                     when (cfg.key) {
                         HomeSections.GREETING -> GreetingSection(recent)
                         HomeSections.QUICK_PICKS -> {
-                            val qp = shelves.firstOrNull { it.title.equals("Quick picks", true) }
+                            val qp = shelves.quickPicks()
                             // Recent plays stand in only once YouTube's picks are known to be missing: while Home is
                             // still loading they flashed up (a lone, stale row) and were then swapped out.
                             val items = qp?.items?.filterIsInstance<SongItem>()?.map { it.song }
                                 ?: if (home.state is Load.Loading) emptyList() else recent.take(16)
-                            if (items.isNotEmpty()) SongSection(cfg, "Quick picks", qp?.strapline, items)
+                            if (items.isNotEmpty()) SongSection(cfg, "Quick picks", qp?.strapline, items, snap = true)
                         }
                         HomeSections.RECENT -> if (recent.isNotEmpty()) SongSection(cfg, cfg.title, null, recent.take(20))
                         HomeSections.LIKED -> if (liked.isNotEmpty()) SongSection(cfg, "Liked songs", null, liked.take(20)) { nav.go(Routes.liked()) }
@@ -387,14 +389,29 @@ private fun GreetingSection(recent: List<Song>) {
 }
 
 @Composable
-private fun SongSection(cfg: HomeSectionConfig, title: String, strapline: String?, songs: List<Song>, onMore: (() -> Unit)? = null) {
+private fun SongSection(
+    cfg: HomeSectionConfig, title: String, strapline: String?, songs: List<Song>,
+    /** Swipes stop on each column of rows, as YouTube Music's Quick picks do. */
+    snap: Boolean = false,
+    onMore: (() -> Unit)? = null,
+) {
     val c = LocalContainer.current
     SectionHeader(title, strapline = strapline, onMore = onMore)
     when (cfg.style) {
         SectionStyle.LIST, SectionStyle.GRID -> {
+            val grid = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
+            val snapping = androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior(
+                remember(grid) {
+                    androidx.compose.foundation.gestures.snapping.SnapLayoutInfoProvider(
+                        grid, androidx.compose.foundation.gestures.snapping.SnapPosition.Start,
+                    )
+                },
+            )
             LazyHorizontalGrid(
                 GridCells.Fixed(4), Modifier.height(4 * 64.dp),
+                state = grid,
                 contentPadding = PaddingValues(horizontal = 4.dp),
+                flingBehavior = if (snap) snapping else androidx.compose.foundation.gestures.ScrollableDefaults.flingBehavior(),
             ) {
                 items(songs.size) { i ->
                     Box(Modifier.width(330.dp)) {

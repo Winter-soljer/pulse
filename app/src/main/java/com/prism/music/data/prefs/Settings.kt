@@ -92,6 +92,8 @@ enum class PlayerBackground(val label: String) {
     THEME("Theme"), BLACK("Black"),
 }
 enum class TransportStyle(val label: String) { GLYPHS("Classic"), BUTTON("Play button"), OUTLINE("Rings") }
+/** How wide the player's cover is: [extra] is how far it reaches into each side margin. */
+enum class CoverSize(val label: String, val extra: Float) { STANDARD("Standard", 0f), LARGE("Large", 18f), FULL("Full width", 30f) }
 enum class ScrubberStyle(val label: String) { HAIRLINE("Hairline"), BOLD("Bold"), THUMB("Thumb") }
 enum class LyricsAlign(val label: String) { START("Left"), CENTER("Centre") }
 enum class LibraryView(val label: String) { GRID("Grid"), LIST("List") }
@@ -207,6 +209,12 @@ data class AppSettings(
     val carLyricsOnPhone: Boolean = false,
     // Playback
     val showNerdStats: Boolean = false,
+    /** Downloaded songs save their animated cover too. */
+    val canvasWithDownloads: Boolean = true,
+    /** ...on mobile data as well (off: they're saved once on Wi-Fi). */
+    val canvasWithDownloadsCellular: Boolean = false,
+    /** The stream's quality (codec and bitrate, or "Downloaded") under the player's scrubber. */
+    val showQuality: Boolean = true,
     val audioQuality: AudioQuality = AudioQuality.HIGH,
     val cellularQuality: AudioQuality = AudioQuality.HIGH,
     val autoplay: Boolean = true,
@@ -290,6 +298,7 @@ data class AppSettings(
     /** 0..1: how much of the player's background shows through its darkening (blurred cover and your background). */
     val playerBackdropShow: Float = 0.35f,
     val playerArtCorners: Int = 8,
+    val coverSize: CoverSize = CoverSize.STANDARD,
     val transportStyle: TransportStyle = TransportStyle.BUTTON,
     val scrubberStyle: ScrubberStyle = ScrubberStyle.HAIRLINE,
     val artShrinkOnPause: Boolean = true,
@@ -348,6 +357,9 @@ class SettingsRepository(private val context: Context, scope: CoroutineScope) {
         val carLyricsStyle = stringPreferencesKey("car_lyrics_style")
         val carLyricsOnPhone = booleanPreferencesKey("car_lyrics_on_phone")
         val showNerdStats = booleanPreferencesKey("nerd_stats")
+        val showQuality = booleanPreferencesKey("show_quality")
+        val canvasWithDownloads = booleanPreferencesKey("canvas_with_downloads")
+        val canvasWithDownloadsCellular = booleanPreferencesKey("canvas_with_downloads_cellular")
         val audioQuality = stringPreferencesKey("audio_quality")
         val cellularQuality = stringPreferencesKey("cellular_quality")
         val autoplay = booleanPreferencesKey("autoplay")
@@ -399,6 +411,7 @@ class SettingsRepository(private val context: Context, scope: CoroutineScope) {
         val playerBackdropShow = floatPreferencesKey("player_backdrop_show")
         val playerArtCorners = intPreferencesKey("player_art_corners")
         val transportStyle = stringPreferencesKey("transport_style")
+        val coverSize = stringPreferencesKey("cover_size")
         val scrubberStyle = stringPreferencesKey("scrubber_style")
         val artShrinkOnPause = booleanPreferencesKey("art_shrink_on_pause")
         val showOutputDevice = booleanPreferencesKey("show_output_device")
@@ -414,7 +427,7 @@ class SettingsRepository(private val context: Context, scope: CoroutineScope) {
             listOf(
                 fontChoice, textScale, corners, uiDensity, titleSize, cardSize, reduceMotion, navStyle, navLabels, navHideOnScroll,
                 navTabs, startTab, miniPlayerStyle, miniSkipButtons, miniProgress, playerBackground, playerBackdropShow, playerArtCorners, transportStyle,
-                scrubberStyle, artShrinkOnPause, showOutputDevice, lyricsAlign, libraryView, playlistHeroCover, frostedPages, replayThemeColors,
+                coverSize, scrubberStyle, artShrinkOnPause, showOutputDevice, lyricsAlign, libraryView, playlistHeroCover, frostedPages, replayThemeColors,
             )
         }
     }
@@ -469,6 +482,9 @@ class SettingsRepository(private val context: Context, scope: CoroutineScope) {
             carLyricsStyle = p.enum(K.carLyricsStyle, d.carLyricsStyle),
             carLyricsOnPhone = p[K.carLyricsOnPhone] ?: d.carLyricsOnPhone,
             showNerdStats = p[K.showNerdStats] ?: d.showNerdStats,
+            showQuality = p[K.showQuality] ?: d.showQuality,
+            canvasWithDownloads = p[K.canvasWithDownloads] ?: d.canvasWithDownloads,
+            canvasWithDownloadsCellular = p[K.canvasWithDownloadsCellular] ?: d.canvasWithDownloadsCellular,
             audioQuality = p.enum(K.audioQuality, d.audioQuality),
             cellularQuality = p.enum(K.cellularQuality, d.cellularQuality),
             autoplay = p[K.autoplay] ?: d.autoplay,
@@ -530,6 +546,7 @@ class SettingsRepository(private val context: Context, scope: CoroutineScope) {
             playerBackdropShow = p[K.playerBackdropShow] ?: d.playerBackdropShow,
             playerArtCorners = p[K.playerArtCorners] ?: d.playerArtCorners,
             transportStyle = p.enum(K.transportStyle, d.transportStyle),
+            coverSize = p.enum(K.coverSize, d.coverSize),
             scrubberStyle = p.enum(K.scrubberStyle, d.scrubberStyle),
             artShrinkOnPause = p[K.artShrinkOnPause] ?: d.artShrinkOnPause,
             showOutputDevice = p[K.showOutputDevice] ?: d.showOutputDevice,
@@ -609,6 +626,9 @@ class SettingsRepository(private val context: Context, scope: CoroutineScope) {
     fun setCarLyricsStyle(v: CarLyricsStyle) = edit { it[K.carLyricsStyle] = v.name }
     fun setCarLyricsOnPhone(v: Boolean) = edit { it[K.carLyricsOnPhone] = v }
     fun setShowNerdStats(v: Boolean) = edit { it[K.showNerdStats] = v }
+    fun setShowQuality(v: Boolean) = edit { it[K.showQuality] = v }
+    fun setCanvasWithDownloads(v: Boolean) = edit { it[K.canvasWithDownloads] = v }
+    fun setCanvasWithDownloadsCellular(v: Boolean) = edit { it[K.canvasWithDownloadsCellular] = v }
     fun setAudioQuality(v: AudioQuality) = edit { it[K.audioQuality] = v.name }
     fun setCellularQuality(v: AudioQuality) = edit { it[K.cellularQuality] = v.name }
     fun setAutoplay(v: Boolean) = edit { it[K.autoplay] = v }
@@ -662,6 +682,7 @@ class SettingsRepository(private val context: Context, scope: CoroutineScope) {
     fun setPlayerBackdropShow(v: Float) = edit { it[K.playerBackdropShow] = v }
     fun setPlayerArtCorners(v: Int) = edit { it[K.playerArtCorners] = v }
     fun setTransportStyle(v: TransportStyle) = edit { it[K.transportStyle] = v.name }
+    fun setCoverSize(v: CoverSize) = edit { it[K.coverSize] = v.name }
     fun setScrubberStyle(v: ScrubberStyle) = edit { it[K.scrubberStyle] = v.name }
     fun setArtShrinkOnPause(v: Boolean) = edit { it[K.artShrinkOnPause] = v }
     fun setShowOutputDevice(v: Boolean) = edit { it[K.showOutputDevice] = v }

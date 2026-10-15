@@ -307,7 +307,10 @@ fun CurrentLyricStrip(state: LyricsState, isPlaying: Boolean, onClick: () -> Uni
                     instrumental -> "Instrumental"
                     else -> current!!.text
                 }
-                StripRow(onClick, note = instrumental) {
+                // A right-to-left line (Arabic, Hebrew…) runs from the right of the strip, its arrow after it as before.
+                val rtl = !instrumental && isRtl(text)
+                val stripStyle = MaterialTheme.typography.titleMedium.copy(textDirection = androidx.compose.ui.text.style.TextDirection.Content)
+                StripRow(onClick, note = instrumental, fill = rtl) {
                     AnimatedContent(
                         index to text,
                         transitionSpec = {
@@ -319,9 +322,12 @@ fun CurrentLyricStrip(state: LyricsState, isPlaying: Boolean, onClick: () -> Uni
                     ) { (i, t) ->
                         val line = lines.getOrNull(i)
                         if (line != null && !line.isGap && line.isWordSynced) {
-                            SweptLine(line, clock, MaterialTheme.typography.titleMedium, maxLines = 1)
+                            SweptLine(line, clock, stripStyle, maxLines = 1)
                         } else {
-                            Text(t, style = MaterialTheme.typography.titleMedium, color = if (instrumental) Color.White.copy(alpha = 0.5f) else Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(
+                                t, style = stripStyle, color = if (instrumental) Color.White.copy(alpha = 0.5f) else Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                modifier = if (isRtl(t)) Modifier.fillMaxWidth() else Modifier,
+                            )
                         }
                     }
                 }
@@ -339,7 +345,7 @@ fun CurrentLyricStrip(state: LyricsState, isPlaying: Boolean, onClick: () -> Uni
 }
 
 @Composable
-private fun StripRow(onClick: () -> Unit, note: Boolean, content: @Composable () -> Unit) {
+private fun StripRow(onClick: () -> Unit, note: Boolean, fill: Boolean = false, content: @Composable () -> Unit) {
     Row(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).clickable(onClick = onClick).padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -348,15 +354,28 @@ private fun StripRow(onClick: () -> Unit, note: Boolean, content: @Composable ()
             Icon(PrismIcons.Song, null, tint = Color.White, modifier = Modifier.size(16.dp))
             Spacer(Modifier.width(6.dp))
         }
-        Box(Modifier.weight(1f, fill = false)) { content() }
+        Box(Modifier.weight(1f, fill = fill)) { content() }
         Spacer(Modifier.width(6.dp))
         Icon(PrismIcons.ChevronRight, null, tint = Color.White.copy(alpha = 0.5f), modifier = Modifier.size(14.dp))
     }
 }
 
 /**
+ * Whether [text] reads right to left (Arabic, Hebrew, Persian…): its first letter with a direction decides, as
+ * Android's own text does. Lyrics take their direction from their words, not the phone's language.
+ */
+internal fun isRtl(text: String): Boolean {
+    for (ch in text) when (Character.getDirectionality(ch)) {
+        Character.DIRECTIONALITY_RIGHT_TO_LEFT, Character.DIRECTIONALITY_RIGHT_TO_LEFT_ARABIC -> return true
+        Character.DIRECTIONALITY_LEFT_TO_RIGHT -> return false
+    }
+    return false
+}
+
+/**
  * A word-timed line: a dim copy with a bright copy over it, clipped to exactly
- * what has been sung so far — the boundary travels through each word in time.
+ * what has been sung so far — the boundary travels through each word in time
+ * (leftwards in a right-to-left line).
  */
 @Composable
 fun SweptLine(
@@ -372,9 +391,10 @@ fun SweptLine(
         var acc = 0
         line.words.map { w -> val start = acc; acc += w.text.length; start to acc }
     }
+    val rtl = remember(line) { isRtl(line.text) }
     Box(modifier) {
-        // Full width, so centred and right-aligned lines sit where their plain copies do.
-        val wide = if (style.textAlign == TextAlign.Center || style.textAlign == TextAlign.End) Modifier.fillMaxWidth() else Modifier
+        // Full width, so centred and right-aligned lines (and right-to-left ones) sit where their plain copies do.
+        val wide = if (rtl || style.textAlign == TextAlign.Center || style.textAlign == TextAlign.End) Modifier.fillMaxWidth() else Modifier
         Text(line.text, wide, style = style, color = Color.White.copy(alpha = dimAlpha), maxLines = maxLines, overflow = TextOverflow.Ellipsis, onTextLayout = { layout = it })
         Text(
             line.text, style = style, color = Color.White, maxLines = maxLines, overflow = TextOverflow.Ellipsis,
@@ -411,9 +431,14 @@ fun SweptLine(
                         }
                         val ci = sung.toInt().coerceIn(0, textLen - 1)
                         val box = l.getBoundingBox(ci)
-                        val x = box.left + box.width * (sung - ci)
+                        // A right-to-left letter is read from its right edge.
+                        val rtlChar = l.getBidiRunDirection(ci) == androidx.compose.ui.text.style.ResolvedTextDirection.Rtl
+                        val x = if (rtlChar) box.right - box.width * (sung - ci) else box.left + box.width * (sung - ci)
+                        // What's still to come lies after x: to its right, or to its left in a right-to-left line.
+                        val rtlLine = l.getParagraphDirection(ls) == androidx.compose.ui.text.style.ResolvedTextDirection.Rtl
                         drawRect(
-                            Brush.horizontalGradient(0f to Color.Transparent, 1f to Color.Black, startX = x - feather / 2, endX = x + feather / 2),
+                            if (rtlLine) Brush.horizontalGradient(0f to Color.Black, 1f to Color.Transparent, startX = x - feather / 2, endX = x + feather / 2)
+                            else Brush.horizontalGradient(0f to Color.Transparent, 1f to Color.Black, startX = x - feather / 2, endX = x + feather / 2),
                             Offset(0f, top), androidx.compose.ui.geometry.Size(size.width, bottom - top), blendMode = BlendMode.DstOut,
                         )
                     }
@@ -561,11 +586,15 @@ fun LyricsPanel(
                 return@itemsIndexed
             }
             val centred = settings.lyricsAlign == com.prism.music.data.prefs.LyricsAlign.CENTER
+            // Arabic, Hebrew and the like read right to left: such a line starts at the right (its direction comes from
+            // its words; left unset, Compose laid every line out left to right, so Arabic sat on the left).
+            val rtl = remember(line) { isRtl(line.text) }
             val style = (if (synced) TextStyle(fontSize = (34 * scale).sp, lineHeight = (41 * scale).sp) else TextStyle(fontSize = (30 * scale).sp, lineHeight = (38 * scale).sp))
                 .copy(
                     fontWeight = FontWeight.ExtraBold,
                     fontFamily = MaterialTheme.typography.bodyLarge.fontFamily,
                     textAlign = when { line.alignEnd -> TextAlign.End; centred -> TextAlign.Center; else -> TextAlign.Start },
+                    textDirection = androidx.compose.ui.text.style.TextDirection.Content,
                 )
             val lineScale by animateFloatAsState(if (isActive || !synced) 1f else 0.98f, tween(LYRIC_SETTLE_MS, easing = LYRIC_EASING), label = "scale")
             Box(
@@ -573,7 +602,9 @@ fun LyricsPanel(
                     .fillMaxWidth()
                     .graphicsLayer {
                         scaleX = lineScale; scaleY = lineScale
-                        transformOrigin = TransformOrigin(if (line.alignEnd) 1f else if (centred) 0.5f else 0f, 0.5f)
+                        transformOrigin = TransformOrigin(
+                            when { centred && !line.alignEnd -> 0.5f; line.alignEnd != rtl -> 1f; else -> 0f }, 0.5f,
+                        )
                     }
                     .blur(blur, BlurredEdgeTreatment.Unbounded)
                     .clip(RoundedCornerShape(10.dp))

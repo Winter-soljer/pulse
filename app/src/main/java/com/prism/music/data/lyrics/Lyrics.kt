@@ -588,6 +588,9 @@ class LyricsRepository(
     private suspend fun fetchYtMusic(song: Song): String? {
         val next = ytm.next(song.id)
         val id = next.lyricsBrowseId ?: return null
+        // Time-synced when YouTube Music has them (its app's "live lyrics"; many songs other sources lack, Arabic ones
+        // among them), else its plain text.
+        runCatching { ytm.syncedLyrics(id) }.getOrNull()?.let { return it }
         return ytm.lyrics(id)
     }
 
@@ -743,7 +746,9 @@ class LyricsRepository(
             val upgrade = source in setOf(LyricsSource.NETEASE, LyricsSource.KUGOU) && cached.fetchedAt < WORDS_SINCE &&
                 !cached.content.startsWith(WordFormat.PREFIX)
             // Answers from before the length check ([lengthFits]) may be another edit's timings: asked again once.
-            val recheck = source in LENGTH_CHECKED && cached.fetchedAt < LENGTH_CHECK_SINCE
+            val recheck = (source in LENGTH_CHECKED && cached.fetchedAt < LENGTH_CHECK_SINCE) ||
+                // YouTube Music's plain text, saved before its synced lyrics were asked for: asked again once.
+                (source == LyricsSource.YTMUSIC && cached.fetchedAt < YT_SYNCED_SINCE && !Lrc.isLrc(cached.content))
             if (cached.content.isNotEmpty() && !upgrade && !recheck) return@withContext build(source, cached.content)
             if (cached.content.isEmpty() && System.currentTimeMillis() - cached.fetchedAt < 86_400_000L) return@withContext null
         }
@@ -781,6 +786,8 @@ class LyricsRepository(
         const val MAX_LENGTH_GAP_SEC = 8.0
         /** When the length check came in (2026-10-14); saved answers from these sources before it are checked again. */
         const val LENGTH_CHECK_SINCE = 1_791_936_000_000L
+        /** YouTube Music's synced lyrics came in (1.6.4); plain text from it saved before this is asked for again. */
+        const val YT_SYNCED_SINCE = 1_792_627_200_000L // 2026-10-22
         val LENGTH_CHECKED = setOf(LyricsSource.KUGOU, LyricsSource.NETEASE, LyricsSource.LRCLIB, LyricsSource.BINI)
 
         /** Where the full words for starred-out lyrics come from, in order. */

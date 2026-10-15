@@ -162,6 +162,8 @@ class DownloadRepository(private val context: Context, private val c: AppContain
             refreshSmartIds()
             // Songs downloaded before lyrics came with them (or while offline) get theirs now.
             backfillLyrics()
+            // ...and their animated covers, if they waited for Wi-Fi.
+            saveCanvases()
         }
         manager.addListener(object : DownloadManager.Listener {
             override fun onDownloadChanged(manager: DownloadManager, download: Download, finalException: Exception?) {
@@ -178,8 +180,8 @@ class DownloadRepository(private val context: Context, private val c: AppContain
                 if (download.state == Download.STATE_COMPLETED && download.request.id in _smartIds.value) c.trimSongCache()
                 if (download.state == Download.STATE_COMPLETED) download.info().song?.let { s ->
                     c.scope.launch(Dispatchers.IO) { ensureLyrics(s) }
-                    // Its animated cover is kept with it.
-                    if (c.settings.current.canvasEnabled && !c.canvas.saved.value.has(s.id, null)) c.canvasStore.saveWithDownload(s)
+                    // Its animated cover is kept with it (on Wi-Fi, unless allowed on mobile data; [saveCanvases] catches up).
+                    saveCanvas(s)
                 }
             }
 
@@ -208,6 +210,17 @@ class DownloadRepository(private val context: Context, private val c: AppContain
                     synced.keys.filter { it !in known }.forEach { id -> synced[id]?.first?.let { s -> c.scope.launch(Dispatchers.IO) { ensureLyrics(s) } } }
                 }
             }
+        }
+        // Back on Wi-Fi: covers that waited for it are saved.
+        runCatching {
+            context.getSystemService(android.net.ConnectivityManager::class.java)?.registerNetworkCallback(
+                android.net.NetworkRequest.Builder()
+                    .addCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                    .addCapability(android.net.NetworkCapabilities.NET_CAPABILITY_NOT_METERED).build(),
+                object : android.net.ConnectivityManager.NetworkCallback() {
+                    override fun onAvailable(network: android.net.Network) = saveCanvases()
+                },
+            )
         }
         scope.launch {
             c.settings.flow.collect { applyRequirements() }
@@ -353,6 +366,26 @@ class DownloadRepository(private val context: Context, private val c: AppContain
             }
             for (song in completedSongs()) ensureLyrics(song, force)
         }
+    }
+
+    // ------------------------------------------------------------ Animated covers for downloads
+
+    /**
+     * Saves a downloaded song's animated cover, when covers are on and saved with downloads, and the network allows
+     * it. True when it was saved or asked for (or nothing's needed); false when it waits for Wi-Fi.
+     */
+    private fun saveCanvas(song: Song): Boolean {
+        val s = c.settings.current
+        if (!s.canvasEnabled || !s.canvasWithDownloads || song.isLocal || c.canvas.saved.value.has(song.id, null)) return true
+        val metered = context.getSystemService(android.net.ConnectivityManager::class.java)?.isActiveNetworkMetered != false
+        if (metered && !s.canvasWithDownloadsCellular) return false
+        c.canvasStore.saveWithDownload(song)
+        return true
+    }
+
+    /** Saves the covers downloaded songs don't have yet (at launch, after the setting's turned on, back on Wi-Fi). */
+    fun saveCanvases() {
+        c.scope.launch(Dispatchers.Main) { for (song in completedSongs()) if (!saveCanvas(song)) break }
     }
 
     fun completedSongs(): List<Song> = _downloads.value.values

@@ -66,6 +66,7 @@ import com.prism.music.data.prefs.CarLyricsStyle
 import com.prism.music.data.prefs.CardSize
 import com.prism.music.data.prefs.ColorSource
 import com.prism.music.data.prefs.Corners
+import com.prism.music.data.prefs.CoverSize
 import com.prism.music.data.prefs.FontChoice
 import com.prism.music.data.prefs.GlassKind
 import com.prism.music.data.prefs.LibraryView
@@ -548,7 +549,8 @@ private fun TabsEditor() {
 @Composable
 private fun PlayerSettings() {
     val s = LocalAppSettings.current
-    val prefs = LocalContainer.current.settings
+    val container = LocalContainer.current
+    val prefs = container.settings
     Column(verticalArrangement = Arrangement.spacedBy(22.dp)) {
         Group("Look") {
             Label("Background")
@@ -567,16 +569,31 @@ private fun PlayerSettings() {
             SliderSetting("Artwork corners", s.playerArtCorners.toFloat(), 0f..32f, { "${it.roundToInt()} dp" }, steps = 7) { prefs.setPlayerArtCorners(it.roundToInt()) }
         }
         Group("Artwork") {
+            Label("Cover size")
+            Chips(CoverSize.entries, s.coverSize, { it.label }) { prefs.setCoverSize(it) }
+            Note(
+                if (s.fullBleedArtwork) "With Full-bleed artwork on, this sets how far down the cover reaches"
+                else "Large narrows the side margins; Full width runs the square cover edge to edge. On shorter screens it grows " +
+                    "as far as the controls allow: turning off the current lyric, volume bar or output device makes more room"
+            )
             Toggle("Full-bleed artwork", "Cover art runs edge to edge at the top of the player", s.fullBleedArtwork) { prefs.setFullBleedArtwork(it) }
             Toggle("Shrink when paused", "The cover eases back a little while the music is paused", s.artShrinkOnPause) { prefs.setArtShrinkOnPause(it) }
             Toggle("Animated cover art", "Motion artwork and video covers, when a song has one. You can also turn it off for single songs from the player's ⋯ menu", s.canvasEnabled) { prefs.setCanvasEnabled(it) }
             if (s.canvasEnabled) Toggle("Animated covers on mobile data", "Saved covers play from the phone either way", s.canvasOnCellular) { prefs.setCanvasOnCellular(it) }
+            if (s.canvasEnabled) Toggle("Save with downloads", "Downloaded songs keep their animated cover on the phone too (an album's songs share one copy)", s.canvasWithDownloads) {
+                prefs.setCanvasWithDownloads(it)
+                if (it) container.downloads.saveCanvases()
+            }
+            if (s.canvasEnabled && s.canvasWithDownloads) Toggle("Save with downloads on mobile data", "Off, they're saved once you're on Wi-Fi", s.canvasWithDownloadsCellular) {
+                prefs.setCanvasWithDownloadsCellular(it)
+                if (it) container.downloads.saveCanvases()
+            }
             if (s.canvasEnabled) CanvasStorage()
         }
         Group("On the player") {
             Toggle("Show \"Playing from\"", "The song's album over the artwork; tap it to open the album", s.showPlayingFrom) { prefs.setShowPlayingFrom(it) }
             Toggle("Current lyric", "The line being sung, just above the scrubber", s.lyricsOnPlayer) { prefs.setLyricsOnPlayer(it) }
-            Toggle("Stats for nerds", "Codec, bitrate and sample rate along the bottom of the artwork", s.showNerdStats) { prefs.setShowNerdStats(it) }
+            Toggle("Stream quality", "The codec and bitrate (or \"Downloaded\") under the progress bar; tap it for the full stats", s.showQuality) { prefs.setShowQuality(it) }
             Toggle("Output device", "Where the sound is going, under the controls (tap it to switch)", s.showOutputDevice) { prefs.setShowOutputDevice(it) }
             Toggle("Hide volume bar", null, s.hideVolumeBar) { prefs.setHideVolumeBar(it) }
         }

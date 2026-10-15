@@ -298,6 +298,7 @@ object Parser {
                     moreBrowseId = header.str("moreContentButton", "buttonRenderer", "navigationEndpoint", "browseEndpoint", "browseId")
                         ?: header.obj("title").runs().firstOrNull().str("navigationEndpoint", "browseEndpoint", "browseId"),
                     moreParams = header.str("moreContentButton", "buttonRenderer", "navigationEndpoint", "browseEndpoint", "params"),
+                    rows = s.str("numItemsPerColumn") != null || s.arr("contents")?.firstOrNull().obj("musicResponsiveListItemRenderer") != null,
                 )
             }
             node.obj("musicShelfRenderer")?.let { s ->

@@ -413,6 +413,22 @@ class YouTubeMusic(private val api: InnerTube) {
         return res.findFirst("musicDescriptionShelfRenderer").obj("description").text()
     }
 
+    /**
+     * YouTube Music's time-synced lyrics (LyricFind's, as its app shows them), as LRC; null when the song has only
+     * plain text. Only the Android app's lyrics page carries the timings ([InnerTube.androidMusicPost]).
+     */
+    suspend fun syncedLyrics(browseId: String): String? {
+        val res = api.androidMusicPost("browse", buildJsonObject { put("browseId", browseId) })
+        val lines = res.findFirst("timedLyricsData") as? kotlinx.serialization.json.JsonArray ?: return null
+        val out = StringBuilder()
+        for (l in lines) {
+            val ms = l.str("cueRange", "startTimeMilliseconds")?.toLongOrNull() ?: continue
+            val text = l.str("lyricLine") ?: continue
+            out.append("[%02d:%02d.%02d]%s\n".format(ms / 60_000, ms / 1000 % 60, ms % 1000 / 10, text.trim()))
+        }
+        return out.toString().takeIf { it.isNotBlank() }
+    }
+
     /** Fetches loudness + playback tracking info for normalization and history sync. */
     /**
      * Fetches loudness + playback tracking info for normalization and history sync. [signatureTimestamp]

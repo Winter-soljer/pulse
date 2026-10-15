@@ -44,6 +44,8 @@ class InnerTube(
         val json = Json { ignoreUnknownKeys = true; isLenient = true }
         /** The TV client's version (YouTube on smart TVs); bump it if TV playback starts being refused. */
         const val TV_CLIENT_VERSION = "7.20250923.13.00"
+        /** The YouTube Music Android app version [androidMusicPost] asks as (for synced lyrics). */
+        const val ANDROID_MUSIC_VERSION = "7.27.52"
         /** youtube.com's web client, for [webPost] (live stream search). */
         const val WEB_CLIENT_VERSION = "2.20250925.01.00"
     }
@@ -241,6 +243,39 @@ class InnerTube(
             .header("Referer", "https://www.youtube.com/")
             .header("X-YouTube-Client-Name", "1")
             .header("X-YouTube-Client-Version", WEB_CLIENT_VERSION)
+            .build()
+        http.newCall(req).execute().use { resp ->
+            val text = resp.body.string()
+            if (!resp.isSuccessful) throw InnerTubeException("YouTube returned HTTP ${resp.code}", resp.code)
+            json.parseToJsonElement(text).jsonObject
+        }
+    }
+
+    /**
+     * Asks YouTube Music as its Android app (anonymously). Its lyrics page carries time-synced lyrics (LyricFind's,
+     * line by line) that the web client's has only as plain text.
+     */
+    suspend fun androidMusicPost(endpoint: String, body: JsonObject): JsonObject = withContext(Dispatchers.IO) {
+        val payload = buildJsonObject {
+            putJsonObject("context") {
+                putJsonObject("client") {
+                    put("clientName", "ANDROID_MUSIC")
+                    put("clientVersion", ANDROID_MUSIC_VERSION)
+                    put("androidSdkVersion", 30)
+                    put("osName", "Android")
+                    put("osVersion", "11")
+                    put("hl", hl)
+                    put("gl", gl)
+                }
+            }
+            body.forEach { (k, v) -> put(k, v) }
+        }
+        val req = Request.Builder()
+            .url("https://music.youtube.com/youtubei/v1/$endpoint?prettyPrint=false")
+            .post(payload.toString().toRequestBody(JSON_TYPE))
+            .header("User-Agent", "com.google.android.apps.youtube.music/$ANDROID_MUSIC_VERSION (Linux; U; Android 11) gzip")
+            .header("X-YouTube-Client-Name", "21")
+            .header("X-YouTube-Client-Version", ANDROID_MUSIC_VERSION)
             .build()
         http.newCall(req).execute().use { resp ->
             val text = resp.body.string()

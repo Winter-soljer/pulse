@@ -648,27 +648,3 @@ fun QualityLabel(modifier: Modifier = Modifier, selected: Boolean = false, onCli
             .clickable(onClick = onClick).padding(horizontal = 8.dp, vertical = 2.dp),
     )
 }
-
-/** One line of stats on the foot of the sleeve, when Stats for nerds is on. */
-@Composable
-fun SleeveNerdStats(modifier: Modifier = Modifier) {
-    val settings by LocalContainer.current.settings.flow.collectAsState()
-    if (!settings.showNerdStats) return
-    val s by LocalContainer.current.nerdStats.collectAsState()
-    // Just the basics: codec, bitrate, sample rate.
-    val parts = listOfNotNull(
-        s.codec.takeIf { it.isNotBlank() }?.let(::codecName),
-        s.streamBitrateKbps.takeIf { it > 0 }?.let { "$it kbps" },
-        s.sampleRate.takeIf { it > 0 }?.let(::sampleRateText),
-    )
-    if (parts.isEmpty()) return
-    Text(
-        parts.joinToString(" · "),
-        style = MaterialTheme.typography.labelSmall.copy(shadow = textShadow),
-        color = Color.White.copy(alpha = 0.65f),
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis,
-        textAlign = TextAlign.Center,
-        modifier = modifier,
-    )
-}

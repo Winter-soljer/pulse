@@ -1,5 +1,6 @@
 package com.prism.music.ui.screens
 
+import com.prism.music.data.model.quickPicks
 import com.prism.music.ui.theme.PrismIcons
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -82,7 +83,8 @@ fun CatalogueScreen(bottomPadding: Dp) {
     val ytShelves by homeShelfCache.collectAsState()
     val layout = settings.homeLayout
     // Every section Prism can show — built-in and every shelf YouTube Music has offered — that isn't on Home yet.
-    val available = (HomeSections.defaults + ytShelves.filterNot { it.title.equals("Quick picks", true) }.map { HomeSectionConfig(shelfKey(it.title), it.title) })
+    val picks = ytShelves.quickPicks()
+    val available = (HomeSections.defaults + ytShelves.filterNot { it === picks }.map { HomeSectionConfig(shelfKey(it.title), it.title) })
         .filter { cfg -> layout.none { it.key == cfg.key } }
         .distinctBy { it.key }
     var adding by remember { mutableStateOf(false) }

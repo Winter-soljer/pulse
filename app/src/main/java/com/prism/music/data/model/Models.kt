@@ -132,7 +132,17 @@ data class Shelf(
     val moreParams: String? = null,
     /** YouTube's own grid (an artist's "See all" discography, for one), rather than a carousel. */
     val grid: Boolean = false,
+    /** A carousel of song rows (a few per column) rather than cards: how YouTube Music lays out Quick picks. */
+    val rows: Boolean = false,
 )
+
+/**
+ * Home's Quick picks. Its title is in the account's language ("Selección rápida", "Schnellauswahl"…), so after the
+ * English title it's known by its shape: the first carousel of song rows. (Matched by title alone, Home showed your
+ * recent plays in its place for anyone using YouTube in another language.)
+ */
+fun List<Shelf>.quickPicks(): Shelf? = firstOrNull { it.title.equals("Quick picks", true) }
+    ?: firstOrNull { s -> s.rows && s.items.count { it is SongItem } * 2 > s.items.size }
 
 /** Album/single/EP ordering, by the year in a card's subtitle ("Album • 2024", or just "2024"). */
 object Releases {

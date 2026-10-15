@@ -51,7 +51,9 @@ Updating works the same way: install the new APK over the old one, and your down
 ### Listening
 - **Lyrics, word by word.** Better Lyrics (Apple Music's timed lyrics), QQ Music, NetEase, KuGou, LyricsPlus, Bini, LRCLIB, Unison, Genius and YouTube Music. Starred-out swear words ("f**k") are filled back in from Genius's full text, keeping the word-by-word timing. Lyrics in another language can show a translation under each line.
 - **Mix.** When a song runs into the next, the two blend instead of stopping and starting. Prism measures each song's tempo on the phone (on Wi-Fi), starts the next song on the beat and plays it at the same tempo while they overlap, then eases it back to its own. Blends last 2 to 12 seconds, and an album's own tracks still play straight through.
-- **Player.** Full-bleed artwork and animated covers. Shows the codec and bitrate (or Lossless / Downloaded), with stats in an in-player panel.
+- **Player.** Full-bleed artwork and animated covers (saved with downloads, for offline), in three cover sizes up to full width. Shows the codec and bitrate (or Lossless / Downloaded) under the progress bar, with stats in an in-player panel.
+- **Lyrics in any direction.** Arabic, Hebrew and other right-to-left lyrics sit on the right and light up from the right.
+- **Podcasts.** Popular shows, your followed shows when signed in, episodes that pick up where you left off, and 0.75× to 2× speed.
 - **Music videos.** Tap the video toggle under the player to switch any song to its official music video. Playback carries on from the same spot, and the lyrics stay in sync. Fit or fill the frame, go full screen, or turn the phone sideways for edge-to-edge landscape. Video quality goes from 480p up to 1440p in Playback & sound.
 - **Sound.** 10-band equalizer with presets, bass boost, loudness normalization (each song measured on the phone, to -14 LUFS; works offline), Prism Spatial for any headphones, skip silence, and a lossless mode that plays matching FLAC files on the phone.
 - **Autoplay and radio.** The queue keeps going with similar music after an album or playlist ends. Shuffle makes a fresh order every time. Save the queue as a playlist, or clear what's up next.
@@ -86,6 +88,13 @@ Updating works the same way: install the new APK over the old one, and your down
 > **Android Auto lyrics are for passengers and for use while parked only.** Do not read lyrics while driving. Keep your eyes on the road and follow local laws. You can turn car lyrics off at any time in Settings → Lyrics → Android Auto, or with the lyrics button on the car's player.
 
 ## Screenshots
+
+### New in 1.6
+
+| | | | |
+|:-:|:-:|:-:|:-:|
+| <img src="docs/screenshots/player-large.jpg" width="190" alt="Player with the Large cover size"><br>Large cover | <img src="docs/screenshots/player-full.jpg" width="190" alt="Player with the Full width cover size"><br>Full width cover | <img src="docs/screenshots/lyrics-rtl.jpg" width="190" alt="Arabic lyrics, right-aligned, with a translation"><br>Right-to-left lyrics | <img src="docs/screenshots/storage-dark.jpg" width="190" alt="Smart Downloads settings"><br>Smart Downloads, one space |
+| <img src="docs/screenshots/podcasts-dark.jpg" width="190" alt="Podcasts, dark"><br>Podcasts | <img src="docs/screenshots/podcasts-light.jpg" width="190" alt="Podcasts, light"><br>Podcasts, light | | |
 
 ### The player
 

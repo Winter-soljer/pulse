@@ -50,9 +50,13 @@ import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
 
 /**
- * What the media session (and so Android Auto) sees of the player: the real player, except that
- * while lyrics are showing, the current song's title and cover are swapped for the lyric.
- * The app itself talks to the real player and never sees the swap.
+ * What the media session (and so Android Auto, the notification, a watch) sees of the player: the real player,
+ * except that
+ * - while lyrics are showing, the current song's title and cover are swapped for the lyric;
+ * - while shuffle is on, the queue is listed in the order it will play ([PlayOrderTimeline]). The session's queue is
+ *   the playlist in its stored order, so the car listed the songs unshuffled while the phone showed them shuffled, and
+ *   a song picked there by its place landed on another. Seeks by place are turned back into the real ones.
+ * The app itself talks to the real player and never sees either.
  */
 @OptIn(UnstableApi::class)
 class LyricsOverlayPlayer(player: Player) : ForwardingSimpleBasePlayer(player) {
@@ -60,6 +64,8 @@ class LyricsOverlayPlayer(player: Player) : ForwardingSimpleBasePlayer(player) {
 
     private var overlay: Overlay? = null
     private val window = Timeline.Window()
+    /** The play order last shown (shown place -> real place), while shuffled; null when shown as stored. */
+    @Volatile private var shown: IntArray? = null
 
     fun show(o: Overlay?) {
         if (o == null && overlay == null) return
@@ -67,8 +73,25 @@ class LyricsOverlayPlayer(player: Player) : ForwardingSimpleBasePlayer(player) {
         invalidateState()
     }
 
+    override fun handleSeek(mediaItemIndex: Int, positionMs: Long, seekCommand: Int): com.google.common.util.concurrent.ListenableFuture<*> {
+        val order = shown
+        val real = if (order != null && mediaItemIndex in order.indices) order[mediaItemIndex] else mediaItemIndex
+        return super.handleSeek(real, positionMs, seekCommand)
+    }
+
     override fun getState(): State {
-        val s = super.getState()
+        var s = super.getState()
+        shown = null
+        if (s.shuffleModeEnabled && s.timeline.windowCount > 1 && s.currentMediaItemIndex in 0 until s.timeline.windowCount) {
+            val t = PlayOrderTimeline.of(s.timeline)
+            if (t != null) {
+                shown = t.order
+                s = s.buildUpon()
+                    .setPlaylist(t, s.currentTracks, s.currentMetadata)
+                    .setCurrentMediaItemIndex(t.shownIndexOf(s.currentMediaItemIndex))
+                    .build()
+            }
+        }
         val o = overlay ?: return s
         val index = s.currentMediaItemIndex
         if (s.timeline.isEmpty || index !in 0 until s.timeline.windowCount) return s

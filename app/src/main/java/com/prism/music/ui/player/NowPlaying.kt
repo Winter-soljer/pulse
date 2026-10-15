@@ -137,10 +137,11 @@ fun rememberPosition(fast: Boolean, hold: Boolean = false): Long {
     return pos
 }
 
+/** A square of [side]; it may be wider than the slot (a Large / Full width cover reaches into the side margins). */
 private fun Modifier.measuredSquare(side: () -> Dp): Modifier = layout { measurable, constraints ->
-    val px = side().roundToPx()
-    val p = measurable.measure(constraints.constrain(Constraints.fixed(px, px)))
-    layout(p.width, p.height) { p.placeRelative(0, 0) }
+    val px = side().roundToPx().coerceAtMost(constraints.maxHeight)
+    val p = measurable.measure(Constraints.fixed(px, px))
+    layout(minOf(p.width, constraints.maxWidth), p.height) { p.placeRelative(0, 0) }
 }
 
 /**
@@ -287,7 +288,10 @@ fun NowPlayingScreen(onCollapse: () -> Unit) {
     val fullBlur by animateFloatAsState(if (lyricsOpen || queueOpen || statsOpen) 1f else 0f, tween(360, easing = FastOutSlowInEasing), label = "fullBlur")
     val statusTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     // Collapsed into the header thumbnail, the sleeve keeps gentle corners whatever the setting.
-    val artShape = RoundedCornerShape(lerp(settings.playerArtCorners.dp, 8.dp, collapse.value))
+    // A Full width cover meets the screen's edges, so it has square corners until it shrinks into the header.
+    val artCorners = if (settings.coverSize == com.prism.music.data.prefs.CoverSize.FULL) 0.dp else settings.playerArtCorners.dp
+    val artShape = RoundedCornerShape(lerp(artCorners, 8.dp, collapse.value))
+    val roomyCover = settings.coverSize != com.prism.music.data.prefs.CoverSize.STANDARD
 
     // Only ever the song's album (tapping it opens the album); nothing for songs without one.
     val originAlbum = song.album?.takeIf { it.id != null && it.title.isNotBlank() }
@@ -425,9 +429,12 @@ fun NowPlayingScreen(onCollapse: () -> Unit) {
             }
 
             Column(Modifier.weight(1f).fillMaxWidth().padding(horizontal = PLAYER_GUTTER), horizontalAlignment = Alignment.CenterHorizontally) {
-                BoxWithConstraints(Modifier.weight(1f).fillMaxWidth().padding(top = ART_BOX_TOP_PAD, bottom = 18.dp)) {
-                    val fullArt = minOf(maxWidth, maxHeight - ART_TITLE_GAP - HEADER_HEIGHT).coerceAtLeast(THUMB_SIZE)
-                    val groupTop = ((maxHeight - fullArt - ART_TITLE_GAP - HEADER_HEIGHT) / 2).coerceAtLeast(0.dp)
+                BoxWithConstraints(Modifier.weight(1f).fillMaxWidth().padding(top = ART_BOX_TOP_PAD, bottom = if (roomyCover) 12.dp else 18.dp)) {
+                    // Settings → Player → Cover size: Large and Full width reach into the side margins (still square).
+                    val fullArt = minOf(maxWidth + settings.coverSize.extra.dp * 2, maxHeight - ART_TITLE_GAP - HEADER_HEIGHT).coerceAtLeast(THUMB_SIZE)
+                    // Room the cover can't use (a tall screen) goes above it: the title stays just over the controls,
+                    // rather than a blank band opening up between the artist and the scrubber (issue #9).
+                    val groupTop = (maxHeight - fullArt - ART_TITLE_GAP - HEADER_HEIGHT).coerceAtLeast(0.dp)
                     val bannerBottom = statusTop + DISMISS_STRIP + ART_BOX_TOP_PAD + groupTop + fullArt + ART_TITLE_GAP / 2
                     if (!lyricsOpen && !queueOpen && !statsOpen && bannerBottom != heroHeight) SideEffect { heroHeight = bannerBottom }
                     val sleeveMaxWidth = maxWidth
@@ -503,9 +510,6 @@ fun NowPlayingScreen(onCollapse: () -> Unit) {
                                 CanvasPlayer(clip, canvasSaved, isPlaying, Modifier.fillMaxSize(), onCoverChanged = { canvasCover = it }, hold = covered)
                             }
                         }
-                        if (!collapsePastHalf && !videoMode) SleeveNerdStats(
-                            Modifier.align(Alignment.BottomCenter).padding(horizontal = 10.dp, vertical = 8.dp).graphicsLayer { alpha = 1f - p() * 2f },
-                        )
                     }
 
                     // ---- Credits: title, artist, like, menu
@@ -589,24 +593,28 @@ fun NowPlayingScreen(onCollapse: () -> Unit) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         if (lyricsOpen) LyricsStatusWithChange(lyricsState) { showProviders = true }
                         else if (settings.lyricsOnPlayer) CurrentLyricStrip(lyricsState, isPlaying && !covered, openLyrics)
-                        else Text(" ", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(vertical = 4.dp))
+                        // With "Current lyric" off no blank line is kept for it: the cover and title get the room.
                         PlayerScrubber(position, pc.duration) {
-                            QualityLabel(Modifier.align(Alignment.Center), selected = statsOpen) { toggleStats() }
+                            // Settings → Player → "Stream quality" hides it (the full stats stay in the ⋯ menu).
+                            if (settings.showQuality) QualityLabel(Modifier.align(Alignment.Center), selected = statsOpen) { toggleStats() }
                         }
                         Spacer(Modifier.height(8.dp))
                         TransportRow(isPlaying, buffering, previousEnabled = hasPrevious || position > 3000, nextEnabled = hasNext)
                         Spacer(Modifier.height(12.dp))
-                        if (!settings.hideVolumeBar) VolumeRow(volume) else Spacer(Modifier.height(VOLUME_ROW_HEIGHT))
-                        Spacer(Modifier.height(6.dp))
+                        // A Large / Full width cover takes the room hidden extras would keep (on most phones the
+                        // cover is held back by height, not width).
+                        if (!settings.hideVolumeBar) { VolumeRow(volume); Spacer(Modifier.height(6.dp)) }
+                        else if (!roomyCover) Spacer(Modifier.height(VOLUME_ROW_HEIGHT + 6.dp))
                         PlayerActionRow(
                             lyricsOpen, queueOpen, videoMode, videoAvailable,
                             onToggleLyrics = { if (lyricsOpen) closeLyrics() else openLyrics() },
                             onToggleQueue = toggleQueue,
                             onVideoMode = { pc.setVideoMode(it) },
                         )
-                        Spacer(Modifier.height(18.dp))
-                        if (settings.showOutputDevice) OutputCaption() else Spacer(Modifier.height(14.dp))
-                        Spacer(Modifier.height(18.dp))
+                        val deckGap = if (roomyCover) 12.dp else 18.dp
+                        Spacer(Modifier.height(deckGap))
+                        if (settings.showOutputDevice) OutputCaption() else if (!roomyCover) Spacer(Modifier.height(14.dp))
+                        Spacer(Modifier.height(deckGap))
                     }
                 }
             }
