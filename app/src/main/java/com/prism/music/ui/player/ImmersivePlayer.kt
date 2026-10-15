@@ -69,6 +69,14 @@ import com.prism.music.ui.components.RoundAction
 import com.prism.music.ui.components.runAction
 import com.prism.music.ui.theme.PrismIcons
 import kotlinx.coroutines.delay
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.gestures.animateScrollBy
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
+import com.prism.music.data.prefs.ImmersiveLyrics
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -128,6 +136,7 @@ fun ImmersivePlayer(
     val c = LocalContainer.current
     val settings by c.settings.flow.collectAsState()
     val art = settings.immersiveArt
+    val place = settings.immersiveLyrics
     val haptics = rememberHaptics()
     val scope = rememberCoroutineScope()
     var menu by remember { mutableStateOf(false) }
@@ -221,28 +230,40 @@ fun ImmersivePlayer(
             }
         }
 
-        // ---- Shade, top and bottom, so the lyrics (and the button) read over any cover.
-        Box(
-            Modifier.fillMaxSize().background(
-                Brush.verticalGradient(
-                    0f to Color.Black.copy(alpha = 0.28f), 0.16f to Color.Transparent,
-                    0.5f to Color.Transparent, 0.78f to Color.Black.copy(alpha = 0.42f), 1f to Color.Black.copy(alpha = 0.78f),
-                ),
-            ),
-        )
+        // ---- Shade where the lyrics are, so they (and the button, at the bottom) read over any cover.
+        val black = { a: Float -> Color.Black.copy(alpha = a) }
+        Crossfade(place, label = "immersiveShade") { p ->
+            val stops = when (p) {
+                ImmersiveLyrics.HIGH -> arrayOf(0f to black(0.62f), 0.42f to black(0.18f), 0.62f to Color.Transparent, 0.84f to black(0.2f), 1f to black(0.55f))
+                ImmersiveLyrics.MIDDLE -> arrayOf(0f to black(0.25f), 0.28f to black(0.3f), 0.5f to black(0.5f), 0.72f to black(0.3f), 1f to black(0.55f))
+                ImmersiveLyrics.LOW -> arrayOf(0f to black(0.28f), 0.16f to Color.Transparent, 0.5f to Color.Transparent, 0.78f to black(0.42f), 1f to black(0.78f))
+                ImmersiveLyrics.FULL -> arrayOf(0f to black(0.5f), 0.5f to black(0.46f), 1f to black(0.66f))
+            }
+            Box(Modifier.fillMaxSize().background(Brush.verticalGradient(*stops)))
+        }
 
-        // ---- Lyrics, over the lower part of the cover.
+        // ---- Lyrics: a line at a time high, in the middle or low on the screen, or all of them over it.
         val insets = WindowInsets.safeDrawing.asPaddingValues()
-        Box(
-            Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .fillMaxHeight(0.5f)
-                // Room underneath for the settings button.
-                .padding(start = 28.dp, end = 28.dp, bottom = insets.calculateBottomPadding() + 132.dp),
-            contentAlignment = Alignment.BottomCenter,
-        ) {
-            ImmersiveLyrics(song, lyricsState, isPlaying)
+        when (place) {
+            ImmersiveLyrics.FULL -> LyricsOverAll(song, lyricsState, isPlaying, Modifier.fillMaxSize().padding(horizontal = 28.dp))
+            else -> {
+                val align = when (place) { ImmersiveLyrics.HIGH -> Alignment.TopCenter; ImmersiveLyrics.MIDDLE -> Alignment.Center; else -> Alignment.BottomCenter }
+                Box(
+                    Modifier
+                        .align(align)
+                        .fillMaxWidth()
+                        .then(if (place == ImmersiveLyrics.MIDDLE) Modifier else Modifier.fillMaxHeight(0.5f))
+                        .padding(
+                            start = 28.dp, end = 28.dp,
+                            top = if (place == ImmersiveLyrics.HIGH) insets.calculateTopPadding() + 72.dp else 0.dp,
+                            // Low, there's room underneath for the settings button.
+                            bottom = if (place == ImmersiveLyrics.LOW) insets.calculateBottomPadding() + 132.dp else 0.dp,
+                        ),
+                    contentAlignment = align,
+                ) {
+                    LineAtATime(song, lyricsState, isPlaying, align)
+                }
+            }
         }
 
         // ---- The settings button, on a tap: low down, under the thumb. Held, it fills and leaves immersive mode.
@@ -274,6 +295,10 @@ fun ImmersivePlayer(
         ActionGroup(
             "Lyrics",
             listOf(
+                // High → middle → low → over the whole screen, round again.
+                ActionItem(PrismIcons.Lyrics, "Lyrics position", value = place.label, keepOpen = true) {
+                    c.settings.setImmersiveLyrics(ImmersiveLyrics.entries[(place.ordinal + 1) % ImmersiveLyrics.entries.size])
+                },
                 ActionItem(PrismIcons.Timer, "Lyrics timing", onClick = onLyricsTiming),
                 ActionItem(PrismIcons.Lyrics, "Lyrics source", onClick = onLyricsSource),
             ),
@@ -283,7 +308,7 @@ fun ImmersivePlayer(
 
 /** What's sung now, big, with the next line small under it; the song's name before the first line and without lyrics. */
 @Composable
-private fun ImmersiveLyrics(song: Song, state: LyricsState, active: Boolean) {
+private fun LineAtATime(song: Song, state: LyricsState, active: Boolean, align: Alignment) {
     val lines = state.lines
     val synced = lines.any { it.timeMs >= 0 }
     val lineStyle = MaterialTheme.typography.headlineMedium.copy(
@@ -304,12 +329,13 @@ private fun ImmersiveLyrics(song: Song, state: LyricsState, active: Boolean) {
             (fadeIn(tween(420, easing = FastOutSlowInEasing)) + slideInVertically(tween(420, easing = FastOutSlowInEasing)) { it / 3 }) togetherWith
                 (fadeOut(tween(260)) + slideOutVertically(tween(420, easing = FastOutSlowInEasing)) { -it / 3 }) using SizeTransform(clip = false)
         },
-        contentAlignment = Alignment.BottomCenter,
+        contentAlignment = align,
         label = "immersiveLine",
     ) { i ->
         val line = lines.getOrNull(i)?.takeIf { !it.isGap }
         val next = remember(lines, i) { lines.drop(i + 1).firstOrNull { !it.isGap } }
-        Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Bottom) {
+        val arrange = when (align) { Alignment.TopCenter -> Arrangement.Top; Alignment.Center -> Arrangement.Center; else -> Arrangement.Bottom }
+        Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = arrange) {
             when {
                 // Before the first line: the song's name, as a lyric video opens.
                 line == null && i < firstSung -> TitleCard(song)
@@ -412,6 +438,68 @@ private fun HoldToLeaveButton(onTap: () -> Unit, onPressing: (Boolean) -> Unit, 
             contentAlignment = Alignment.Center,
         ) {
             FloatingDisc { ink -> Icon(PrismIcons.SettingsFilled, "Immersive mode settings (hold to leave)", Modifier.size(22.dp), tint = ink) }
+        }
+    }
+}
+
+/**
+ * Every line over the whole screen, as in the lyrics panel but freer: the one being sung large and bright a little
+ * above the middle, the others smaller and dimmer the further away they are, and the list gliding along by itself
+ * (a drag on the screen stays the player's: down to close, sideways for another song). The edges fade out.
+ */
+@Composable
+private fun LyricsOverAll(song: Song, state: LyricsState, active: Boolean, modifier: Modifier) {
+    val lines = state.lines
+    if (lines.isEmpty() || lines.none { it.timeMs >= 0 }) {
+        Box(modifier, contentAlignment = Alignment.Center) { TitleCard(song) }
+        return
+    }
+    val clock = rememberLyricClock(active)
+    val index by remember(lines) { derivedStateOf { lines.indexAtOrBefore(clock.value) } }
+    val list = rememberLazyListState()
+    val style = MaterialTheme.typography.headlineMedium.copy(
+        fontSize = 28.sp, lineHeight = 34.sp, fontWeight = FontWeight.ExtraBold,
+        textAlign = TextAlign.Center, textDirection = TextDirection.Content, shadow = lineShadow,
+    )
+    LaunchedEffect(lines, index) {
+        val target = index.coerceAtLeast(0)
+        // Glide to a line on screen; jump to one further off (a seek).
+        val seen = list.layoutInfo.visibleItemsInfo.firstOrNull { it.index == target }
+        if (seen != null) list.animateScrollBy(seen.offset.toFloat(), tween(700, easing = FastOutSlowInEasing)) else list.scrollToItem(target)
+    }
+    BoxWithConstraints(modifier) {
+        LazyColumn(
+            Modifier
+                .fillMaxSize()
+                .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+                .drawWithContent {
+                    drawContent()
+                    drawRect(
+                        Brush.verticalGradient(0f to Color.Transparent, 0.16f to Color.Black, 0.78f to Color.Black, 1f to Color.Transparent),
+                        blendMode = BlendMode.DstIn,
+                    )
+                },
+            state = list,
+            // The line being sung sits just above the middle.
+            contentPadding = PaddingValues(top = maxHeight * 0.36f, bottom = maxHeight * 0.6f),
+            userScrollEnabled = false,
+        ) {
+            itemsIndexed(lines, key = { i, _ -> i }) { i, line ->
+                val current = i == index
+                val away = abs(i - index).coerceAtMost(4)
+                val alpha by animateFloatAsState(if (current) 1f else 0.5f - 0.07f * away, tween(500), label = "lineAlpha")
+                val scale by animateFloatAsState(if (current) 1f else 0.86f, tween(600, easing = FastOutSlowInEasing), label = "lineScale")
+                Box(
+                    Modifier.fillMaxWidth().padding(vertical = 9.dp).graphicsLayer { this.alpha = alpha; scaleX = scale; scaleY = scale },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    when {
+                        line.isGap -> Text("♪", style = style, color = Color.White)
+                        current && line.isWordSynced -> SweptLine(line, clock, style, Modifier.fillMaxWidth(), dimAlpha = 0.45f)
+                        else -> Text(line.text, style = style, color = Color.White, modifier = Modifier.fillMaxWidth())
+                    }
+                }
+            }
         }
     }
 }

@@ -581,6 +581,8 @@ private fun PlayerSettings() {
             if (s.immersivePlayer) {
                 Label("Immersive artwork")
                 Chips(com.prism.music.data.prefs.ImmersiveArt.entries, s.immersiveArt, { it.label }) { prefs.setImmersiveArt(it) }
+                Label("Immersive lyrics")
+                Chips(com.prism.music.data.prefs.ImmersiveLyrics.entries, s.immersiveLyrics, { it.label }) { prefs.setImmersiveLyrics(it) }
             }
             Toggle("Shrink when paused", "The cover eases back a little while the music is paused", s.artShrinkOnPause) { prefs.setArtShrinkOnPause(it) }
             Toggle("Animated cover art", "Motion artwork and video covers, when a song has one. You can also turn it off for single songs from the player's ⋯ menu", s.canvasEnabled) { prefs.setCanvasEnabled(it) }

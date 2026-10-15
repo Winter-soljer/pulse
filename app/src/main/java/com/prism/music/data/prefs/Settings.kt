@@ -95,6 +95,8 @@ enum class TransportStyle(val label: String) { GLYPHS("Classic"), BUTTON("Play b
 /** How wide the player's cover is: [extra] is how far it reaches into each side margin. */
 enum class CoverSize(val label: String, val extra: Float) { STANDARD("Standard", 0f), LARGE("Large", 18f), FULL("Full width", 30f) }
 /** Immersive mode's cover: [zoom] 1 fills the screen (its sides cut off), 0 shows all of it across the width. */
+/** Where immersive mode's lyrics go: a line at a time high, in the middle or low on the screen, or all of them over it. */
+enum class ImmersiveLyrics(val label: String) { HIGH("High"), MIDDLE("Middle"), LOW("Low"), FULL("Full screen") }
 enum class ImmersiveArt(val label: String, val zoom: Float) { FILL("Fill the screen", 1f), ZOOMED("Zoomed out", 0.4f), WHOLE("Whole cover", 0f) }
 enum class ScrubberStyle(val label: String) { HAIRLINE("Hairline"), BOLD("Bold"), THUMB("Thumb") }
 enum class LyricsAlign(val label: String) { START("Left"), CENTER("Centre") }
@@ -184,6 +186,7 @@ data class AppSettings(
     /** Immersive mode (the player's ⋯ menu): the cover fills the screen, lyrics play over it, everything else hides. */
     val immersivePlayer: Boolean = false,
     val immersiveArt: ImmersiveArt = ImmersiveArt.ZOOMED,
+    val immersiveLyrics: ImmersiveLyrics = ImmersiveLyrics.LOW,
     /** Animated cover art (motion artwork / video covers) over the sleeve. */
     val canvasEnabled: Boolean = true,
     val canvasOnCellular: Boolean = true,
@@ -343,6 +346,7 @@ class SettingsRepository(private val context: Context, scope: CoroutineScope) {
         val fullBleedArtwork = booleanPreferencesKey("full_bleed_artwork")
         val immersivePlayer = booleanPreferencesKey("immersive_player")
         val immersiveArt = stringPreferencesKey("immersive_art")
+        val immersiveLyrics = stringPreferencesKey("immersive_lyrics")
         val canvasEnabled = booleanPreferencesKey("canvas_enabled")
         val canvasOnCellular = booleanPreferencesKey("canvas_on_cellular")
         val hideVolumeBar = booleanPreferencesKey("hide_volume_bar")
@@ -435,7 +439,7 @@ class SettingsRepository(private val context: Context, scope: CoroutineScope) {
                 fontChoice, textScale, corners, uiDensity, titleSize, cardSize, reduceMotion, navStyle, navLabels, navHideOnScroll,
                 navTabs, startTab, miniPlayerStyle, miniSkipButtons, miniProgress, playerBackground, playerBackdropShow, playerArtCorners, transportStyle,
                 coverSize, scrubberStyle, artShrinkOnPause, showOutputDevice, lyricsAlign, libraryView, playlistHeroCover, frostedPages, replayThemeColors,
-                immersiveArt,
+                immersiveArt, immersiveLyrics,
             )
         }
     }
@@ -464,6 +468,7 @@ class SettingsRepository(private val context: Context, scope: CoroutineScope) {
             fullBleedArtwork = p[K.fullBleedArtwork] ?: d.fullBleedArtwork,
             immersivePlayer = p[K.immersivePlayer] ?: d.immersivePlayer,
             immersiveArt = p.enum(K.immersiveArt, d.immersiveArt),
+            immersiveLyrics = p.enum(K.immersiveLyrics, d.immersiveLyrics),
             canvasEnabled = p[K.canvasEnabled] ?: d.canvasEnabled,
             canvasOnCellular = p[K.canvasOnCellular] ?: d.canvasOnCellular,
             hideVolumeBar = p[K.hideVolumeBar] ?: d.hideVolumeBar,
@@ -617,6 +622,7 @@ class SettingsRepository(private val context: Context, scope: CoroutineScope) {
     fun setFullBleedArtwork(v: Boolean) = edit { it[K.fullBleedArtwork] = v }
     fun setImmersivePlayer(v: Boolean) = edit { it[K.immersivePlayer] = v }
     fun setImmersiveArt(v: ImmersiveArt) = edit { it[K.immersiveArt] = v.name }
+    fun setImmersiveLyrics(v: ImmersiveLyrics) = edit { it[K.immersiveLyrics] = v.name }
     fun setCanvasEnabled(v: Boolean) = edit { it[K.canvasEnabled] = v }
     fun setCanvasOnCellular(v: Boolean) = edit { it[K.canvasOnCellular] = v }
     fun setHideVolumeBar(v: Boolean) = edit { it[K.hideVolumeBar] = v }
