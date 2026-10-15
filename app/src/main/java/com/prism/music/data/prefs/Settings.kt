@@ -96,7 +96,7 @@ enum class TransportStyle(val label: String) { GLYPHS("Classic"), BUTTON("Play b
 enum class CoverSize(val label: String, val extra: Float) { STANDARD("Standard", 0f), LARGE("Large", 18f), FULL("Full width", 30f) }
 /** Immersive mode's cover: [zoom] 1 fills the screen (its sides cut off), 0 shows all of it across the width. */
 /** How much of the queue is loaded ahead while a song plays: the next song's first seconds, or whole songs. */
-enum class Preload(val label: String, val songs: Int) { START("Start of the next song", 0), NEXT("Next song", 1), NEXT3("Next 3 songs", 3) }
+enum class Preload(val label: String, val songs: Int) { START("Next song's start", 0), NEXT("Next song", 1), NEXT3("Next 3 songs", 3) }
 
 /** Where immersive mode's lyrics go: a line at a time high, in the middle or low on the screen, or all of them over it. */
 enum class ImmersiveLyrics(val label: String) { HIGH("High"), MIDDLE("Middle"), LOW("Low"), FULL("Full screen") }

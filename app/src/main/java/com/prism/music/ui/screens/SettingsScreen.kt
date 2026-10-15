@@ -117,13 +117,13 @@ enum class SettingsSection(val key: String, val title: String, val icon: ImageVe
     fun summary(s: AppSettings): String = when (this) {
         APPEARANCE -> listOf(s.themeMode.label + " theme", s.fontChoice.label + " font", when { s.liquidGlass -> "Liquid Glass"; s.frostedGlass -> "Frosted Glass"; else -> "Solid bars" }).joinToString(" · ")
         INTERFACE -> listOf(s.navStyle.label + " bar", "${s.navTabs.size} tabs", s.miniPlayerStyle.label + " mini player").joinToString(" · ")
-        PLAYER -> listOfNotNull(s.playerBackground.label, if (s.fullBleedArtwork) "Full-bleed artwork" else "Framed artwork", if (s.canvasEnabled) "Animated covers" else null).joinToString(" · ")
-        SOUND -> listOfNotNull(if (s.lossless) "Lossless" else s.audioQuality.label + " quality", if (s.spatial) "Prism Spatial" else null, if (s.eq.enabled) "EQ ${s.eq.preset}" else null, if (s.normalize) "Normalized" else null).joinToString(" · ")
+        PLAYER -> listOfNotNull(s.playerBackground.label, if (s.immersivePlayer) "Immersive" else if (s.fullBleedArtwork) "Full-bleed artwork" else "Framed artwork", if (s.canvasEnabled) "Animated covers" else null).joinToString(" · ")
+        SOUND -> listOfNotNull(if (s.lossless) "Lossless" else s.audioQuality.label + " quality", if (s.mix) "Crossfade" else null, if (s.normalize) "Normalized" else null, if (s.spatial) "Prism Spatial" else null, if (s.eq.enabled) "EQ ${s.eq.preset}" else null).joinToString(" · ")
         LYRICS -> "${s.lyricsOrder.first().label} first · ${if (s.preferSynced) "karaoke preferred" else "any lyrics"}"
         DOWNLOADS -> listOfNotNull("Smart Downloads ${formatGb(s.offlineGb)}", if (s.downloadWifiOnly) "Wi-Fi only" else "Any network").joinToString(" · ")
         HOME -> "Sections, order and styles" + if (s.contentCountry.isNotBlank()) " · ${countryName(s.contentCountry)}" else ""
         LIBRARY -> "${s.libraryView.label} view · ${if (s.replayHours) "hours" else "minutes"}"
-        ABOUT -> "Prism ${com.prism.music.BuildConfig.VERSION_NAME}"
+        ABOUT -> "Prism ${com.prism.music.BuildConfig.VERSION_NAME} · backup, updates"
         LICENSES -> "GPL-3.0-or-later"
     }
 
@@ -175,8 +175,8 @@ fun SettingsScreen(bottomPadding: Dp, section: SettingsSection? = null) {
                     Group("Home") {
                         Item("Customize Home", "Reorder, hide and restyle Home's sections, shortcuts and greeting", onClick = { nav.go(Routes.CATALOGUE) }) { Chevron() }
                         Toggle("Add new sections automatically", "New shelves from YouTube Music show up on Home as they appear", s.autoAddSections) { c.settings.setAutoAddSections(it) }
-                        Toggle("\"Customize Home\" button", "At the very bottom of Home", s.homeCustomizeButton) { c.settings.setHomeCustomizeButton(it) }
                         Toggle("Customize button at the top", "The round button at the top right of Home. Off, the Podcasts button takes its place", s.homeCustomizeTopButton) { c.settings.setHomeCustomizeTopButton(it) }
+                        Toggle("Customize button at the bottom", "The \"Customize Home\" button at the very end of Home", s.homeCustomizeButton) { c.settings.setHomeCustomizeButton(it) }
                     }
                     ContentCountrySetting()
                 }
@@ -564,9 +564,8 @@ private fun PlayerSettings() {
             ) { prefs.setPlayerBackdropShow(it) }
             Label("Controls")
             Chips(TransportStyle.entries, s.transportStyle, { it.label }) { prefs.setTransportStyle(it) }
-            Label("Seek bar")
+            Label("Progress bar")
             Chips(ScrubberStyle.entries, s.scrubberStyle, { it.label }) { prefs.setScrubberStyle(it) }
-            SliderSetting("Artwork corners", s.playerArtCorners.toFloat(), 0f..32f, { "${it.roundToInt()} dp" }, steps = 7) { prefs.setPlayerArtCorners(it.roundToInt()) }
         }
         Group("Artwork") {
             Label("Cover size")
@@ -574,36 +573,43 @@ private fun PlayerSettings() {
             Note(
                 if (s.fullBleedArtwork) "With Full-bleed artwork on, this sets how far down the cover reaches"
                 else "Large narrows the side margins; Full width runs the square cover edge to edge. On shorter screens it grows " +
-                    "as far as the controls allow: turning off the current lyric, volume bar or output device makes more room"
+                    "as far as the controls allow: turning off the current lyric or output device makes more room"
             )
-            Toggle("Full-bleed artwork", "Cover art runs edge to edge at the top of the player", s.fullBleedArtwork) { prefs.setFullBleedArtwork(it) }
-            Toggle("Immersive mode", "The cover fills the screen with the lyrics over it, like a lyric video. Tap the screen for its settings; also in the player's ⋯ menu", s.immersivePlayer) { prefs.setImmersivePlayer(it) }
-            if (s.immersivePlayer) {
-                Label("Immersive artwork")
-                Chips(com.prism.music.data.prefs.ImmersiveArt.entries, s.immersiveArt, { it.label }) { prefs.setImmersiveArt(it) }
-                Label("Immersive lyrics")
-                Chips(com.prism.music.data.prefs.ImmersiveLyrics.entries, s.immersiveLyrics, { it.label }) { prefs.setImmersiveLyrics(it) }
-            }
+            SliderSetting("Corners", s.playerArtCorners.toFloat(), 0f..32f, { "${it.roundToInt()} dp" }, steps = 7) { prefs.setPlayerArtCorners(it.roundToInt()) }
+            Toggle("Full-bleed artwork", "The cover runs edge to edge at the top of the player and fades into the background", s.fullBleedArtwork) { prefs.setFullBleedArtwork(it) }
             Toggle("Shrink when paused", "The cover eases back a little while the music is paused", s.artShrinkOnPause) { prefs.setArtShrinkOnPause(it) }
-            Toggle("Animated cover art", "Motion artwork and video covers, when a song has one. You can also turn it off for single songs from the player's ⋯ menu", s.canvasEnabled) { prefs.setCanvasEnabled(it) }
-            if (s.canvasEnabled) Toggle("Animated covers on mobile data", "Saved covers play from the phone either way", s.canvasOnCellular) { prefs.setCanvasOnCellular(it) }
+        }
+        Group("Immersive mode") {
+            Toggle("Immersive mode", "The cover fills the screen and the lyrics play over it, like a lyric video. Tap the screen for its settings; hold the settings button to leave. Also in the player's ⋯ menu", s.immersivePlayer) { prefs.setImmersivePlayer(it) }
+            if (s.immersivePlayer) {
+                Label("Artwork")
+                Chips(com.prism.music.data.prefs.ImmersiveArt.entries, s.immersiveArt, { it.label }) { prefs.setImmersiveArt(it) }
+                Label("Lyrics")
+                Chips(com.prism.music.data.prefs.ImmersiveLyrics.entries, s.immersiveLyrics, { it.label }) { prefs.setImmersiveLyrics(it) }
+                Spacer(Modifier.height(6.dp))
+            }
+        }
+        Group("Animated covers") {
+            Toggle("Animated covers", "Motion artwork and video covers, when a song has one. Turn them off for a single song from the player's ⋯ menu", s.canvasEnabled) { prefs.setCanvasEnabled(it) }
+            if (s.canvasEnabled) Toggle("Play on mobile data", "Covers saved on the phone play either way", s.canvasOnCellular) { prefs.setCanvasOnCellular(it) }
             if (s.canvasEnabled) Toggle("Save with downloads", "Downloaded songs keep their animated cover on the phone too (an album's songs share one copy)", s.canvasWithDownloads) {
                 prefs.setCanvasWithDownloads(it)
                 if (it) container.downloads.saveCanvases()
             }
-            if (s.canvasEnabled && s.canvasWithDownloads) Toggle("Save with downloads on mobile data", "Off, they're saved once you're on Wi-Fi", s.canvasWithDownloadsCellular) {
+            if (s.canvasEnabled && s.canvasWithDownloads) Toggle("Save on mobile data too", "Off, they're saved once you're on Wi-Fi", s.canvasWithDownloadsCellular) {
                 prefs.setCanvasWithDownloadsCellular(it)
                 if (it) container.downloads.saveCanvases()
             }
             if (s.canvasEnabled) CanvasStorage()
         }
+        // Top to bottom, as they sit on the player.
         Group("On the player") {
-            Toggle("Show \"Playing from\"", "The song's album over the artwork; tap it to open the album", s.showPlayingFrom) { prefs.setShowPlayingFrom(it) }
-            Toggle("Current lyric", "The line being sung, just above the scrubber", s.lyricsOnPlayer) { prefs.setLyricsOnPlayer(it) }
+            Toggle("\"Playing from\"", "The song's album above the artwork; tap it to open the album", s.showPlayingFrom) { prefs.setShowPlayingFrom(it) }
+            Toggle("Current lyric", "The line being sung, just above the progress bar; tap it to open the lyrics", s.lyricsOnPlayer) { prefs.setLyricsOnPlayer(it) }
             Toggle("Stream quality", "The codec and bitrate (or \"Downloaded\") under the progress bar; tap it for the full stats", s.showQuality) { prefs.setShowQuality(it) }
-            Toggle("Output device", "Where the sound is going, under the controls (tap it to switch)", s.showOutputDevice) { prefs.setShowOutputDevice(it) }
-            Toggle("Hide volume bar", null, s.hideVolumeBar) { prefs.setHideVolumeBar(it) }
-            Toggle("Shuffle and repeat buttons", "On either side of play, always (they're also above the queue). Repeat goes all, one, off", s.playerShuffleRepeat) { prefs.setPlayerShuffleRepeat(it) }
+            Toggle("Shuffle and repeat buttons", "Either side of play, always (they're also above the queue). Repeat goes all, one, off", s.playerShuffleRepeat) { prefs.setPlayerShuffleRepeat(it) }
+            Toggle("Volume bar", "The volume slider under the controls", !s.hideVolumeBar) { prefs.setHideVolumeBar(!it) }
+            Toggle("Output device", "Where the sound is going, at the bottom; tap it to switch", s.showOutputDevice) { prefs.setShowOutputDevice(it) }
         }
         Group("Feel") {
             Toggle("Haptics", "A light tap when you press player buttons or swipe the mini player and artwork to change songs", s.haptics) { prefs.setHaptics(it) }
@@ -671,12 +677,11 @@ private fun SoundPage() {
             Toggle("Skip silence", "Trims silent gaps at the start and end of songs", s.skipSilence) { prefs.setSkipSilence(it) }
             Label("Load ahead")
             Chips(com.prism.music.data.prefs.Preload.entries, s.preload, { it.label }) { prefs.setPreload(it) }
-            Text(
+            Note(
                 when (s.preload) {
-                    com.prism.music.data.prefs.Preload.START -> "While a song plays, the next one's first seconds are loaded (on Wi-Fi), so it starts at once"
-                    else -> "While a song plays (once it's under way), what's next in the queue is loaded whole, so it plays without buffering even if the signal drops"
-                },
-                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    com.prism.music.data.prefs.Preload.START -> "While a song plays, the next one's first seconds are loaded (on Wi-Fi), so it starts at once."
+                    else -> "While a song plays, what's next in the queue is loaded whole, so it plays without buffering even if the signal drops. It counts toward Smart Downloads' space."
+                }
             )
             if (s.preload != com.prism.music.data.prefs.Preload.START) {
                 Toggle("Load ahead on mobile data", "Off, whole songs are loaded ahead only on Wi-Fi", s.preloadCellular) { prefs.setPreloadCellular(it) }
@@ -771,8 +776,6 @@ private fun LyricsSettings() {
     val prefs = LocalContainer.current.settings
     Column(verticalArrangement = Arrangement.spacedBy(22.dp)) {
         Group("Display") {
-            Toggle("Prefer karaoke & synced lyrics", "Karaoke lyrics (lit up word by word) first, from any source that has them, then time-synced lines, then plain text", s.preferSynced) { prefs.setPreferSynced(it) }
-            Toggle("Uncensor lyrics", "Fill starred-out swear words (f**k) back in from Genius, keeping word timings, and pass over a source that still stars them out", s.skipCensored) { prefs.setSkipCensored(it) }
             Toggle("Focus blur", "Lines further from the one being sung fall out of focus", s.lyricsBlur) { prefs.setLyricsBlur(it) }
             Toggle(
                 "Translate lyrics",
@@ -788,17 +791,10 @@ private fun LyricsSettings() {
             Chips(LyricsAlign.entries, s.lyricsAlign, { it.label }) { prefs.setLyricsAlign(it) }
             SliderSetting("Text size", s.lyricsScale, 0.75f..1.4f, { "${(it * 100).roundToInt()}%" }) { prefs.setLyricsScale(it) }
         }
-        Group("Android Auto") {
-            Toggle("Lyrics in the car", "On the car's player, in place of the song title and cover. The Lyrics button there turns them on and off too.", s.carLyrics) { prefs.setCarLyrics(it) }
-            if (s.carLyrics) {
-                Label("Style")
-                Chips(CarLyricsStyle.entries, s.carLyricsStyle, { it.label }) { prefs.setCarLyricsStyle(it) }
-                Note(s.carLyricsStyle.detail)
-                CarLyricsPreview(s.carLyricsStyle)
-                Toggle("On this phone too", "Also show them on the lock screen and in the media notification when you're not driving", s.carLyricsOnPhone) { prefs.setCarLyricsOnPhone(it) }
-            }
-        }
         Group("Sources") {
+            Toggle("Prefer karaoke & synced lyrics", "Karaoke lyrics (lit up word by word) first, from any source that has them, then time-synced lines, then plain text", s.preferSynced) { prefs.setPreferSynced(it) }
+            Toggle("Uncensor lyrics", "Fill starred-out swear words (f**k) back in from Genius, keeping word timings, and pass over a source that still stars them out", s.skipCensored) { prefs.setSkipCensored(it) }
+            Label("Order")
             Note("Prism tries these in order. You can also switch source on any song from the player's ⋯ menu.")
             s.lyricsOrder.forEachIndexed { i, src ->
                 Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -811,12 +807,22 @@ private fun LyricsSettings() {
                     Spacer(Modifier.width(12.dp))
                     Text(src.label, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
                     IconButton(onClick = { prefs.setLyricsOrder(s.lyricsOrder.toMutableList().apply { add(i - 1, removeAt(i)) }) }, enabled = i > 0) {
-                        Icon(PrismIcons.ChevronUp, "Up")
+                        Icon(PrismIcons.ChevronUp, "Move ${src.label} up")
                     }
                     IconButton(onClick = { prefs.setLyricsOrder(s.lyricsOrder.toMutableList().apply { add(i + 1, removeAt(i)) }) }, enabled = i < s.lyricsOrder.lastIndex) {
-                        Icon(PrismIcons.ChevronDown, "Down")
+                        Icon(PrismIcons.ChevronDown, "Move ${src.label} down")
                     }
                 }
+            }
+        }
+        Group("Android Auto") {
+            Toggle("Lyrics in the car", "On the car's player, in place of the song title and cover. The Lyrics button there turns them on and off too", s.carLyrics) { prefs.setCarLyrics(it) }
+            if (s.carLyrics) {
+                Label("Style")
+                Chips(CarLyricsStyle.entries, s.carLyricsStyle, { it.label }) { prefs.setCarLyricsStyle(it) }
+                Note(s.carLyricsStyle.detail)
+                CarLyricsPreview(s.carLyricsStyle)
+                Toggle("On this phone too", "Also show them on the lock screen and in the media notification when you're not driving", s.carLyricsOnPhone) { prefs.setCarLyricsOnPhone(it) }
             }
         }
     }
