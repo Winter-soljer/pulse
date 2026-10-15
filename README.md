@@ -11,7 +11,7 @@
 [![License: GPL-3.0-or-later](https://img.shields.io/badge/license-GPL--3.0--or--later-blue)](LICENSE)
 [![Support on Ko-fi](https://img.shields.io/badge/Ko--fi-support%20Prism-ff5e5b?logo=ko-fi&logoColor=white)](https://ko-fi.com/yigder)
 
-**[⬇ Download Prism.apk](../../releases/latest/download/Prism.apk)** · [Release notes](../../releases/latest) · [▶ Watch the showcase (1:40)](promo/prism-showcase.mp4)
+**[⬇ Download Prism.apk](../../releases/latest/download/Prism.apk)** · [Release notes](../../releases/latest) · [▶ Watch the showcase (1:48)](promo/prism-showcase.mp4)
 
 <img src="docs/screenshots/home-dark.jpg" width="22%" alt="Home">
 <img src="docs/screenshots/player.jpg" width="22%" alt="Now playing">
@@ -51,12 +51,13 @@ Updating works the same way: install the new APK over the old one, and your down
 ### Listening
 - **Lyrics, word by word.** Better Lyrics (Apple Music's timed lyrics), QQ Music, NetEase, KuGou, LyricsPlus, Bini, LRCLIB, Unison, Genius and YouTube Music. Starred-out swear words ("f**k") are filled back in from Genius's full text, keeping the word-by-word timing. Lyrics in another language can show a translation under each line.
 - **Crossfade.** When a song runs into the next, the ending song fades out while the next one fades in, as on Spotify. With **Automatic length**, Prism listens to how each song ends and the next begins (measured on the phone, on Wi-Fi): it crossfades over a song's fade-out or the next song's quiet intro, and only briefly between two hard edges; or pick 1 to 12 seconds yourself. **Match tempo and beats** makes it DJ-style: the next song starts on the beat and plays at the same tempo while they overlap, then eases back to its own. An album's own tracks still play straight through.
-- **Player.** Full-bleed artwork and animated covers (saved with downloads, for offline), in three cover sizes up to full width. Shows the codec and bitrate (or Lossless / Downloaded) under the progress bar, with stats in an in-player panel.
+- **Player.** Full-bleed artwork and animated covers (saved with downloads, for offline), in three cover sizes up to full width, with optional shuffle and repeat buttons beside play. Shows the codec and bitrate (or Lossless / Downloaded) under the progress bar, with stats in an in-player panel.
 - **Lyrics in any direction.** Arabic, Hebrew and other right-to-left lyrics sit on the right and light up from the right.
 - **Podcasts.** Popular shows, your followed shows when signed in, episodes that pick up where you left off, and 0.75× to 2× speed.
 - **Music videos.** Tap the video toggle under the player to switch any song to its official music video. Playback carries on from the same spot, and the lyrics stay in sync. Fit or fill the frame, go full screen, or turn the phone sideways for edge-to-edge landscape. Video quality goes from 480p up to 1440p in Playback & sound.
 - **Sound.** 10-band equalizer with presets, bass boost, loudness normalization (each song measured on the phone, to -14 LUFS; works offline), Prism Spatial for any headphones, skip silence, and a lossless mode that plays matching FLAC files on the phone.
-- **Autoplay and radio.** The queue keeps going with similar music after an album or playlist ends. Shuffle makes a fresh order every time. Save the queue as a playlist, or clear what's up next.
+- **Immersive mode.** The cover fills the screen (its animated version when it has one) and the lyrics play over it like a lyric video. Swipe for the next or previous song; pick how the cover fits and where the lyrics sit.
+- **Autoplay and radio.** The queue keeps going with similar music after an album or playlist ends. Shuffle makes a fresh order every time, and Previous goes back to the song you just heard. Swipe a song in an album or playlist right to play it next, or left to add it to the queue. Save the queue as a playlist, or clear what's up next.
 - **Sleep timer** for a set time or until the current song ends.
 
 ### Finding music
@@ -93,8 +94,8 @@ Updating works the same way: install the new APK over the old one, and your down
 
 | | | | |
 |:-:|:-:|:-:|:-:|
-| <img src="docs/screenshots/player-large.jpg" width="190" alt="Player with the Large cover size"><br>Large cover | <img src="docs/screenshots/player-full.jpg" width="190" alt="Player with the Full width cover size"><br>Full width cover | <img src="docs/screenshots/lyrics-rtl.jpg" width="190" alt="Arabic lyrics, right-aligned, with a translation"><br>Right-to-left lyrics | <img src="docs/screenshots/storage-dark.jpg" width="190" alt="Smart Downloads settings"><br>Smart Downloads, one space |
-| <img src="docs/screenshots/podcasts-dark.jpg" width="190" alt="Podcasts, dark"><br>Podcasts | <img src="docs/screenshots/podcasts-light.jpg" width="190" alt="Podcasts, light"><br>Podcasts, light | | |
+| <img src="docs/screenshots/immersive.jpg" width="190" alt="Immersive mode: the cover fills the screen with the lyrics over it"><br>Immersive mode | <img src="docs/screenshots/crossfade-dark.jpg" width="190" alt="Crossfade settings"><br>Crossfade, timed per song | <img src="docs/screenshots/local-dark.jpg" width="190" alt="Local files page"><br>Local files | <img src="docs/screenshots/lyrics-rtl.jpg" width="190" alt="Arabic lyrics, right-aligned, with a translation"><br>Right-to-left lyrics |
+| <img src="docs/screenshots/player-large.jpg" width="190" alt="Player with the Large cover size"><br>Large cover | <img src="docs/screenshots/player-full.jpg" width="190" alt="Player with the Full width cover size"><br>Full width cover (current lyric and output device hidden) | <img src="docs/screenshots/storage-dark.jpg" width="190" alt="Smart Downloads settings"><br>Smart Downloads, one space | <img src="docs/screenshots/podcasts-dark.jpg" width="190" alt="Podcasts"><br>Podcasts |
 
 ### The player
 
