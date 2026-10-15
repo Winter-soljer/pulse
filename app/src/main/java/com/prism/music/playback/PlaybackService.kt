@@ -30,6 +30,7 @@ import androidx.media3.session.MediaLibraryService
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 import com.google.common.collect.ImmutableList
+import kotlinx.coroutines.guava.await
 import kotlinx.coroutines.guava.future
 import androidx.media3.session.SessionCommand
 import androidx.media3.session.SessionResult
@@ -1188,6 +1189,10 @@ class PlaybackService : MediaLibraryService(), Player.Listener {
                     c.queue.autoplayContinuation = null
                     return@future MediaSession.MediaItemsWithStartPosition(listOf(top.toMediaItem()), 0, C.TIME_UNSET)
                 }
+            }
+            // "Hey Google, play music on Prism": no query at all, so carry on with the last queue.
+            if (single != null && single.mediaId.isBlank() && query.isNullOrBlank() && single.toSong() == null) {
+                return@future onPlaybackResumption(mediaSession, controller, true).await()
             }
             // "Shuffle play" at the top of a list.
             if (single != null && single.mediaId.startsWith(MediaTree.SHUFFLE)) {

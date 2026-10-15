@@ -609,7 +609,19 @@ private fun PlayerSettings() {
             Toggle("Stream quality", "The codec and bitrate (or \"Downloaded\") under the progress bar; tap it for the full stats", s.showQuality) { prefs.setShowQuality(it) }
             Toggle("Shuffle and repeat buttons", "Either side of play, always (they're also above the queue). Repeat goes all, one, off", s.playerShuffleRepeat) { prefs.setPlayerShuffleRepeat(it) }
             Toggle("Volume bar", "The volume slider under the controls", !s.hideVolumeBar) { prefs.setHideVolumeBar(!it) }
+            Toggle("Song / Video switch", "Off, the player stays audio only and never switches to the music video", s.showVideoSwitch) {
+                prefs.setShowVideoSwitch(it)
+                if (!it) container.player.setVideoMode(false)
+            }
             Toggle("Output device", "Where the sound is going, at the bottom; tap it to switch", s.showOutputDevice) { prefs.setShowOutputDevice(it) }
+        }
+        Group("Hold to seek") {
+            Toggle("Hold previous / next to seek", "Holding them jumps back or forward, again and again while you hold; a tap still changes songs", s.holdSeekSeconds > 0) {
+                prefs.setHoldSeekSeconds(if (it) 10 else 0)
+            }
+            if (s.holdSeekSeconds > 0) SliderSetting("Each step", s.holdSeekSeconds.toFloat(), 1f..20f, { "${it.roundToInt()} s" }, steps = 18) {
+                prefs.setHoldSeekSeconds(it.roundToInt())
+            }
         }
         Group("Feel") {
             Toggle("Haptics", "A light tap when you press player buttons or swipe the mini player and artwork to change songs", s.haptics) { prefs.setHaptics(it) }

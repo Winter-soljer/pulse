@@ -104,8 +104,9 @@ class InnerTube(
         return "SAPISIDHASH ${ts}_${sha1("$ts $sapisid $origin")}"
     }
 
-    private fun context(): JsonObject = buildJsonObject {
+    private fun context(anonymous: Boolean = false): JsonObject = buildJsonObject {
         val s = current
+        val plainContext = plainContext || anonymous
         putJsonObject("client") {
             put("clientName", "WEB_REMIX")
             put("clientVersion", clientVersion)
@@ -116,11 +117,11 @@ class InnerTube(
             if (visitorData.isNotBlank() && !plainContext) put("visitorData", visitorData)
         }
         putJsonObject("user") {
-            if (s.isLoggedIn) onBehalfOfUser()?.let { put("onBehalfOfUser", it) }
+            if (s.isLoggedIn && !anonymous) onBehalfOfUser()?.let { put("onBehalfOfUser", it) }
         }
     }
 
-    private fun Request.Builder.applyHeaders(): Request.Builder {
+    private fun Request.Builder.applyHeaders(anonymous: Boolean = false): Request.Builder {
         val s = current
         header("User-Agent", USER_AGENT)
         header("Origin", ORIGIN)
@@ -128,8 +129,8 @@ class InnerTube(
         header("X-Origin", ORIGIN)
         header("X-YouTube-Client-Name", "67")
         header("X-YouTube-Client-Version", clientVersion)
-        if (visitorData.isNotBlank() && !plainContext) header("X-Goog-Visitor-Id", visitorData)
-        if (s.isLoggedIn) {
+        if (visitorData.isNotBlank() && !plainContext && !anonymous) header("X-Goog-Visitor-Id", visitorData)
+        if (s.isLoggedIn && !anonymous) {
             header("Cookie", s.cookie)
             authorization()?.let { header("Authorization", it) }
             header("X-Goog-AuthUser", "0")
@@ -197,15 +198,25 @@ class InnerTube(
             }
         }
 
-    private fun postOnce(endpoint: String, body: JsonObject, query: String): JsonObject {
+    /**
+     * The same request as a signed-out visitor. For public pages YouTube refuses an account: Podcasts answers
+     * "Requested entity was not found" for accounts in countries where YouTube Music has no podcasts.
+     */
+    suspend fun postAnonymous(endpoint: String, body: JsonObject = JsonObject(emptyMap()), query: String = ""): JsonObject =
+        withContext(Dispatchers.IO) {
+            ensureClientVersion()
+            postOnce(endpoint, body, query, anonymous = true)
+        }
+
+    private fun postOnce(endpoint: String, body: JsonObject, query: String, anonymous: Boolean = false): JsonObject {
         val payload = buildJsonObject {
-            put("context", context())
+            put("context", context(anonymous))
             body.forEach { (k, v) -> put(k, v) }
         }
         val req = Request.Builder()
             .url("$BASE$endpoint?prettyPrint=false$query")
             .post(payload.toString().toRequestBody(JSON_TYPE))
-            .applyHeaders()
+            .applyHeaders(anonymous)
             .build()
         return http.newCall(req).execute().use { resp ->
             val text = resp.body.string()

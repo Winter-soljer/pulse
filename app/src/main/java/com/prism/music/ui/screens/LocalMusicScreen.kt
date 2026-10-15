@@ -135,14 +135,18 @@ fun LocalMusicScreen(bottomPadding: Dp) {
             Modifier.fillMaxWidth().statusBarsPadding().padding(start = 12.dp, end = 14.dp, top = 10.dp, bottom = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            RoundAction(PrismIcons.ArrowBack, "Back") {
-                when {
-                    openAlbum != null -> openAlbum = null
-                    openArtist != null -> openArtist = null
-                    else -> nav.back()
+            // As a tab of its own (Settings → Layout & navigation) the top level has nothing to go back to.
+            val isTab = com.prism.music.data.prefs.NavTab.LOCAL in com.prism.music.ui.theme.LocalAppSettings.current.navTabs
+            if (!isTab || openAlbum != null || openArtist != null) {
+                RoundAction(PrismIcons.ArrowBack, "Back") {
+                    when {
+                        openAlbum != null -> openAlbum = null
+                        openArtist != null -> openArtist = null
+                        else -> nav.back()
+                    }
                 }
-            }
-            Spacer(Modifier.width(14.dp))
+                Spacer(Modifier.width(14.dp))
+            } else Spacer(Modifier.width(8.dp))
             Column(Modifier.weight(1f)) {
                 Text(album?.title ?: artist?.name ?: "Local files", style = pageTitleStyle(), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 val sub = when {

@@ -50,6 +50,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.runtime.State
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.Stable
@@ -307,10 +310,10 @@ fun CurrentLyricStrip(state: LyricsState, isPlaying: Boolean, onClick: () -> Uni
                     instrumental -> "Instrumental"
                     else -> current!!.text
                 }
-                // A right-to-left line (Arabic, Hebrew…) runs from the right of the strip, its arrow after it as before.
+                // A right-to-left line (Arabic, Hebrew…) runs from the right of the strip, its arrow at its end on the left.
                 val rtl = !instrumental && isRtl(text)
                 val stripStyle = MaterialTheme.typography.titleMedium.copy(textDirection = androidx.compose.ui.text.style.TextDirection.Content)
-                StripRow(onClick, note = instrumental, fill = rtl) {
+                StripRow(onClick, note = instrumental, rtl = rtl) {
                     AnimatedContent(
                         index to text,
                         transitionSpec = {
@@ -326,7 +329,6 @@ fun CurrentLyricStrip(state: LyricsState, isPlaying: Boolean, onClick: () -> Uni
                         } else {
                             Text(
                                 t, style = stripStyle, color = if (instrumental) Color.White.copy(alpha = 0.5f) else Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                                modifier = if (isRtl(t)) Modifier.fillMaxWidth() else Modifier,
                             )
                         }
                     }
@@ -345,18 +347,22 @@ fun CurrentLyricStrip(state: LyricsState, isPlaying: Boolean, onClick: () -> Uni
 }
 
 @Composable
-private fun StripRow(onClick: () -> Unit, note: Boolean, fill: Boolean = false, content: @Composable () -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).clickable(onClick = onClick).padding(vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        if (note) {
-            Icon(PrismIcons.Song, null, tint = Color.White, modifier = Modifier.size(16.dp))
+private fun StripRow(onClick: () -> Unit, note: Boolean, rtl: Boolean = false, content: @Composable () -> Unit) {
+    // The strip follows the line's own direction, not the phone's: a right-to-left line starts at the right and
+    // its arrow (mirrored) follows it on the left.
+    CompositionLocalProvider(LocalLayoutDirection provides if (rtl) LayoutDirection.Rtl else LayoutDirection.Ltr) {
+        Row(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).clickable(onClick = onClick).padding(vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (note) {
+                Icon(PrismIcons.Song, null, tint = Color.White, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(6.dp))
+            }
+            Box(Modifier.weight(1f, fill = false)) { content() }
             Spacer(Modifier.width(6.dp))
+            Icon(PrismIcons.ChevronRight, null, tint = Color.White.copy(alpha = 0.5f), modifier = Modifier.size(14.dp))
         }
-        Box(Modifier.weight(1f, fill = fill)) { content() }
-        Spacer(Modifier.width(6.dp))
-        Icon(PrismIcons.ChevronRight, null, tint = Color.White.copy(alpha = 0.5f), modifier = Modifier.size(14.dp))
     }
 }
 
@@ -392,9 +398,11 @@ fun SweptLine(
         line.words.map { w -> val start = acc; acc += w.text.length; start to acc }
     }
     val rtl = remember(line) { isRtl(line.text) }
+    // In a right-to-left layout a right-to-left line already starts at the right, so it can keep its own width.
+    val ltrLayout = LocalLayoutDirection.current == LayoutDirection.Ltr
     Box(modifier) {
         // Full width, so centred and right-aligned lines (and right-to-left ones) sit where their plain copies do.
-        val wide = if (rtl || style.textAlign == TextAlign.Center || style.textAlign == TextAlign.End) Modifier.fillMaxWidth() else Modifier
+        val wide = if ((rtl && ltrLayout) || style.textAlign == TextAlign.Center || style.textAlign == TextAlign.End) Modifier.fillMaxWidth() else Modifier
         Text(line.text, wide, style = style, color = Color.White.copy(alpha = dimAlpha), maxLines = maxLines, overflow = TextOverflow.Ellipsis, onTextLayout = { layout = it })
         Text(
             line.text, style = style, color = Color.White, maxLines = maxLines, overflow = TextOverflow.Ellipsis,

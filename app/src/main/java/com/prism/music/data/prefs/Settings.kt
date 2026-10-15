@@ -79,7 +79,7 @@ enum class NavBarStyle(val label: String) { FLOATING("Floating"), DOCKED("Docked
 enum class NavLabels(val label: String) { ALWAYS("Always"), SELECTED("Selected"), NEVER("Never") }
 
 /** Tabs the bottom bar can hold. */
-enum class NavTab(val label: String) { HOME("Home"), SEARCH("Search"), LIBRARY("Library"), REPLAY("Replay"), SETTINGS("Settings") }
+enum class NavTab(val label: String) { HOME("Home"), SEARCH("Search"), LIBRARY("Library"), REPLAY("Replay"), SETTINGS("Settings"), LOCAL("Local files") }
 
 enum class MiniPlayerStyle(val label: String) { CARD("Card"), SLIM("Slim"), PILL("Pill") }
 enum class MiniProgress(val label: String) { LINE("Line"), FILL("Fill"), NONE("None") }
@@ -237,6 +237,10 @@ data class AppSettings(
     val canvasWithDownloadsCellular: Boolean = false,
     /** The stream's quality (codec and bitrate, or "Downloaded") under the player's scrubber. */
     val showQuality: Boolean = true,
+    /** The Song / Video switch on the player. Off, the player stays audio only. */
+    val showVideoSwitch: Boolean = true,
+    /** Holding previous / next seeks back / forward this many seconds, again every moment it's held (0 = off). */
+    val holdSeekSeconds: Int = 10,
     val audioQuality: AudioQuality = AudioQuality.HIGH,
     val cellularQuality: AudioQuality = AudioQuality.HIGH,
     val autoplay: Boolean = true,
@@ -389,6 +393,8 @@ class SettingsRepository(private val context: Context, scope: CoroutineScope) {
         val carLyricsKeepTitle = booleanPreferencesKey("car_lyrics_keep_title")
         val showNerdStats = booleanPreferencesKey("nerd_stats")
         val showQuality = booleanPreferencesKey("show_quality")
+        val showVideoSwitch = booleanPreferencesKey("show_video_switch")
+        val holdSeekSeconds = intPreferencesKey("hold_seek_seconds")
         val canvasWithDownloads = booleanPreferencesKey("canvas_with_downloads")
         val canvasWithDownloadsCellular = booleanPreferencesKey("canvas_with_downloads_cellular")
         val audioQuality = stringPreferencesKey("audio_quality")
@@ -523,6 +529,8 @@ class SettingsRepository(private val context: Context, scope: CoroutineScope) {
             carLyricsKeepTitle = p[K.carLyricsKeepTitle] ?: d.carLyricsKeepTitle,
             showNerdStats = p[K.showNerdStats] ?: d.showNerdStats,
             showQuality = p[K.showQuality] ?: d.showQuality,
+            showVideoSwitch = p[K.showVideoSwitch] ?: d.showVideoSwitch,
+            holdSeekSeconds = p[K.holdSeekSeconds] ?: d.holdSeekSeconds,
             canvasWithDownloads = p[K.canvasWithDownloads] ?: d.canvasWithDownloads,
             canvasWithDownloadsCellular = p[K.canvasWithDownloadsCellular] ?: d.canvasWithDownloadsCellular,
             audioQuality = p.enum(K.audioQuality, d.audioQuality),
@@ -675,6 +683,8 @@ class SettingsRepository(private val context: Context, scope: CoroutineScope) {
     fun setCarLyricsKeepTitle(v: Boolean) = edit { it[K.carLyricsKeepTitle] = v }
     fun setShowNerdStats(v: Boolean) = edit { it[K.showNerdStats] = v }
     fun setShowQuality(v: Boolean) = edit { it[K.showQuality] = v }
+    fun setShowVideoSwitch(v: Boolean) = edit { it[K.showVideoSwitch] = v }
+    fun setHoldSeekSeconds(v: Int) = edit { it[K.holdSeekSeconds] = v.coerceIn(0, 20) }
     fun setCanvasWithDownloads(v: Boolean) = edit { it[K.canvasWithDownloads] = v }
     fun setCanvasWithDownloadsCellular(v: Boolean) = edit { it[K.canvasWithDownloadsCellular] = v }
     fun setAudioQuality(v: AudioQuality) = edit { it[K.audioQuality] = v.name }

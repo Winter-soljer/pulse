@@ -215,6 +215,7 @@ private fun NavTab.tab(): Tab = when (this) {
     NavTab.LIBRARY -> Tab(Routes.LIBRARY, label, PrismIcons.Library, PrismIcons.LibraryFilled)
     NavTab.REPLAY -> Tab(Routes.REPLAY, label, PrismIcons.Replay, PrismIcons.ReplayFilled)
     NavTab.SETTINGS -> Tab(Routes.SETTINGS, label, PrismIcons.Settings, PrismIcons.SettingsFilled)
+    NavTab.LOCAL -> Tab(Routes.LOCAL, label, PrismIcons.Phone, PrismIcons.Phone)
 }
 
 /** Heights of the floating chrome, so pages can leave room for it. */

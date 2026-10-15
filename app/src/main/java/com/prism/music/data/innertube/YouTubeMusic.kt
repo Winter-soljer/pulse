@@ -40,11 +40,20 @@ enum class SearchFilter(val label: String, val params: String?) {
 /** High-level YouTube Music operations built on [InnerTube]. */
 class YouTubeMusic(private val api: InnerTube) {
 
-    private suspend fun browse(browseId: String, params: String? = null): JsonObject =
-        api.post("browse", buildJsonObject {
+    private suspend fun browse(browseId: String, params: String? = null): JsonObject {
+        val body = buildJsonObject {
             put("browseId", browseId)
             params?.let { put("params", it) }
-        })
+        }
+        return try {
+            api.post("browse", body)
+        } catch (e: InnerTubeException) {
+            // Signed in, a public page can be "not found" for the account (Podcasts outside the countries that have
+            // them, #18) while it opens fine signed out. Library pages stay refused that way, so the error stands.
+            if (e.code != 404) throw e
+            runCatching { api.postAnonymous("browse", body) }.getOrElse { throw e }
+        }
+    }
 
     private suspend fun continueBrowse(token: String): JsonObject =
         api.post("browse", buildJsonObject { put("continuation", token) }, "&ctoken=$token&continuation=$token&type=next")

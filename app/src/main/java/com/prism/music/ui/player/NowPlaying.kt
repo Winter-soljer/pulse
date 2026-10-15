@@ -15,6 +15,7 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -220,13 +221,26 @@ fun NowPlayingScreen(onCollapse: () -> Unit) {
     }
 
     val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+    // How far the player has been pulled down (px). Closing slides it the rest of the way, from wherever it is, the same
+    // way for Back and for a swipe (#26: a swipe used to hand over to a different exit animation part-way down).
+    val dismiss = remember { Animatable(0f) }
+    val screenPx = with(LocalDensity.current) { LocalConfiguration.current.screenHeightDp.dp.toPx() }
+    var closing by remember { mutableStateOf(false) }
+    fun slideClosed() {
+        if (closing) return
+        closing = true
+        scope.launch {
+            dismiss.animateTo(screenPx, tween(if (settings.reduceMotion) 240 else 340, easing = FastOutSlowInEasing))
+            onCollapse()
+        }
+    }
     BackHandler {
         when {
             fullscreenVideo -> fullscreenVideo = false
             lyricsOpen -> closeLyrics()
             queueOpen -> queueOpen = false
             statsOpen -> statsOpen = false
-            else -> onCollapse()
+            else -> slideClosed()
         }
     }
     // Picture-in-picture: a music video playing here floats over other apps when the listener
@@ -259,7 +273,6 @@ fun NowPlayingScreen(onCollapse: () -> Unit) {
     )
     val swipe = remember { Animatable(0f) }
     val haptics = com.prism.music.ui.theme.rememberHaptics()
-    val dismiss = remember { Animatable(0f) }
 
     // ---------------------------------------------------------------- Canvas
     val metered = remember { context.getSystemService(ConnectivityManager::class.java)?.isActiveNetworkMetered == true }
@@ -393,11 +406,11 @@ fun NowPlayingScreen(onCollapse: () -> Unit) {
 
         val dismissGesture = Modifier.pointerInput(Unit) {
             detectVerticalDragGestures(
-                onDragEnd = { scope.launch { if (dismiss.value > 220f) onCollapse() else dismiss.animateTo(0f, spring()) } },
-                onDragCancel = { scope.launch { dismiss.animateTo(0f) } },
+                onDragEnd = { if (dismiss.value > 220f) slideClosed() else scope.launch { dismiss.animateTo(0f, spring()) } },
+                onDragCancel = { if (!closing) scope.launch { dismiss.animateTo(0f) } },
             ) { change, amount ->
                 change.consume()
-                scope.launch { dismiss.snapTo((dismiss.value + amount).coerceAtLeast(0f)) }
+                if (!closing) scope.launch { dismiss.snapTo((dismiss.value + amount).coerceAtLeast(0f)) }
             }
         }
         // Drag on the sleeve: down closes the player, up pulls the queue in.
@@ -407,21 +420,18 @@ fun NowPlayingScreen(onCollapse: () -> Unit) {
             detectVerticalDragGestures(
                 onDragStart = { total = 0f },
                 onDragEnd = {
-                    scope.launch {
-                        when {
-                            dismiss.value > 220f -> onCollapse()
-                            total < -90f -> { dismiss.snapTo(0f); toggleQueue() }
-                            else -> dismiss.animateTo(0f, spring())
-                        }
+                    if (dismiss.value > 220f) slideClosed()
+                    else scope.launch {
+                        if (total < -90f) { dismiss.snapTo(0f); toggleQueue() } else dismiss.animateTo(0f, spring())
                     }
                 },
                 // An interrupted drag (a system gesture, a sheet opening) used to leave the player part-way down.
-                onDragCancel = { scope.launch { dismiss.animateTo(0f, spring()) } },
+                onDragCancel = { if (!closing) scope.launch { dismiss.animateTo(0f, spring()) } },
             ) { change, amount ->
                 change.consume()
                 total += amount
                 // Back above where it started: follow the finger back to the top rather than stopping short of it.
-                scope.launch { dismiss.snapTo(total.coerceAtLeast(0f)) }
+                if (!closing) scope.launch { dismiss.snapTo(total.coerceAtLeast(0f)) }
             }
         }
         val skipGesture = Modifier.pointerInput(lyricsOpen, queueOpen, statsOpen) {

@@ -68,6 +68,20 @@
             </intent-filter>
         </activity>
 
+        <!-- "Hey Google, play … on Prism": Assistant / Gemini only offer apps that take this as music sources. -->
+        <activity
+            android:name=".playback.VoicePlayActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:theme="@android:style/Theme.Translucent.NoTitleBar">
+            <intent-filter>
+                <action android:name="android.media.action.MEDIA_PLAY_FROM_SEARCH" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
         <service
             android:name=".playback.PlaybackService"
             android:exported="true"

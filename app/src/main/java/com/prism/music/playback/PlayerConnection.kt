@@ -380,6 +380,11 @@ class PlayerConnection(private val context: Context, private val c: AppContainer
     fun next() = withPlayer { it.seekToNext() }
     fun previous() = withPlayer { it.seekToPrevious() }
     fun seekTo(ms: Long) = withPlayer { it.seekTo(ms) }
+    /** Moves the playhead by [ms] (negative goes back), kept inside the song. */
+    fun seekBy(ms: Long) = withPlayer { p ->
+        val end = p.duration.takeIf { it > 0 } ?: Long.MAX_VALUE
+        p.seekTo((p.currentPosition + ms).coerceIn(0, (end - 1_000).coerceAtLeast(0)))
+    }
     fun skipTo(index: Int) = withPlayer { p ->
         // Shuffled, the song picked plays next in the order, so Previous comes back to the one playing now.
         if (p.shuffleModeEnabled) (p.shuffleOrder as? HistoryShuffleOrder)?.let { p.setShuffleOrder(it.playingNext(p.currentMediaItemIndex, index)) }

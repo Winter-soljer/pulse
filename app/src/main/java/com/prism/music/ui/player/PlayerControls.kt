@@ -24,6 +24,12 @@ import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -225,7 +231,11 @@ fun TransportRow(isPlaying: Boolean, isLoading: Boolean, previousEnabled: Boolea
         val prevIcon = if (style == TransportStyle.GLYPHS) PrismIcons.Backward else PrismIcons.Previous
         val nextIcon = if (style == TransportStyle.GLYPHS) PrismIcons.Forward else PrismIcons.Next
         val skip = if (style == TransportStyle.GLYPHS) skipSize else skipSize * 0.82f
-        TransportGlyph(prevIcon, "Previous", skip, 53.dp, if (style == TransportStyle.GLYPHS) 0.85f else 1f, previousEnabled) { pc.previous() }
+        // Settings → Player → "Hold to seek": holding previous / next jumps back / forward.
+        val holdMs = LocalAppSettings.current.holdSeekSeconds * 1000L
+        val back = if (holdMs > 0) ({ pc.seekBy(-holdMs) }) else null
+        val ahead = if (holdMs > 0) ({ pc.seekBy(holdMs) }) else null
+        TransportGlyph(prevIcon, "Previous", skip, 53.dp, if (style == TransportStyle.GLYPHS) 0.85f else 1f, previousEnabled, onHold = back) { pc.previous() }
         if (style == TransportStyle.GLYPHS) {
             if (isLoading) {
                 Box(Modifier.size(playTouch), contentAlignment = Alignment.Center) {
@@ -237,7 +247,7 @@ fun TransportRow(isPlaying: Boolean, isLoading: Boolean, previousEnabled: Boolea
         } else {
             PlayDisc(isPlaying, isLoading, filled = style == TransportStyle.BUTTON, size = if (compact) 64.dp else 78.dp) { pc.togglePlay() }
         }
-        TransportGlyph(nextIcon, "Next", skip, 53.dp, if (style == TransportStyle.GLYPHS) 0.85f else 1f, nextEnabled) { pc.next() }
+        TransportGlyph(nextIcon, "Next", skip, 53.dp, if (style == TransportStyle.GLYPHS) 0.85f else 1f, nextEnabled, onHold = ahead) { pc.next() }
         if (modes) ModeGlyph(
             PrismIcons.Repeat,
             when (repeat) { Player.REPEAT_MODE_ALL -> "Repeat all"; Player.REPEAT_MODE_ONE -> "Repeat one"; else -> "Repeat off" },
@@ -299,17 +309,47 @@ private fun TransportGlyph(
     touch: Dp,
     heightScale: Float = 1f,
     enabled: Boolean = true,
+    onHold: (() -> Unit)? = null,
     onClick: () -> Unit,
 ) {
     val alpha by animateFloatAsState(if (enabled) 1f else 0.3f, label = "transportAlpha")
     val haptics = rememberHaptics()
+    val tap by rememberUpdatedState(onClick)
+    val tapEnabled by rememberUpdatedState(enabled)
+    val step by rememberUpdatedState(onHold)
     Box(
-        Modifier.size(touch).clickable(remember { MutableInteractionSource() }, indication = null, enabled = enabled) { haptics.click(); onClick() },
+        Modifier.size(touch).then(
+            if (onHold == null) Modifier.clickable(remember { MutableInteractionSource() }, indication = null, enabled = enabled) { haptics.click(); onClick() }
+            // A tap changes songs; holding seeks, one step at once and then again every moment it's held.
+            // Holding works even when the tap can't (forward on the queue's last song).
+            else Modifier
+                .semantics { role = Role.Button; if (enabled) onClick { tap(); true } }
+                .pointerInput(Unit) {
+                    awaitEachGesture {
+                        awaitFirstDown()
+                        var ended = false
+                        val up = withTimeoutOrNull(HOLD_TO_SEEK_MS) { waitForUpOrCancellation().also { ended = true } }
+                        if (ended) {
+                            if (up != null && tapEnabled) { up.consume(); haptics.click(); tap() }
+                            return@awaitEachGesture
+                        }
+                        do {
+                            haptics.tick()
+                            step?.invoke()
+                            ended = false
+                            withTimeoutOrNull(HOLD_SEEK_REPEAT_MS) { waitForUpOrCancellation()?.consume(); ended = true }
+                        } while (!ended)
+                    }
+                }
+        ),
         contentAlignment = Alignment.Center,
     ) {
         Icon(icon, description, tint = Color.White.copy(alpha = alpha), modifier = Modifier.size(size).graphicsLayer { scaleY = heightScale })
     }
 }
+
+private const val HOLD_TO_SEEK_MS = 400L
+private const val HOLD_SEEK_REPEAT_MS = 450L
 
 /** System media volume, mirrored into a value the bar can drag. */
 class PlayerVolume(context: Context) {
@@ -396,6 +436,9 @@ fun PlayerActionRow(
                     ) { pc.cycleRepeat() }
                     PillDivider()
                     PillSegment(PrismIcons.Autoplay, "Autoplay", settings.autoplay, width = PILL_SEGMENT_WIDTH_TRIPLE) { c.settings.setAutoplay(!settings.autoplay) }
+                } else if (!settings.showVideoSwitch) {
+                    // Settings → Player → "Song / Video switch" off: audio only, lyrics and queue keep their places.
+                    Spacer(Modifier.size(1.dp))
                 } else Pill {
                     PillSegment(PrismIcons.Song, "Song", !videoMode && !videoLoading) { if (videoMode || videoLoading) onVideoMode(false) }
                     PillDivider()
