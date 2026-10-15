@@ -4,12 +4,11 @@ import com.prism.music.data.innertube.InnerTube
 import com.prism.music.data.innertube.str
 import com.prism.music.data.model.Song
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Mutex
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.MapSerializer
 import kotlinx.serialization.builtins.serializer
-import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -118,7 +117,12 @@ class CanvasRepository(private val http: OkHttpClient) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Entry>) =
             size > MAX_ENTRIES && !isSaved(eldest.key, eldest.value)
     }
-    private val lock = Mutex()
+    /**
+     * Lookups under way, one per song: the player and a background save asking for the same song share one. (A single
+     * lock over every lookup made the player's wait behind a whole album's, or every download's, so the songs it came
+     * to showed their still cover.)
+     */
+    private val inFlight = HashMap<String, kotlinx.coroutines.Deferred<CanvasArtwork?>>()
     private var indexFile: java.io.File? = null
     private val ioScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + Dispatchers.IO)
     private var writeJob: kotlinx.coroutines.Job? = null
@@ -170,18 +174,27 @@ class CanvasRepository(private val http: OkHttpClient) {
 
     fun cached(song: Song): CanvasArtwork? = synchronized(cache) { cache[song.id]?.art }
 
-    suspend fun canvasFor(song: Song): CanvasArtwork? = lock.withLock {
-        val album = song.album?.title
+    suspend fun canvasFor(song: Song): CanvasArtwork? {
         val now = System.currentTimeMillis()
         synchronized(cache) {
             cache[song.id]?.let { e ->
                 val fresh = isSaved(song) || !e.stale(now)
-                if (fresh && (e.art != null || e.hadAlbum || album == null)) return@withLock e.art
+                if (fresh && (e.art != null || e.hadAlbum || song.album == null)) return e.art
             }
         }
+        val job = synchronized(inFlight) {
+            inFlight[song.id] ?: ioScope.async(start = kotlinx.coroutines.CoroutineStart.LAZY) {
+                try { lookup(song, now) } finally { synchronized(inFlight) { inFlight.remove(song.id) } }
+            }.also { inFlight[song.id] = it }
+        }
+        return job.await()
+    }
+
+    private suspend fun lookup(song: Song, now: Long): CanvasArtwork? {
+        val album = song.album?.title
         val title = song.title.cleaned()
         val artist = song.primaryArtist.cleaned()
-        if (title.isBlank() || artist.isBlank()) return@withLock null
+        if (title.isBlank() || artist.isBlank()) return null
         val found = withContext(Dispatchers.IO) {
             listOf<() -> CanvasArtwork?>(
                 { apple(title, artist, album) },
@@ -196,7 +209,7 @@ class CanvasRepository(private val http: OkHttpClient) {
             if (found != null || known == null) cache[song.id] = Entry(found, album != null, now, albumKey(song))
         }
         scheduleWrite()
-        found ?: synchronized(cache) { cache[song.id]?.art }
+        return found ?: synchronized(cache) { cache[song.id]?.art }
     }
 
     companion object {

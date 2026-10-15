@@ -298,7 +298,9 @@ object Parser {
                     moreBrowseId = header.str("moreContentButton", "buttonRenderer", "navigationEndpoint", "browseEndpoint", "browseId")
                         ?: header.obj("title").runs().firstOrNull().str("navigationEndpoint", "browseEndpoint", "browseId"),
                     moreParams = header.str("moreContentButton", "buttonRenderer", "navigationEndpoint", "browseEndpoint", "params"),
-                    rows = s.str("numItemsPerColumn") != null || s.arr("contents")?.firstOrNull().obj("musicResponsiveListItemRenderer") != null,
+                    // Song rows, not cards: "Listen again" / "Speed dial" (your recent plays) also come a few per
+                    // column (numItemsPerColumn), but as cards, and were taken for Quick picks.
+                    rows = s.arr("contents")?.firstOrNull().obj("musicResponsiveListItemRenderer") != null,
                 )
             }
             node.obj("musicShelfRenderer")?.let { s ->

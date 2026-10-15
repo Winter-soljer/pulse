@@ -155,10 +155,16 @@ fun HomeScreen(bottomPadding: androidx.compose.ui.unit.Dp) {
                         HomeSections.GREETING -> GreetingSection(recent)
                         HomeSections.QUICK_PICKS -> {
                             val qp = shelves.quickPicks()
-                            // Recent plays stand in only once YouTube's picks are known to be missing: while Home is
-                            // still loading they flashed up (a lone, stale row) and were then swapped out.
-                            val items = qp?.items?.filterIsInstance<SongItem>()?.map { it.song }
-                                ?: if (home.state is Load.Loading) emptyList() else recent.take(16)
+                            // When YouTube serves no picks, songs like your latest play stand in (from its radio, less
+                            // what you've just heard). Your recent plays themselves never do: that's Recently played.
+                            val seed = recent.firstOrNull()?.takeIf { qp == null && home.state is Load.Ok }
+                            val stand by produceState(emptyList<Song>(), seed?.id) {
+                                if (seed == null) { value = emptyList(); return@produceState }
+                                val heard = recent.take(50).map { it.id }.toSet()
+                                value = runCatching { c.ytm.next(seed.id, playlistId = "RDAMVM${seed.id}").songs }.getOrDefault(emptyList())
+                                    .filter { it.id !in heard && !it.isVideo }.distinctBy { it.id }.take(20)
+                            }
+                            val items = qp?.items?.filterIsInstance<SongItem>()?.map { it.song } ?: stand
                             if (items.isNotEmpty()) SongSection(cfg, "Quick picks", qp?.strapline, items, snap = true)
                         }
                         HomeSections.RECENT -> if (recent.isNotEmpty()) SongSection(cfg, cfg.title, null, recent.take(20))

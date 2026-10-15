@@ -140,6 +140,8 @@ class PlaybackService : MediaLibraryService(), Player.Listener {
         // Matching the display to the video's frame rate also throttled the whole
         // app (lyrics included) to 60 Hz; the UI should stay at the panel's full rate.
         player.videoChangeFrameRateStrategy = C.VIDEO_CHANGE_FRAME_RATE_STRATEGY_OFF
+        // Shuffled, Previous goes back to the song played last (see HistoryShuffleOrder).
+        player.setShuffleOrder(HistoryShuffleOrder(IntArray(0)) { player.currentMediaItemIndex })
         player.addListener(this)
         player.addAnalyticsListener(StatsListener())
         player.skipSilenceEnabled = c.settings.current.skipSilence
@@ -903,8 +905,7 @@ class PlaybackService : MediaLibraryService(), Player.Listener {
         val n = player.mediaItemCount
         if (n < 2) return
         val cur = player.currentMediaItemIndex.coerceIn(0, n - 1)
-        val order = intArrayOf(cur) + (0 until n).filter { it != cur }.shuffled().toIntArray()
-        player.setShuffleOrder(androidx.media3.exoplayer.source.ShuffleOrder.DefaultShuffleOrder(order, System.nanoTime()))
+        player.setShuffleOrder(HistoryShuffleOrder.shuffled(n, cur) { player.currentMediaItemIndex })
     }
 
     /** Swaps everything after the current song for a radio station seeded by it. */

@@ -120,6 +120,8 @@ private val HEADER_HEIGHT = 60.dp
 private val ART_TITLE_GAP = 20.dp
 private val DISMISS_STRIP = 32.dp
 private val ART_BOX_TOP_PAD = 8.dp
+/** How far the title may drop below the cover toward the scrubber, when the screen has room to spare. */
+private val TITLE_DROP_MAX = 24.dp
 private const val HERO_FADE = 0.42f
 
 @Composable
@@ -296,6 +298,39 @@ fun NowPlayingScreen(onCollapse: () -> Unit) {
     // Only ever the song's album (tapping it opens the album); nothing for songs without one.
     val originAlbum = song.album?.takeIf { it.id != null && it.title.isNotBlank() }
 
+    // The sheets that open over the player (in immersive mode too).
+    val playerSheets = @Composable {
+        if (showProviders) LyricsProviderSheet(lyricsState) { showProviders = false }
+        if (showActions) PlayerOptionsSheet(
+            song,
+            hasCanvas = songCanvas != null,
+            statsShown = statsOpen,
+            hasNext = hasNext,
+            onLyricsSource = { showProviders = true },
+            onLyricsTiming = { showTiming = true },
+            onRedownloadLyrics = { lyricsState.redownload() },
+            onToggleStats = { toggleStats() },
+            onSleepTimer = { showSleep = true },
+            onCollapse = onCollapse,
+        ) { showActions = false }
+        if (showSleep) SleepTimerDialog { showSleep = false }
+        if (showTiming) LyricsTimingSheet { showTiming = false }
+    }
+
+    // ------------------------------------------------ Immersive mode (⋯ menu): the cover fills the screen, lyrics over it
+    if (settings.immersivePlayer && !videoMode) {
+        ImmersivePlayer(
+            song, canvas, canvasSaved, isPlaying, lyricsState, covered,
+            onExit = { c.settings.setImmersivePlayer(false) },
+            onLyricsTiming = { showTiming = true },
+            onLyricsSource = { showProviders = true },
+            onSongOptions = { showActions = true },
+            onCollapse = onCollapse,
+        )
+        playerSheets()
+        return
+    }
+
     Box(
         Modifier
             .fillMaxSize()
@@ -432,16 +467,19 @@ fun NowPlayingScreen(onCollapse: () -> Unit) {
                 BoxWithConstraints(Modifier.weight(1f).fillMaxWidth().padding(top = ART_BOX_TOP_PAD, bottom = if (roomyCover) 12.dp else 18.dp)) {
                     // Settings → Player → Cover size: Large and Full width reach into the side margins (still square).
                     val fullArt = minOf(maxWidth + settings.coverSize.extra.dp * 2, maxHeight - ART_TITLE_GAP - HEADER_HEIGHT).coerceAtLeast(THUMB_SIZE)
-                    // Room the cover can't use (a tall screen) goes above it: the title stays just over the controls,
-                    // rather than a blank band opening up between the artist and the scrubber (issue #9).
-                    val groupTop = (maxHeight - fullArt - ART_TITLE_GAP - HEADER_HEIGHT).coerceAtLeast(0.dp)
+                    // Room the cover can't use (a tall screen) is shared above and below it, as before 1.6.4 (all of it
+                    // above pushed the whole player down). The title drops into part of the room below, so no blank
+                    // band opens up between the artist and the scrubber (issue #9).
+                    val slack = (maxHeight - fullArt - ART_TITLE_GAP - HEADER_HEIGHT).coerceAtLeast(0.dp)
+                    val groupTop = slack / 2
+                    val titleDrop = minOf(slack / 2, TITLE_DROP_MAX)
                     val bannerBottom = statusTop + DISMISS_STRIP + ART_BOX_TOP_PAD + groupTop + fullArt + ART_TITLE_GAP / 2
                     if (!lyricsOpen && !queueOpen && !statsOpen && bannerBottom != heroHeight) SideEffect { heroHeight = bannerBottom }
                     val sleeveMaxWidth = maxWidth
                     fun artSize(): Dp = lerp(fullArt, THUMB_SIZE, p())
                     fun artTop(): Dp = lerp(groupTop, 0.dp, p())
                     fun artStart(): Dp = lerp((maxWidth - fullArt) / 2, 0.dp, p())
-                    fun titleTop(): Dp = lerp(groupTop + fullArt + ART_TITLE_GAP, 0.dp, p())
+                    fun titleTop(): Dp = lerp(groupTop + fullArt + ART_TITLE_GAP + titleDrop, 0.dp, p())
                     fun titleStart(): Dp = lerp(0.dp, THUMB_SIZE + 12.dp, p())
 
                     // ---- Music video: spans the full screen width, filling the artwork slot.
@@ -601,10 +639,10 @@ fun NowPlayingScreen(onCollapse: () -> Unit) {
                         Spacer(Modifier.height(8.dp))
                         TransportRow(isPlaying, buffering, previousEnabled = hasPrevious || position > 3000, nextEnabled = hasNext)
                         Spacer(Modifier.height(12.dp))
-                        // A Large / Full width cover takes the room hidden extras would keep (on most phones the
-                        // cover is held back by height, not width).
-                        if (!settings.hideVolumeBar) { VolumeRow(volume); Spacer(Modifier.height(6.dp)) }
-                        else if (!roomyCover) Spacer(Modifier.height(VOLUME_ROW_HEIGHT + 6.dp))
+                        // A hidden volume bar keeps its room, so the transport sits where it always has (giving it to
+                        // a Large / Full width cover in 1.6.4 dropped the controls toward the bottom row).
+                        if (!settings.hideVolumeBar) VolumeRow(volume) else Spacer(Modifier.height(VOLUME_ROW_HEIGHT))
+                        Spacer(Modifier.height(6.dp))
                         PlayerActionRow(
                             lyricsOpen, queueOpen, videoMode, videoAvailable,
                             onToggleLyrics = { if (lyricsOpen) closeLyrics() else openLyrics() },
@@ -621,21 +659,7 @@ fun NowPlayingScreen(onCollapse: () -> Unit) {
         }
     }
 
-    if (showProviders) LyricsProviderSheet(lyricsState) { showProviders = false }
-    if (showActions) PlayerOptionsSheet(
-        song,
-        hasCanvas = songCanvas != null,
-        statsShown = statsOpen,
-        hasNext = hasNext,
-        onLyricsSource = { showProviders = true },
-        onLyricsTiming = { showTiming = true },
-        onRedownloadLyrics = { lyricsState.redownload() },
-        onToggleStats = { toggleStats() },
-        onSleepTimer = { showSleep = true },
-        onCollapse = onCollapse,
-    ) { showActions = false }
-    if (showSleep) SleepTimerDialog { showSleep = false }
-    if (showTiming) LyricsTimingSheet { showTiming = false }
+    playerSheets()
 }
 
 /** The "Theme" player background: a deep wash of the accent colour, lighter at the top. */

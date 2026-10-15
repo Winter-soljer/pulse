@@ -577,6 +577,7 @@ private fun PlayerSettings() {
                     "as far as the controls allow: turning off the current lyric, volume bar or output device makes more room"
             )
             Toggle("Full-bleed artwork", "Cover art runs edge to edge at the top of the player", s.fullBleedArtwork) { prefs.setFullBleedArtwork(it) }
+            Toggle("Immersive mode", "The cover fills the screen with the lyrics over it, like a lyric video. Tap the screen for its settings; also in the player's ⋯ menu", s.immersivePlayer) { prefs.setImmersivePlayer(it) }
             Toggle("Shrink when paused", "The cover eases back a little while the music is paused", s.artShrinkOnPause) { prefs.setArtShrinkOnPause(it) }
             Toggle("Animated cover art", "Motion artwork and video covers, when a song has one. You can also turn it off for single songs from the player's ⋯ menu", s.canvasEnabled) { prefs.setCanvasEnabled(it) }
             if (s.canvasEnabled) Toggle("Animated covers on mobile data", "Saved covers play from the phone either way", s.canvasOnCellular) { prefs.setCanvasOnCellular(it) }
@@ -867,7 +868,7 @@ private fun DownloadSettings() {
 
 // ---------------------------------------------------------------------------- Library & Replay
 
-private val libraryTabs = listOf("PLAYLISTS" to "Playlists", "SONGS" to "Songs", "ALBUMS" to "Albums", "ARTISTS" to "Artists", "DOWNLOADS" to "Downloads", "LOCAL" to "On this phone")
+private val libraryTabs = listOf("PLAYLISTS" to "Playlists", "SONGS" to "Songs", "ALBUMS" to "Albums", "ARTISTS" to "Artists", "DOWNLOADS" to "Downloads")
 
 @Composable
 private fun LibraryReplaySettings() {
@@ -878,7 +879,9 @@ private fun LibraryReplaySettings() {
             Label("Albums, artists & playlists as")
             Chips(LibraryView.entries, s.libraryView, { it.label }) { prefs.setLibraryView(it) }
             Label("Open Library on")
-            Chips(libraryTabs.map { it.first }, s.libraryStartTab, { k -> libraryTabs.first { it.first == k }.second }) { prefs.setLibraryStartTab(it) }
+            // "LOCAL" (On this phone) was a tab before Local files got its own page: Playlists stands in for it.
+            val startTab = s.libraryStartTab.takeIf { k -> libraryTabs.any { it.first == k } } ?: "PLAYLISTS"
+            Chips(libraryTabs.map { it.first }, startTab, { k -> libraryTabs.firstOrNull { it.first == k }?.second ?: k }) { prefs.setLibraryStartTab(it) }
             Spacer(Modifier.height(6.dp))
             Toggle("Full-width playlist pictures", "Playlists open with their picture edge to edge, like an artist page", s.playlistHeroCover) { prefs.setPlaylistHeroCover(it) }
         }

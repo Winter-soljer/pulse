@@ -1,0 +1,266 @@
+package com.prism.music.ui.player
+
+import android.app.Activity
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDirection
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
+import coil3.compose.AsyncImage
+import com.prism.music.data.canvas.CanvasArtwork
+import com.prism.music.data.lyrics.LyricLine
+import com.prism.music.data.model.Song
+import com.prism.music.data.model.hiRes
+import com.prism.music.ui.components.ActionGroup
+import com.prism.music.ui.components.ActionHeader
+import com.prism.music.ui.components.ActionItem
+import com.prism.music.ui.components.ActionSheet
+import com.prism.music.ui.components.RoundAction
+import com.prism.music.ui.components.runAction
+import com.prism.music.ui.theme.PrismIcons
+import kotlinx.coroutines.delay
+
+/** The lines' look: big, bold and centred, like a lyric video's. */
+private val lineShadow = Shadow(Color.Black.copy(alpha = 0.6f), androidx.compose.ui.geometry.Offset(0f, 2f), 14f)
+
+/**
+ * Immersive mode (the player's ⋯ menu): the cover fills the whole screen (its animated version when it has one) and the
+ * lyrics play over its lower part, a line at a time, as in a lyric video. Nothing else shows; a tap brings up a
+ * settings button for a few seconds (back to the normal player, lyrics timing and source, the song's options).
+ * A drag down closes the player, as it does the normal one.
+ */
+@Composable
+fun ImmersivePlayer(
+    song: Song,
+    /** The song's animated cover, if it has one (and it's allowed here): it plays in place of the still. */
+    canvas: CanvasArtwork?,
+    canvasSaved: Boolean,
+    isPlaying: Boolean,
+    lyricsState: LyricsState,
+    /** A sheet is over the player: the clip and the lyrics hold still meanwhile. */
+    covered: Boolean,
+    onExit: () -> Unit,
+    onLyricsTiming: () -> Unit,
+    onLyricsSource: () -> Unit,
+    onSongOptions: () -> Unit,
+    onCollapse: () -> Unit,
+) {
+    val view = LocalView.current
+    var menu by remember { mutableStateOf(false) }
+    var button by remember { mutableStateOf(false) }
+    val hold = covered || menu
+    // A tap shows the button for a few seconds; another tap (or the time) hides it.
+    LaunchedEffect(button, menu) { if (button && !menu) { delay(4000); button = false } }
+
+    // Edge to edge for real: the system bars hide (a swipe from the edge shows them for a moment), and the screen stays on.
+    DisposableEffect(Unit) {
+        val window = (view.context as? Activity)?.window
+        val ctl = window?.let { WindowCompat.getInsetsController(it, view) }
+        ctl?.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        ctl?.hide(WindowInsetsCompat.Type.systemBars())
+        view.keepScreenOn = true
+        onDispose {
+            ctl?.show(WindowInsetsCompat.Type.systemBars())
+            view.keepScreenOn = false
+        }
+    }
+
+    var drag by remember { mutableFloatStateOf(0f) }
+    Box(
+        Modifier
+            .fillMaxSize()
+            .background(Color.Black)
+            .graphicsLayer { translationY = drag.coerceAtLeast(0f) }
+            .pointerInput(Unit) { detectTapGestures(onTap = { button = !button }) }
+            .pointerInput(Unit) {
+                detectVerticalDragGestures(
+                    onDragEnd = { if (drag > 220f) onCollapse(); drag = 0f },
+                    onDragCancel = { drag = 0f },
+                ) { change, amount -> change.consume(); drag += amount }
+            },
+    ) {
+        // ---- The cover, filling the screen; the animated one over it once its first frame is in.
+        var canvasCover by remember(canvas) { mutableFloatStateOf(0f) }
+        AsyncImage(
+            hiRes(song.thumbnail, 1200), null, contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize().graphicsLayer { alpha = 1f - canvasCover },
+        )
+        // A tall version of the clip (when there is one) fits a phone held upright better than the square one.
+        val clip = remember(canvas) { canvas?.let { c -> c.fallbackUrl?.let { tall -> c.copy(url = tall, fallbackUrl = c.url) } ?: c } }
+        clip?.let { CanvasPlayer(it, canvasSaved, isPlaying, Modifier.fillMaxSize(), onCoverChanged = { v -> canvasCover = v }, hold = hold) }
+
+        // ---- Shade, top and bottom, so the lyrics (and the button) read over any cover.
+        Box(
+            Modifier.fillMaxSize().background(
+                Brush.verticalGradient(
+                    0f to Color.Black.copy(alpha = 0.28f), 0.16f to Color.Transparent,
+                    0.5f to Color.Transparent, 0.78f to Color.Black.copy(alpha = 0.42f), 1f to Color.Black.copy(alpha = 0.78f),
+                ),
+            ),
+        )
+
+        // ---- Lyrics, over the lower part of the cover.
+        val insets = WindowInsets.safeDrawing.asPaddingValues()
+        Box(
+            Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .fillMaxHeight(0.42f)
+                .padding(start = 28.dp, end = 28.dp, bottom = insets.calculateBottomPadding() + 40.dp),
+            contentAlignment = Alignment.BottomCenter,
+        ) {
+            ImmersiveLyrics(song, lyricsState, isPlaying && !hold)
+        }
+
+        // ---- The settings button, on a tap.
+        AnimatedVisibility(
+            button || menu, Modifier.align(Alignment.TopEnd).padding(top = insets.calculateTopPadding() + 12.dp, end = 16.dp),
+            enter = fadeIn(tween(200)) + scaleIn(tween(200), initialScale = 0.85f), exit = fadeOut(tween(300)),
+        ) {
+            RoundAction(PrismIcons.SettingsFilled, "Immersive mode settings", glass = true) { menu = true }
+        }
+    }
+
+    if (menu) ActionSheet(song.thumbnail, { menu = false; button = false }) { close ->
+        ActionHeader(song.thumbnail, song.title, song.artistText)
+        ActionGroup(
+            "Immersive mode",
+            listOf(
+                ActionItem(PrismIcons.FullscreenExit, "Show the player", onClick = onExit),
+                ActionItem(PrismIcons.More, "Song options", onClick = onSongOptions),
+            ),
+        ) { runAction(it, close) }
+        ActionGroup(
+            "Lyrics",
+            listOf(
+                ActionItem(PrismIcons.Timer, "Lyrics timing", onClick = onLyricsTiming),
+                ActionItem(PrismIcons.Lyrics, "Lyrics source", onClick = onLyricsSource),
+            ),
+        ) { runAction(it, close) }
+    }
+}
+
+/** What's sung now, big, with the next line small under it; the song's name before the first line and without lyrics. */
+@Composable
+private fun ImmersiveLyrics(song: Song, state: LyricsState, active: Boolean) {
+    val lines = state.lines
+    val synced = lines.any { it.timeMs >= 0 }
+    val lineStyle = MaterialTheme.typography.headlineMedium.copy(
+        fontSize = 30.sp, lineHeight = 36.sp, fontWeight = FontWeight.ExtraBold,
+        textAlign = TextAlign.Center, textDirection = TextDirection.Content, shadow = lineShadow,
+    )
+    if (lines.isEmpty() || !synced) {
+        // Plain lyrics can't be followed along: the song's name stays up, as at the start of a lyric video.
+        TitleCard(song)
+        return
+    }
+    val clock = rememberLyricClock(active)
+    val index by remember(lines) { derivedStateOf { lines.indexAtOrBefore(clock.value) } }
+    val firstSung = remember(lines) { lines.indexOfFirst { !it.isGap } }
+    AnimatedContent(
+        index,
+        transitionSpec = {
+            (fadeIn(tween(420, easing = FastOutSlowInEasing)) + slideInVertically(tween(420, easing = FastOutSlowInEasing)) { it / 3 }) togetherWith
+                (fadeOut(tween(260)) + slideOutVertically(tween(420, easing = FastOutSlowInEasing)) { -it / 3 }) using SizeTransform(clip = false)
+        },
+        contentAlignment = Alignment.BottomCenter,
+        label = "immersiveLine",
+    ) { i ->
+        val line = lines.getOrNull(i)?.takeIf { !it.isGap }
+        val next = remember(lines, i) { lines.drop(i + 1).firstOrNull { !it.isGap } }
+        Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Bottom) {
+            when {
+                // Before the first line: the song's name, as a lyric video opens.
+                line == null && i < firstSung -> TitleCard(song)
+                line == null -> Text("♪", style = lineStyle, color = Color.White.copy(alpha = 0.7f))
+                line.isWordSynced -> SweptLine(line, clock, lineStyle, Modifier.fillMaxWidth(), maxLines = 4, dimAlpha = 0.45f)
+                else -> Text(line.text, style = lineStyle, color = Color.White, maxLines = 4, overflow = TextOverflow.Ellipsis, modifier = Modifier.fillMaxWidth())
+            }
+            // The line to come, small and dim under it.
+            next?.let { n ->
+                Spacer(Modifier.height(14.dp))
+                Text(
+                    n.text, color = Color.White.copy(alpha = 0.55f), maxLines = 2, overflow = TextOverflow.Ellipsis,
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center, textDirection = TextDirection.Content, shadow = lineShadow,
+                    ),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun TitleCard(song: Song) {
+    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(
+            song.title, color = Color.White, maxLines = 2, overflow = TextOverflow.Ellipsis,
+            style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.ExtraBold, textAlign = TextAlign.Center, shadow = lineShadow),
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(Modifier.height(6.dp))
+        Text(
+            song.artistText, color = Color.White.copy(alpha = 0.75f), maxLines = 1, overflow = TextOverflow.Ellipsis,
+            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center, shadow = lineShadow),
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
+}
+
+/** The line playing at [ms] (the last one started), or -1 before the first. */
+private fun List<LyricLine>.indexAtOrBefore(ms: Long): Int {
+    var idx = -1
+    for (i in indices) if (this[i].timeMs in 0..ms) idx = i else if (this[i].timeMs > ms) break
+    return idx
+}

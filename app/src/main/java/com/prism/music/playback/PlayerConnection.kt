@@ -381,6 +381,8 @@ class PlayerConnection(private val context: Context, private val c: AppContainer
     fun previous() = withPlayer { it.seekToPrevious() }
     fun seekTo(ms: Long) = withPlayer { it.seekTo(ms) }
     fun skipTo(index: Int) = withPlayer { p ->
+        // Shuffled, the song picked plays next in the order, so Previous comes back to the one playing now.
+        if (p.shuffleModeEnabled) (p.shuffleOrder as? HistoryShuffleOrder)?.let { p.setShuffleOrder(it.playingNext(p.currentMediaItemIndex, index)) }
         p.seekToDefaultPosition(index)
         if (p.playbackState == Player.STATE_IDLE) p.prepare()
         p.play()
@@ -404,8 +406,7 @@ class PlayerConnection(private val context: Context, private val c: AppContainer
         val n = p.mediaItemCount
         if (n < 2) return
         val cur = p.currentMediaItemIndex.coerceIn(0, n - 1)
-        val order = intArrayOf(cur) + (0 until n).filter { it != cur }.shuffled().toIntArray()
-        p.setShuffleOrder(androidx.media3.exoplayer.source.ShuffleOrder.DefaultShuffleOrder(order, System.nanoTime()))
+        p.setShuffleOrder(HistoryShuffleOrder.shuffled(n, cur) { p.currentMediaItemIndex })
     }
     fun cycleRepeat() = withPlayer {
         it.repeatMode = when (it.repeatMode) {

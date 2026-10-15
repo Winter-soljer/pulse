@@ -405,6 +405,7 @@ private fun PrismRoot(deepLink: MutableStateFlow<Uri?>) {
                             com.prism.music.ui.screens.PodcastScreen(it.arguments?.getString("id")!!, bottomPadding)
                         }
                         composable(Routes.DOWNLOADS) { CollectionScreen(CollectionType.DOWNLOADS, "downloads", null, bottomPadding) }
+                        composable(Routes.LOCAL) { ScreenBackdrop(BackdropScreen.LIBRARY) { com.prism.music.ui.screens.LocalMusicScreen(bottomPadding) } }
                         composable(Routes.LOGIN) {
                             LoginScreen(
                                 onDone = goRoot,

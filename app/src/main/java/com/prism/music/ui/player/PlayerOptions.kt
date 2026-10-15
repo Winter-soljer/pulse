@@ -109,7 +109,10 @@ fun PlayerOptionsSheet(
         ActionItem(PrismIcons.Refresh, "Download lyrics again") { onRedownloadLyrics(); toast("Downloading lyrics again") },
     )
     val cover = com.prism.music.data.canvas.CanvasRepository.albumKey(song)
+    val immersive = c.settings.flow.collectAsState().value.immersivePlayer
     val player = listOfNotNull(
+        // The cover fills the screen with the lyrics over it; a tap there brings this back.
+        ActionItem(PrismIcons.Fullscreen, "Immersive mode", value = if (immersive) "On" else null, active = immersive) { c.settings.setImmersivePlayer(!immersive) },
         com.prism.music.ui.components.videoDownloadAction(song, videos[song.id]),
         ActionItem(PrismIcons.Groups, "Listen together", value = if (inSession) "On" else null, active = inSession) { onCollapse(); nav.go(Routes.TOGETHER) },
         ActionItem(PrismIcons.Stats, "Stats for nerds", active = statsShown, onClick = onToggleStats),
@@ -141,7 +144,7 @@ fun PlayerOptionsSheet(
         // A file on the phone: no radio, download, YouTube playlist or music video.
         QuickActions(if (song.isLocal) quick.filter { it.label == "Sleep" } else quick) { runAction(it, close) }
         ActionGroup("Lyrics", lyrics) { runAction(it, close) }
-        ActionGroup("Player", if (song.isLocal) player.filter { it.label == "Stats for nerds" } else player) { runAction(it, close) }
+        ActionGroup("Player", if (song.isLocal) player.filter { it.label == "Stats for nerds" || it.label == "Immersive mode" } else player) { runAction(it, close) }
         ActionGroup("More", go) { runAction(it, close) }
     }
 }

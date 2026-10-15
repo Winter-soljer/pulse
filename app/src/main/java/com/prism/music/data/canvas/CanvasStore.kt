@@ -51,6 +51,8 @@ class CanvasStore(
     private val savedCache = SimpleCache(File(context.filesDir, "canvas_saved"), NoOpCacheEvictor(), databaseProvider)
     /** A few clips at a time, so saving an album doesn't swamp the connection. */
     private val gate = Semaphore(2)
+    /** Saves look their clips up one at a time; the player's own lookup never waits for this. */
+    private val lookups = Semaphore(1)
     private val busy = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
 
     private fun recent() = CacheDataSource.Factory()
@@ -108,7 +110,7 @@ class CanvasStore(
 
     /** Fetches [song]'s clip into the saved store, if it has one and it isn't there yet. */
     private suspend fun download(song: Song) {
-        val art = runCatching { repo.canvasFor(song) }.getOrNull() ?: return
+        val art = lookups.withPermit { runCatching { repo.canvasFor(song) }.getOrNull() } ?: return
         if (!busy.add(art.url)) return
         try {
             gate.withPermit {

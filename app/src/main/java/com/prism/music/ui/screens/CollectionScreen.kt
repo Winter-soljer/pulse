@@ -444,21 +444,26 @@ private fun CollectionContent(type: CollectionType, live: LiveCollection, initia
                                     modifier = Modifier.padding(start = 20.dp, top = 18.dp, bottom = 4.dp))
                             }
                             itemsIndexed(songs, key = { i, s -> "g:$g:${s.id}:$i" }) { _, s ->
-                                SongRow(s, playing = current?.id == s.id, trailingInfo = null, extraActions = removeAction(s)) {
-                                    c.player.playQueue(songs, songs.indexOf(s), source.copy(title = "$title · $g"))
+                                com.prism.music.ui.components.SwipeToQueue(s) {
+                                    SongRow(s, playing = current?.id == s.id, trailingInfo = null, extraActions = removeAction(s)) {
+                                        c.player.playQueue(songs, songs.indexOf(s), source.copy(title = "$title · $g"))
+                                    }
                                 }
                             }
                         }
                 } else {
                     itemsIndexed(visible, key = { i, s -> "${s.id}:$i" }) { i, s ->
-                        SongRow(
-                            s,
-                            index = if (type == CollectionType.ALBUM) i + 1 else null,
-                            starred = s.id in popular,
-                            playing = current?.id == s.id,
-                            trailingInfo = if (type == CollectionType.ALBUM) formatDuration(s.durationSec) else genreVersion.let { genres[s.id] }?.takeIf { sort == SortMode.GENRE || genreFilter == null && showGenres }?.let { g -> listOfNotNull(s.album?.title, g).joinToString(" • ") },
-                            extraActions = removeAction(s),
-                        ) { c.player.playQueue(visible, i, source) }
+                        // Swipe right: play next; left: add to the queue.
+                        com.prism.music.ui.components.SwipeToQueue(s) {
+                            SongRow(
+                                s,
+                                index = if (type == CollectionType.ALBUM) i + 1 else null,
+                                starred = s.id in popular,
+                                playing = current?.id == s.id,
+                                trailingInfo = if (type == CollectionType.ALBUM) formatDuration(s.durationSec) else genreVersion.let { genres[s.id] }?.takeIf { sort == SortMode.GENRE || genreFilter == null && showGenres }?.let { g -> listOfNotNull(s.album?.title, g).joinToString(" • ") },
+                                extraActions = removeAction(s),
+                            ) { c.player.playQueue(visible, i, source) }
+                        }
                     }
                 }
                 item("footer") {

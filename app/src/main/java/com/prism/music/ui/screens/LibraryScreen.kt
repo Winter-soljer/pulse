@@ -69,10 +69,8 @@ import com.prism.music.ui.theme.LocalAppSettings
 import com.prism.music.ui.theme.LocalContainer
 import kotlinx.coroutines.launch
 
-private enum class LibTab(val label: String) { PLAYLISTS("Playlists"), SONGS("Songs"), ALBUMS("Albums"), ARTISTS("Artists"), DOWNLOADS("Downloads"), LOCAL("On this phone") }
-
-/** Local music's orders: Album plays each album through in track order. */
-private enum class LocalSort(val label: String) { ADDED("Recently added"), TITLE("Title"), ARTIST("Artist"), ALBUM("Album") }
+// The phone's own music files have their own page (Local files, from Playlists), with Songs, Artists and Albums.
+private enum class LibTab(val label: String) { PLAYLISTS("Playlists"), SONGS("Songs"), ALBUMS("Albums"), ARTISTS("Artists"), DOWNLOADS("Downloads") }
 
 private enum class SongSort(val label: String) { RECENT("Recently liked"), TITLE("Title"), ARTIST("Artist"), ALBUM("Album") }
 private enum class AlbumSort(val label: String) { LIBRARY("Library order"), MOST("Most songs"), TITLE("Title"), ARTIST("Artist") }
@@ -169,19 +167,7 @@ fun LibraryScreen(bottomPadding: Dp) {
         c.library.setPlaylistOrder(list.map { it.id })
         c.library.setPlaylistSort(PlaylistSort.CUSTOM.name)
     }
-    // ---- On this phone (local music)
     val localTracks by c.localMusic.tracks.collectAsState()
-    val localScanned by c.localMusic.scanned.collectAsState()
-    var localSort by rememberSaveable { mutableStateOf(LocalSort.ADDED) }
-    var localAllowed by remember { mutableStateOf(c.localMusic.hasPermission()) }
-    val allowLocal = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) { granted ->
-        localAllowed = granted
-        if (granted) {
-            c.localMusic.start()
-            // Lossless sync reads the same files.
-            scope.launch { c.losslessSync.sync() }
-        }
-    }
 
     LaunchedEffect(pager.currentPage == LibTab.ARTISTS.ordinal, artists.size) {
         if (pager.currentPage == LibTab.ARTISTS.ordinal) c.library.loadArtistThumbs(artists.filter { it.thumbnail == null }.take(60).map { it.id })
@@ -233,6 +219,12 @@ fun LibraryScreen(bottomPadding: Dp) {
                     LibTab.PLAYLISTS -> {
                         item { ShortcutTile("Liked songs", com.prism.music.data.model.songCount(liked.size), PrismIcons.HeartFilled, asList, art = c.covers.custom("liked"), onLongClick = { menu(com.prism.music.ui.components.Playable.Liked) }) { nav.go(Routes.liked()) } }
                         item { ShortcutTile("Downloads", com.prism.music.data.model.songCount(dls.values.count { it.state == androidx.media3.exoplayer.offline.Download.STATE_COMPLETED }), PrismIcons.DownloadDone, asList, onLongClick = { menu(com.prism.music.ui.components.Playable.Downloads) }) { nav.go(Routes.DOWNLOADS) } }
+                        item {
+                            ShortcutTile(
+                                "Local files", if (localTracks.isEmpty()) "Music files on this phone" else com.prism.music.data.model.songCount(localTracks.size),
+                                PrismIcons.Phone, asList,
+                            ) { nav.go(Routes.LOCAL) }
+                        }
                         item { ShortcutTile("Replay", "Your listening recap", PrismIcons.History, asList) { nav.go(Routes.REPLAY) } }
                         item { ShortcutTile("Listen together", "With friends on the same Wi-Fi", PrismIcons.Groups, asList) { nav.go(Routes.TOGETHER) } }
                         if (settings.isLoggedIn) item { ShortcutTile("New playlist", "Make one on YouTube Music", PrismIcons.Add, asList) { creating = true } }
@@ -289,7 +281,6 @@ fun LibraryScreen(bottomPadding: Dp) {
                         items(sortedArtists, key = { "r" + it.id }) { a -> LibraryItem(a, asList) { nav.open(a, onSong) } }
                     }
                     LibTab.DOWNLOADS -> item(span = { GridItemSpan(maxLineSpan) }) { DownloadsSummary() }
-                    LibTab.LOCAL -> localMusic(localTracks, localSort, { localSort = it }, localScanned, localAllowed) { allowLocal.launch(com.prism.music.data.local.LocalLossless.permission) }
                 }
             }
         }
@@ -340,59 +331,6 @@ fun LibraryScreen(bottomPadding: Dp) {
         )
     }
 }
-/**
- * Library → On this phone: the phone's own music files ([com.prism.music.data.local.LocalMusic]), playing from the
- * files. Asks for access to them first.
- */
-private fun androidx.compose.foundation.lazy.grid.LazyGridScope.localMusic(
-    tracks: List<com.prism.music.data.local.LocalMusic.Track>,
-    sort: LocalSort,
-    onSort: (LocalSort) -> Unit,
-    scanned: Boolean,
-    allowed: Boolean,
-    onAllow: () -> Unit,
-) {
-    if (!allowed) {
-        item(span = { GridItemSpan(maxLineSpan) }) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                EmptyState(PrismIcons.Phone, "Your music files", "Play the songs on your phone (MP3, M4A, FLAC, OGG, WAV…) in Prism. They stay where they are; Prism only reads them.")
-                Button(onClick = onAllow) { Text("Allow access to music files") }
-            }
-        }
-        return
-    }
-    if (tracks.isEmpty()) {
-        if (scanned) item(span = { GridItemSpan(maxLineSpan) }) {
-            EmptyState(PrismIcons.Phone, "No music files found", "Songs you copy onto your phone, or download with another app, show up here.")
-        }
-        return
-    }
-    val sorted = when (sort) {
-        LocalSort.ADDED -> tracks
-        LocalSort.TITLE -> tracks.sortedBy { it.song.title.lowercase() }
-        LocalSort.ARTIST -> tracks.sortedWith(compareBy<com.prism.music.data.local.LocalMusic.Track> { it.song.primaryArtist.lowercase().ifBlank { "￿" } }
-            .thenBy { it.song.album?.title?.lowercase() ?: "" }.thenBy { it.trackNumber })
-        LocalSort.ALBUM -> tracks.sortedWith(compareBy<com.prism.music.data.local.LocalMusic.Track> { it.song.album?.title?.lowercase() ?: "￿" }
-            .thenBy { it.albumId }.thenBy { it.trackNumber }.thenBy { it.song.title.lowercase() })
-    }
-    val songs = sorted.map { it.song }
-    val source = com.prism.music.playback.QueueSource(com.prism.music.playback.QueueKind.LIBRARY, "On this phone")
-    item(span = { GridItemSpan(maxLineSpan) }) {
-        val c = LocalContainer.current
-        Column {
-            SortBar(com.prism.music.data.model.songCount(tracks.size), LocalSort.entries, sort, { it.label }) { onSort(it) }
-            Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                com.prism.music.ui.components.PrismChip(false, { c.player.playQueue(songs, 0, source) }, "Play", icon = PrismIcons.Play)
-                com.prism.music.ui.components.PrismChip(false, { c.player.playQueue(songs.shuffled(), 0, source) }, "Shuffle", icon = PrismIcons.Shuffle)
-            }
-        }
-    }
-    items(songs, key = { "l" + it.id }, span = { GridItemSpan(maxLineSpan) }) { s ->
-        val c = LocalContainer.current
-        SongRow(s) { c.player.playQueue(songs, songs.indexOf(s), source) }
-    }
-}
-
 /** The playlists as a list to put in order: hold and drag a row, or nudge it with its arrows. */
 @Composable
 private fun RearrangePlaylists(playlists: List<com.prism.music.data.model.BrowseItem>, onReorder: (List<com.prism.music.data.model.BrowseItem>) -> Unit) {

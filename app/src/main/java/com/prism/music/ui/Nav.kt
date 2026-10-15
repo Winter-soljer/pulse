@@ -31,6 +31,7 @@ object Routes {
     const val CATALOGUE = "catalogue"
     const val LOGIN = "login"
     const val DOWNLOADS = "downloads"
+    const val LOCAL = "local"
     const val MOODS = "moods"
     const val BACKGROUNDS = "backgrounds"
     const val IMPORT = "import"

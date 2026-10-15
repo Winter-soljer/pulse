@@ -139,10 +139,14 @@ data class Shelf(
 /**
  * Home's Quick picks. Its title is in the account's language ("Selección rápida", "Schnellauswahl"…), so after the
  * English title it's known by its shape: the first carousel of song rows. (Matched by title alone, Home showed your
- * recent plays in its place for anyone using YouTube in another language.)
+ * recent plays in its place for anyone using YouTube in another language.) Shelves of your own recent plays ("Listen
+ * again", "Speed dial", in any language) are never taken for it.
  */
 fun List<Shelf>.quickPicks(): Shelf? = firstOrNull { it.title.equals("Quick picks", true) }
-    ?: firstOrNull { s -> s.rows && s.items.count { it is SongItem } * 2 > s.items.size }
+    ?: firstOrNull { s -> s.rows && s.title.lowercase() !in RECENT_SHELVES && s.items.count { it is SongItem } * 2 > s.items.size }
+
+/** Home shelves that are your own history, by their English titles. */
+private val RECENT_SHELVES = setOf("listen again", "speed dial", "recently played", "keep listening")
 
 /** Album/single/EP ordering, by the year in a card's subtitle ("Album • 2024", or just "2024"). */
 object Releases {

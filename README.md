@@ -66,7 +66,7 @@ Updating works the same way: install the new APK over the old one, and your down
 
 ### Your library
 - **Home your way.** Custom greeting, shortcut tiles and pinned playlists.
-- **Downloads** work like a playlist, with counts, size, saved lyrics, sorting and bulk delete. Smart Downloads is one space for music on the phone: the songs you stream, plus the ones you're likely to play next, downloaded ahead (on Wi-Fi, or mobile data if you allow it). Library → On this phone plays the music files already on your phone.
+- **Downloads** work like a playlist, with counts, size, saved lyrics, sorting and bulk delete. Smart Downloads is one space for music on the phone: the songs you stream, plus the ones you're likely to play next, downloaded ahead (on Wi-Fi, or mobile data if you allow it). Library → Local files plays the music files already on your phone, by song, artist or album.
 - **Replay.** Minutes, top songs, artists and genres. Play or shuffle your top 250.
 - **Custom playlist pictures** and **backgrounds** for Home, Search, Library, Replay and Settings.
 - Signed in, likes, playlists, albums and artists sync both ways. **Add albums and playlists to your library**, **star your favourite artists** (they lead Library → Artists and are subscribed on YouTube Music), **make new playlists**, and add songs to them from a searchable sheet.

@@ -179,6 +179,8 @@ data class AppSettings(
     val haptics: Boolean = true,
     /** Artwork runs edge to edge at the top of the player, dissolving into the backdrop. */
     val fullBleedArtwork: Boolean = true,
+    /** Immersive mode (the player's ⋯ menu): the cover fills the screen, lyrics play over it, everything else hides. */
+    val immersivePlayer: Boolean = false,
     /** Animated cover art (motion artwork / video covers) over the sleeve. */
     val canvasEnabled: Boolean = true,
     val canvasOnCellular: Boolean = true,
@@ -336,6 +338,7 @@ class SettingsRepository(private val context: Context, scope: CoroutineScope) {
         val frostedGlass = booleanPreferencesKey("frosted_glass")
         val haptics = booleanPreferencesKey("haptics")
         val fullBleedArtwork = booleanPreferencesKey("full_bleed_artwork")
+        val immersivePlayer = booleanPreferencesKey("immersive_player")
         val canvasEnabled = booleanPreferencesKey("canvas_enabled")
         val canvasOnCellular = booleanPreferencesKey("canvas_on_cellular")
         val hideVolumeBar = booleanPreferencesKey("hide_volume_bar")
@@ -454,6 +457,7 @@ class SettingsRepository(private val context: Context, scope: CoroutineScope) {
             frostedGlass = p[K.frostedGlass] ?: d.frostedGlass,
             haptics = p[K.haptics] ?: d.haptics,
             fullBleedArtwork = p[K.fullBleedArtwork] ?: d.fullBleedArtwork,
+            immersivePlayer = p[K.immersivePlayer] ?: d.immersivePlayer,
             canvasEnabled = p[K.canvasEnabled] ?: d.canvasEnabled,
             canvasOnCellular = p[K.canvasOnCellular] ?: d.canvasOnCellular,
             hideVolumeBar = p[K.hideVolumeBar] ?: d.hideVolumeBar,
@@ -605,6 +609,7 @@ class SettingsRepository(private val context: Context, scope: CoroutineScope) {
     fun setHaptics(v: Boolean) = edit { it[K.haptics] = v }
     fun setGlassKind(v: GlassKind) = edit { it[K.glassKind] = v.name }
     fun setFullBleedArtwork(v: Boolean) = edit { it[K.fullBleedArtwork] = v }
+    fun setImmersivePlayer(v: Boolean) = edit { it[K.immersivePlayer] = v }
     fun setCanvasEnabled(v: Boolean) = edit { it[K.canvasEnabled] = v }
     fun setCanvasOnCellular(v: Boolean) = edit { it[K.canvasOnCellular] = v }
     fun setHideVolumeBar(v: Boolean) = edit { it[K.hideVolumeBar] = v }
