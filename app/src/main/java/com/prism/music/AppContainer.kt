@@ -36,6 +36,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
+import okio.Path.Companion.toPath
 import java.io.File
 import java.io.IOException
 import java.util.concurrent.ConcurrentHashMap
@@ -44,9 +45,26 @@ import java.util.concurrent.TimeUnit
 /** About 10 seconds of a song's stream (Opus ~160 kbps, AAC up to 256 kbps), saved ahead by [AppContainer.warmUp]. */
 private const val PREBUFFER_BYTES = 320L * 1024
 
-class PrismApp : Application() {
+class PrismApp : Application(), coil3.SingletonImageLoader.Factory {
     lateinit var container: AppContainer
         private set
+
+    /**
+     * Every image in Prism goes through here: covers saved on the phone are shown from their files (offline too, #54),
+     * and data saver asks for smaller pictures on mobile data (#40). The rest is Coil's usual memory and disk caching.
+     */
+    override fun newImageLoader(context: coil3.PlatformContext): coil3.ImageLoader =
+        coil3.ImageLoader.Builder(context)
+            .components {
+                add(com.prism.music.data.OfflineArtInterceptor { if (::container.isInitialized) container.artwork else null })
+            }
+            .diskCache {
+                coil3.disk.DiskCache.Builder()
+                    .directory(File(context.cacheDir, "image_cache").absolutePath.toPath())
+                    .maxSizePercent(0.02)
+                    .build()
+            }
+            .build()
 
     override fun onCreate() {
         super.onCreate()
@@ -81,6 +99,11 @@ class AppContainer(val app: Application) {
     val db = PrismDatabase.build(app)
     val streams by lazy { StreamResolver(app, http, settings, innerTube) }
     val translator = com.prism.music.data.lyrics.LyricsTranslator(http)
+    val network = com.prism.music.data.NetworkState(app)
+    /** Covers kept on the phone for downloads and the library, so they show offline. */
+    val artwork = com.prism.music.data.ArtworkStore(app, http)
+    /** The library's lists and opened playlists and albums, kept so they open offline. */
+    val offline = com.prism.music.data.OfflineLibrary(app)
     val lyrics = LyricsRepository(http, db.lyrics(), ytm) { settings.current }.apply {
         choices = app.getSharedPreferences("lyrics_choice", android.content.Context.MODE_PRIVATE)
     }
@@ -189,6 +212,11 @@ class AppContainer(val app: Application) {
     val player = PlayerConnection(app, this)
     /** Listen Together sessions on the local network. */
     val together by lazy { com.prism.music.playback.together.Together(app, this) }
+
+    /** Whether a song plays without the network: a file on the phone, a finished download, or a song cached whole. */
+    fun availableOffline(id: String): Boolean =
+        id.startsWith(com.prism.music.data.model.Song.LOCAL_PREFIX) || downloads.isDownloaded(id) ||
+            runCatching { playerCache.fullyCached(id, 0, C.LENGTH_UNSET.toLong()) }.getOrDefault(false)
 
     private fun Cache.fullyCached(key: String, position: Long, length: Long): Boolean {
         val total = ContentMetadata.getContentLength(getContentMetadata(key))
@@ -304,13 +332,18 @@ class AppContainer(val app: Application) {
         }
 
     /** Song downloads (prism://audio/<id>) and saved music videos' pictures (prism://video/<id>). */
-    fun downloadDataSourceFactory(): DataSource.Factory =
-        ResolvingDataSource.Factory(OkHttpDataSource.Factory(streamHttp)) { spec ->
+    fun downloadDataSourceFactory(): DataSource.Factory {
+        val http = OkHttpDataSource.Factory(streamHttp)
+        // A link YouTube turns away (it ran out mid-download) is forgotten, so the download's next try gets a fresh one
+        // (#55): it used to try the same dead link until the download failed.
+        val upstream = DataSource.Factory { ForgetOnForbidden(http.createDataSource()) { key -> streams.invalidate(key.removePrefix("video:")) } }
+        return ResolvingDataSource.Factory(upstream) { spec ->
             val id = spec.uri.lastPathSegment
             if (spec.uri.scheme == "prism" && spec.uri.authority == "video" && id != null) {
                 spec.buildUpon().setUri(resolveVideoUrl(id)).setKey("video:$id").build()
             } else resolveAudio(spec, false)
         }
+    }
 
     /**
      * A radio or mix's queue from YouTube Music, as songs when Settings → Playback → "Songs, not videos" is on (#39), with
@@ -330,5 +363,16 @@ class AppContainer(val app: Application) {
 
     fun clearSongCache() {
         runCatching { playerCache.keys.toList().forEach { playerCache.removeResource(it) } }
+    }
+}
+
+/** Tells [onForbidden] the stream's key when YouTube refuses its link (403 / 410), then fails as usual. */
+@OptIn(UnstableApi::class)
+private class ForgetOnForbidden(private val inner: DataSource, private val onForbidden: (String) -> Unit) : DataSource by inner {
+    override fun open(dataSpec: DataSpec): Long = try {
+        inner.open(dataSpec)
+    } catch (e: androidx.media3.datasource.HttpDataSource.InvalidResponseCodeException) {
+        if (e.responseCode == 403 || e.responseCode == 410) dataSpec.key?.let(onForbidden)
+        throw e
     }
 }

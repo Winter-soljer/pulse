@@ -160,6 +160,8 @@ class PlaybackService : MediaLibraryService(), Player.Listener {
         carLyrics = CarLyrics(this, c, player, sessionPlayer, scope)
         carLyrics.start()
         session = MediaLibrarySession.Builder(this, sessionPlayer, LibraryCallback())
+            // Covers for the notification, lock screen and car come through Prism's image loader, so saved ones show offline (#54).
+            .setBitmapLoader(androidx.media3.session.CacheBitmapLoader(CoilBitmapLoader(this, scope)))
             .setSessionActivity(
                 PendingIntent.getActivity(
                     this, 0,
@@ -353,6 +355,14 @@ class PlaybackService : MediaLibraryService(), Player.Listener {
         val song = mediaItem?.toSong() ?: return
         // Disliked songs are passed over when the queue reaches them on its own (tapping one still plays it).
         if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO && !c.queue.followingHost && c.library.isDisliked(song.id) && player.hasNextMediaItem()) {
+            player.seekToNextMediaItem()
+            return
+        }
+        // Offline, songs that aren't on the phone are passed over too (#55): they'd play as far as any cached start
+        // goes and then cut to the next song.
+        if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO && !song.isLive && !c.network.online.value &&
+            !c.availableOffline(song.id) && player.hasNextMediaItem()
+        ) {
             player.seekToNextMediaItem()
             return
         }

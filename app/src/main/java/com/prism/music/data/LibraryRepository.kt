@@ -40,6 +40,46 @@ class LibraryRepository(private val c: AppContainer) {
     val syncState = MutableStateFlow(SyncState.IDLE)
     val lastError = MutableStateFlow<String?>(null)
 
+    init {
+        // The library as last synced, so it's all there offline (#55) and before the first sync of a launch finishes.
+        c.scope.launch(Dispatchers.IO) {
+            val saved = c.offline.library() ?: return@launch
+            if (playlists.value.isEmpty()) playlists.value = saved.playlists
+            if (albums.value.isEmpty()) albums.value = saved.albums
+            if (artists.value.isEmpty()) artists.value = saved.artists
+        }
+    }
+
+    /** Keeps the library's lists for offline, with their covers. */
+    private fun persist() {
+        if (playlists.value.isEmpty() && albums.value.isEmpty() && artists.value.isEmpty()) return
+        c.offline.saveLibrary(playlists.value, albums.value, artists.value)
+        c.scope.launch(Dispatchers.IO) {
+            (playlists.value + albums.value).forEach { c.artwork.save(c.covers.art(it), 544) }
+        }
+    }
+
+    /**
+     * On Wi-Fi, after a sync: the library's playlists and albums are saved with their songs (one a day at most, a
+     * few at a time), so they open offline even if they haven't been opened lately.
+     */
+    private suspend fun keepForOffline() {
+        if (!c.network.isOnline() || c.network.metered.value) return
+        val day = 24 * 3_600_000L
+        val now = System.currentTimeMillis()
+        val todo = (playlists.value.filterIsInstance<com.prism.music.data.model.PlaylistItem>().filter { !it.isMix && it.id != "LM" } + albums.value)
+            .filter { now - c.offline.savedAt(it.id) > day }
+            .take(40)
+        for (item in todo) {
+            if (c.network.metered.value) break
+            val page = runCatching {
+                if (item is AlbumItem) c.ytm.album(item.id) else c.ytm.playlistAll(item.id, 1000)
+            }.getOrNull() ?: continue
+            c.offline.savePage(item.id, page)
+            kotlinx.coroutines.delay(1_500)
+        }
+    }
+
     private val dislikePrefs = c.app.getSharedPreferences("dislikes", android.content.Context.MODE_PRIVATE)
     /** Songs to keep out of autoplay, radio and smart downloads. */
     val dislikedIds = MutableStateFlow(dislikePrefs.getStringSet("ids", emptySet())!!.toSet())
@@ -111,6 +151,8 @@ class LibraryRepository(private val c: AppContainer) {
             runCatching {
                 c.ytm.accountInfo()?.let { c.settings.saveAccountInfo(it.name, it.email, it.avatar) }
             }
+            persist()
+            c.scope.launch(Dispatchers.IO) { runCatching { keepForOffline() } }
             syncState.value = SyncState.DONE
             lastError.value = null
             // Likes from YouTube Music are in: bring the Liked songs playlist (if there is one) in line.
@@ -260,6 +302,7 @@ class LibraryRepository(private val c: AppContainer) {
         c.scope.launch(Dispatchers.IO) {
             runCatching { playlists.value = c.ytm.libraryPlaylists() }
             runCatching { albums.value = c.ytm.libraryAlbums() }
+            persist()
         }
     }
 

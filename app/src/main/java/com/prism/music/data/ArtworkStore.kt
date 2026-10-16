@@ -1,0 +1,112 @@
+package com.prism.music.data
+
+import android.content.Context
+import android.net.Uri
+import coil3.intercept.Interceptor
+import coil3.request.ErrorResult
+import coil3.request.ImageResult
+import com.prism.music.data.model.hiRes
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.withContext
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import java.io.File
+import java.security.MessageDigest
+import java.util.concurrent.ConcurrentHashMap
+
+/**
+ * Covers kept on the phone (#54, #55): downloaded songs' artwork (a lossless file's own embedded cover when it has
+ * one), and the library's playlists' and albums', saved as files so they show offline: on the player and its blurred
+ * backdrop, in lists, on the notification and on widgets. Any image request for a saved cover is answered from its
+ * file, whatever size it asks for ([OfflineArtInterceptor]), so they also cost no data once saved.
+ */
+class ArtworkStore(context: Context, private val http: OkHttpClient) {
+    private val dir = File(context.filesDir, "artwork").apply { mkdirs() }
+    private val saved: MutableSet<String> = ConcurrentHashMap.newKeySet<String>().apply {
+        dir.list()?.filter { it.endsWith(".jpg") }?.forEach { add(it.removeSuffix(".jpg")) }
+    }
+    private val gate = Semaphore(3)
+
+    /** The saved file for this cover, if there is one. Cheap: it's a lookup in memory. */
+    fun fileFor(url: String?): File? = keyOf(url)?.takeIf { it in saved }?.let { File(dir, "$it.jpg") }
+
+    fun has(url: String?): Boolean = keyOf(url)?.let { it in saved } == true
+
+    /** Saves the cover at [url] (asked for at [size] px), unless it's already here. True once it's on the phone. */
+    suspend fun save(url: String?, size: Int = 1080): Boolean {
+        val key = keyOf(url) ?: return false
+        if (key in saved) return true
+        return gate.withPermit {
+            withContext(Dispatchers.IO) {
+                runCatching {
+                    http.newCall(Request.Builder().url(hiRes(url, size) ?: url!!).build()).execute().use { res ->
+                        if (!res.isSuccessful) return@use false
+                        val bytes = res.body.bytes()
+                        bytes.isNotEmpty() && write(key, bytes)
+                    }
+                }.getOrDefault(false)
+            }
+        }
+    }
+
+    /** Keeps [bytes] (a cover embedded in a music file) as the cover for [url]. */
+    fun saveBytes(url: String?, bytes: ByteArray): Boolean {
+        val key = keyOf(url) ?: return false
+        return write(key, bytes)
+    }
+
+    private fun write(key: String, bytes: ByteArray): Boolean {
+        val tmp = File(dir, "$key.tmp")
+        tmp.writeBytes(bytes)
+        if (!tmp.renameTo(File(dir, "$key.jpg"))) { tmp.delete(); return false }
+        saved += key
+        return true
+    }
+
+    /** Deletes covers nothing on the phone uses any more ([keep]: every cover that should stay). */
+    fun prune(keep: Collection<String?>) {
+        val wanted = keep.mapNotNull(::keyOf).toSet()
+        for (key in saved.toList()) if (key !in wanted) {
+            File(dir, "$key.jpg").delete()
+            saved -= key
+        }
+    }
+
+    val bytesUsed: Long get() = dir.listFiles()?.sumOf { it.length() } ?: 0L
+
+    companion object {
+        /**
+         * A cover's identity, whatever size it's asked for: Google's image addresses carry the size after "=", and
+         * YouTube's thumbnails come in several names per video. Null for what's on the phone already.
+         */
+        fun keyOf(url: String?): String? {
+            if (url.isNullOrBlank() || !url.startsWith("http")) return null
+            val bare = url.removePrefix("https://").removePrefix("http://")
+            val base = when {
+                bare.contains("googleusercontent.com") || bare.contains("ggpht.com") -> bare.substringBefore('=')
+                bare.contains("ytimg.com/vi") -> "ytimg:" + bare.substringAfter("/vi").substringAfter('/').substringBefore('/')
+                else -> bare.substringBefore('?')
+            }
+            val digest = MessageDigest.getInstance("SHA-1").digest(base.toByteArray())
+            return digest.joinToString("") { "%02x".format(it) }
+        }
+    }
+}
+
+/** Answers image requests for saved covers from their files ([ArtworkStore]); the network is only asked if that fails. */
+class OfflineArtInterceptor(private val store: () -> ArtworkStore?) : Interceptor {
+    override suspend fun intercept(chain: Interceptor.Chain): ImageResult {
+        val data = chain.request.data
+        val url = when (data) {
+            is String -> data
+            is Uri -> data.toString()
+            is coil3.Uri -> data.toString()
+            else -> null
+        } ?: return chain.proceed()
+        val file = store()?.fileFor(url) ?: return chain.proceed()
+        val local = chain.withRequest(chain.request.newBuilder().data(file).build()).proceed()
+        return if (local is ErrorResult) chain.proceed() else local
+    }
+}

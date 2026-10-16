@@ -416,6 +416,7 @@ private fun DownloadsSummary() {
     val dls by c.downloads.downloads.collectAsState()
     val done = dls.values.filter { it.state == androidx.media3.exoplayer.offline.Download.STATE_COMPLETED }
     val active = dls.values.filter { it.state != androidx.media3.exoplayer.offline.Download.STATE_COMPLETED }
+    val waiting by c.downloads.waitingForNetwork.collectAsState()
     val ink = featureInk()
     Column(Modifier.padding(8.dp)) {
         Box(
@@ -431,11 +432,12 @@ private fun DownloadsSummary() {
                 Text("Open downloads →", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 8.dp))
             }
         }
+        if (active.isNotEmpty()) com.prism.music.ui.screens.DownloadQueueStatus(active)
         active.forEach { d ->
             d.song?.let { s ->
                 Row(Modifier.padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text(s.title, Modifier.weight(1f), maxLines = 1, style = MaterialTheme.typography.bodyMedium)
-                    Text("${d.percent.toInt().coerceAtLeast(0)}%", style = MaterialTheme.typography.labelMedium, color = Color.Gray)
+                    Text(com.prism.music.ui.screens.downloadStateText(d, waiting), style = MaterialTheme.typography.labelMedium, color = Color.Gray)
                 }
             }
         }

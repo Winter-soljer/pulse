@@ -120,6 +120,38 @@ class LocalMusic(private val context: Context, private val scope: CoroutineScope
         _tracks.value = out
         _scanned.value = true
         Log.i(TAG, "${out.size} music files")
+        fillEmbeddedArt(out)
+    }
+
+    private val artDir by lazy { java.io.File(context.filesDir, "artwork/local").apply { mkdirs() } }
+    private val noArt by lazy { context.getSharedPreferences("local_no_art", Context.MODE_PRIVATE) }
+
+    /**
+     * Songs whose album Android has no artwork for: the cover embedded in the file itself, read once and kept (#54), so
+     * they show their own cover (offline, of course) instead of none. Files with no cover in them are remembered.
+     */
+    private fun fillEmbeddedArt(tracks: List<Track>) {
+        val missing = tracks.filter { it.song.thumbnail == null }
+        if (missing.isEmpty()) return
+        val found = HashMap<String, String>()
+        for (t in missing) {
+            val key = if (t.albumId > 0) "a${t.albumId}" else "s${t.song.id.removePrefix(Song.LOCAL_PREFIX)}"
+            val file = java.io.File(artDir, "$key.jpg")
+            if (!file.exists()) {
+                if (noArt.contains(key) || found.size >= 400) continue
+                val bytes = runCatching {
+                    val r = android.media.MediaMetadataRetriever()
+                    try { r.setDataSource(context, t.uri); r.embeddedPicture } finally { r.release() }
+                }.getOrNull()
+                if (bytes == null || bytes.isEmpty()) { noArt.edit().putBoolean(key, true).apply(); continue }
+                runCatching { file.writeBytes(bytes) }.onFailure { continue }
+            }
+            found[t.song.id] = Uri.fromFile(file).toString()
+        }
+        if (found.isEmpty()) return
+        val filled = tracks.map { t -> found[t.song.id]?.let { t.copy(song = t.song.copy(thumbnail = it)) } ?: t }
+        byId = filled.associateBy { it.song.id }
+        _tracks.value = filled
     }
 
     companion object {

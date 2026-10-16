@@ -164,7 +164,14 @@ class DownloadRepository(private val context: Context, private val c: AppContain
             backfillLyrics()
             // ...and their animated covers, if they waited for Wi-Fi.
             saveCanvases()
+            // ...and their covers, so they show offline (#54).
+            saveCovers()
+            // Downloads that failed (a stream link that ran out, a dropped connection) try again by themselves (#55).
+            retryFailed()
+            _waiting.value = manager.notMetRequirements != 0
         }
+        c.network.onReconnect { retryFailed(); saveCovers() }
+        watchStalls(scope)
         manager.addListener(object : DownloadManager.Listener {
             override fun onDownloadChanged(manager: DownloadManager, download: Download, finalException: Exception?) {
                 if (isVideoPart(download.request.id)) {
@@ -180,9 +187,14 @@ class DownloadRepository(private val context: Context, private val c: AppContain
                 if (download.state == Download.STATE_COMPLETED && download.request.id in _smartIds.value) c.trimSongCache()
                 if (download.state == Download.STATE_COMPLETED) download.info().song?.let { s ->
                     c.scope.launch(Dispatchers.IO) { ensureLyrics(s) }
+                    c.scope.launch(Dispatchers.IO) { saveCover(s) }
                     // Its animated cover is kept with it (on Wi-Fi, unless allowed on mobile data; [saveCanvases] catches up).
                     saveCanvas(s)
                 }
+            }
+
+            override fun onRequirementsStateChanged(manager: DownloadManager, requirements: Requirements, notMetRequirements: Int) {
+                _waiting.value = notMetRequirements != 0
             }
 
             override fun onDownloadRemoved(manager: DownloadManager, download: Download) {
@@ -224,6 +236,87 @@ class DownloadRepository(private val context: Context, private val c: AppContain
         }
         scope.launch {
             c.settings.flow.collect { applyRequirements() }
+        }
+    }
+
+    private val _waiting = MutableStateFlow(false)
+    /** Downloads are held back by their network rule (waiting for Wi-Fi). */
+    val waitingForNetwork: StateFlow<Boolean> = _waiting
+
+    /**
+     * Starts failed downloads again (#55), with fresh stream links. Before, a download that failed stayed failed for
+     * good, still showing how far it had got, and an app restart didn't help.
+     */
+    fun retryFailed() {
+        if (!c.network.isOnline()) return
+        val failed = runCatching {
+            buildList {
+                manager.downloadIndex.getDownloads(Download.STATE_FAILED).use { cursor -> while (cursor.moveToNext()) add(cursor.download) }
+            }
+        }.getOrDefault(emptyList())
+        if (failed.isEmpty()) return
+        mainHandler.post {
+            for (d in failed) {
+                streamOf(d)?.let(c.streams::invalidate)
+                runCatching { DownloadService.sendAddDownload(context, PrismDownloadService::class.java, d.request, false) }
+            }
+        }
+    }
+
+    /** The YouTube id a download's bytes come from (a video part's is its video's). */
+    private fun streamOf(d: Download): String? = if (isVideoPart(d.request.id)) d.part()?.videoId else d.request.id
+
+    /** Bytes each running download had at the last look, and how many looks in a row it hasn't moved. */
+    private val progressSeen = HashMap<String, Pair<Long, Int>>()
+
+    /**
+     * Every minute: a download that hasn't moved for three minutes while online (a connection that hung, a stream link
+     * that ran out mid-way) is stopped and started again from where it got to, with a fresh link.
+     */
+    private fun watchStalls(scope: CoroutineScope) = scope.launch(Dispatchers.Main) {
+        while (true) {
+            kotlinx.coroutines.delay(60_000)
+            val running = manager.currentDownloads.filter { it.state == Download.STATE_DOWNLOADING }
+            progressSeen.keys.retainAll(running.map { it.request.id }.toSet())
+            if (!c.network.online.value) continue
+            for (d in running) {
+                val id = d.request.id
+                val (bytes, still) = progressSeen[id] ?: (-1L to 0)
+                val now = if (d.bytesDownloaded == bytes) still + 1 else 0
+                progressSeen[id] = d.bytesDownloaded to now
+                if (now >= 3) {
+                    progressSeen.remove(id)
+                    streamOf(d)?.let(c.streams::invalidate)
+                    manager.setStopReason(id, STALL_STOP)
+                    manager.setStopReason(id, Download.STOP_REASON_NONE)
+                }
+            }
+        }
+    }
+
+    /**
+     * Keeps a downloaded song's cover on the phone, for offline (#54): the cover in its lossless file when it's one of
+     * those (your own artwork), else the one YouTube Music shows, at full size.
+     */
+    private suspend fun saveCover(song: Song) {
+        if (song.isLocal || c.artwork.has(song.thumbnail)) return
+        val file = if (isLosslessOnly(song.id)) c.localLossless.match(song)?.uri else null
+        if (file != null) {
+            val embedded = runCatching {
+                val r = android.media.MediaMetadataRetriever()
+                try { r.setDataSource(context, file); r.embeddedPicture } finally { r.release() }
+            }.getOrNull()
+            if (embedded != null && c.artwork.saveBytes(song.thumbnail, embedded)) return
+        }
+        if (c.network.isOnline()) c.artwork.save(song.thumbnail)
+    }
+
+    /** Covers for every download that doesn't have one kept yet; covers nothing uses any more go. */
+    fun saveCovers() {
+        c.scope.launch(Dispatchers.IO) {
+            val songs = completedSongs()
+            for (s in songs) runCatching { saveCover(s) }
+            if (songs.isNotEmpty()) runCatching { c.artwork.prune(songs.map { it.thumbnail } + c.offline.covers()) }
         }
     }
 
@@ -406,6 +499,9 @@ class PrismDownloadService : DownloadService(
         DownloadNotificationHelper(this, DOWNLOAD_CHANNEL)
             .buildProgressNotification(this, R.drawable.ic_notification, null, null, downloads, notMetRequirements)
 }
+
+/** The stop reason [DownloadRepository] uses for a moment to restart a stalled download. */
+private const val STALL_STOP = 7
 
 /** Sizes offered for Smart Downloads' space (its picks and the songs you've streamed), in GB. */
 val SMART_DOWNLOAD_SIZES = listOf(1f, 2f, 3f, 5f, 7.5f, 10f, 15f, 20f, 30f, 50f)

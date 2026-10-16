@@ -54,6 +54,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.shadow
@@ -133,10 +134,17 @@ fun CollectionScreen(type: CollectionType, id: String, initialGenre: String?, bo
     val downloads by c.downloads.downloads.collectAsState()
 
     val remote = when (type) {
-        CollectionType.ALBUM -> rememberLoad("album:$id") { LiveCollection(c.ytm.album(id), c.scope, null) }
+        CollectionType.ALBUM -> rememberLoad("album:$id") { orSaved(c, id) { LiveCollection(c.ytm.album(id), c.scope, null) } }
         // The first page shows straight away; the rest of a long playlist streams in behind it.
-        CollectionType.PLAYLIST -> rememberLoad("playlist:$id") { LiveCollection(c.ytm.playlist(id), c.scope, c.ytm::playlistPage) }
+        CollectionType.PLAYLIST -> rememberLoad("playlist:$id") { orSaved(c, id) { LiveCollection(c.ytm.playlist(id), c.scope, c.ytm::playlistPage) } }
         else -> null
+    }
+    // Opened from YouTube Music: kept (with all its songs, once they're in) to open offline later (#55).
+    (remote?.state as? Load.Ok)?.value?.takeIf { !it.offline }?.let { live ->
+        val more by live.loadingMore.collectAsState()
+        LaunchedEffect(live, more) {
+            if (!more) kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { c.offline.savePage(id, live.page.copy(songs = live.songs.value)) }
+        }
     }
     val page: Load<LiveCollection> = when (type) {
         CollectionType.LIKED -> Load.Ok(remember(liked) {
@@ -158,11 +166,23 @@ fun CollectionScreen(type: CollectionType, id: String, initialGenre: String?, bo
     }
 }
 
+/**
+ * Offline, the copy kept from the last time the playlist or album was opened (#55); online, it's loaded as usual, and
+ * the kept copy stands in only if that fails.
+ */
+private suspend fun orSaved(c: com.prism.music.AppContainer, id: String, load: suspend () -> LiveCollection): LiveCollection {
+    fun saved() = c.offline.page(id)?.let { LiveCollection(it, c.scope, null, offline = true) }
+    if (!c.network.isOnline()) saved()?.let { return it }
+    return try { load() } catch (e: Exception) { saved() ?: throw e }
+}
+
 /** A collection whose songs keep arriving (continuation pages load in the background). */
 class LiveCollection(
     val page: CollectionPage,
     scope: kotlinx.coroutines.CoroutineScope,
     loadMore: (suspend (String) -> YouTubeMusic.PlaylistChunk)?,
+    /** The copy kept on the phone, shown without a network. */
+    val offline: Boolean = false,
 ) {
     val songs = kotlinx.coroutines.flow.MutableStateFlow(page.songs.distinctBy { it.id })
     /** Each song's slot in an owned playlist, for taking it out again. */
@@ -260,6 +280,18 @@ private fun CollectionContent(type: CollectionType, live: LiveCollection, initia
         }
     }
     val source = QueueSource(if (type == CollectionType.ALBUM) QueueKind.ALBUM else QueueKind.PLAYLIST, page.title + (genreFilter?.let { " · $it" } ?: ""))
+    // Offline (#55): only songs on the phone (downloaded, cached whole, or files) play; the rest show greyed out.
+    val online by c.network.online.collectAsState()
+    val ready = remember(songs, downloads, online) { if (online) null else songs.filter { c.availableOffline(it.id) }.map { it.id }.toSet() }
+    val playable = remember(visible, ready) { if (ready == null) visible else visible.filter { it.id in ready } }
+    val playFrom: (List<Song>, Song, QueueSource) -> Unit = { list, s, src ->
+        if (ready != null && s.id !in ready) Toast.makeText(context, "You're offline, and this song isn't downloaded", Toast.LENGTH_SHORT).show()
+        else {
+            val q = if (ready == null) list else list.filter { it.id in ready }
+            c.player.playQueue(q, q.indexOfFirst { it.id == s.id }.coerceAtLeast(0), src)
+        }
+    }
+    val dim: (Song) -> Modifier = { s -> if (ready != null && s.id !in ready) Modifier.alpha(0.4f) else Modifier }
     val listState = rememberLazyListState()
     val downloadedCount = page.songs.count { downloads[it.id]?.state == Download.STATE_COMPLETED }
     val downloadingCount = page.songs.count { downloads[it.id]?.let { d -> d.state != Download.STATE_COMPLETED && d.state != Download.STATE_FAILED } == true }
@@ -391,11 +423,19 @@ private fun CollectionContent(type: CollectionType, live: LiveCollection, initia
                     HeaderDetails(shown, centred = !hero, privacy = privacy, saved = saved.takeIf { savableId != null }, onSaved = toggleSaved)
                 }
                 if (type == CollectionType.DOWNLOADS) item { DownloadsInfo(page.songs) { text, action -> confirm = text to action } }
+                if (ready != null && type != CollectionType.DOWNLOADS) item("offline") {
+                    Text(
+                        "You're offline · ${ready.size} of ${songs.size} songs are on this phone and play" +
+                            if (live.offline) " · as it was when you last opened it" else "",
+                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 6.dp),
+                    )
+                }
                 item("play") {
                     PlayShufflePills(
-                        enabled = visible.isNotEmpty(),
-                        onPlay = { c.player.playQueue(visible, 0, source) },
-                        onShuffle = { c.player.playQueue(visible, 0, source, shuffle = true) },
+                        enabled = playable.isNotEmpty(),
+                        onPlay = { c.player.playQueue(playable, 0, source) },
+                        onShuffle = { c.player.playQueue(playable, 0, source, shuffle = true) },
                     )
                 }
                 if (showSearch || showGenres) item(key = "search") {
@@ -444,8 +484,8 @@ private fun CollectionContent(type: CollectionType, live: LiveCollection, initia
                             }
                             itemsIndexed(songs, key = { i, s -> "g:$g:${s.id}:$i" }) { _, s ->
                                 com.prism.music.ui.components.SwipeToQueue(s) {
-                                    SongRow(s, playing = current?.id == s.id, trailingInfo = null, extraActions = removeAction(s)) {
-                                        c.player.playQueue(songs, songs.indexOf(s), source.copy(title = "$title · $g"))
+                                    SongRow(s, dim(s), playing = current?.id == s.id, trailingInfo = null, extraActions = removeAction(s)) {
+                                        playFrom(songs, s, source.copy(title = "$title · $g"))
                                     }
                                 }
                             }
@@ -456,12 +496,13 @@ private fun CollectionContent(type: CollectionType, live: LiveCollection, initia
                         com.prism.music.ui.components.SwipeToQueue(s) {
                             SongRow(
                                 s,
+                                dim(s),
                                 index = if (type == CollectionType.ALBUM) i + 1 else null,
                                 starred = s.id in popular,
                                 playing = current?.id == s.id,
                                 trailingInfo = if (type == CollectionType.ALBUM) formatDuration(s.durationSec) else genreVersion.let { genres[s.id] }?.takeIf { sort == SortMode.GENRE || genreFilter == null && showGenres }?.let { g -> listOfNotNull(s.album?.title, g).joinToString(" • ") },
                                 extraActions = removeAction(s),
-                            ) { c.player.playQueue(visible, i, source) }
+                            ) { playFrom(visible, s, source) }
                         }
                     }
                 }
@@ -932,6 +973,38 @@ private fun DownloadsInfo(songs: List<Song>, ask: (String, () -> Unit) -> Unit) 
             Text("Downloading ${active.size}…", style = MaterialTheme.typography.labelMedium, color = scheme.primary)
             TextButton(onClick = { ask("Cancel ${active.size} downloads that haven't finished?") { c.downloads.removeMany(active.keys) } }) { Text("Cancel") }
         }
+        val unfinished = remember(all) { all.values.filter { it.state != Download.STATE_COMPLETED } }
+        if (unfinished.isNotEmpty()) DownloadQueueStatus(unfinished)
+    }
+}
+
+/** How far one download has got, in words: a percentage, or why it isn't moving. */
+fun downloadStateText(d: com.prism.music.download.DownloadInfo, waitingForNetwork: Boolean): String = when (d.state) {
+    Download.STATE_FAILED -> "Failed"
+    Download.STATE_QUEUED -> if (waitingForNetwork) "Waiting for Wi-Fi" else "Queued"
+    Download.STATE_STOPPED -> "Paused"
+    Download.STATE_RESTARTING -> "Restarting"
+    else -> if (d.percent >= 0) "${d.percent.toInt()}%" else "Starting"
+}
+
+/**
+ * Why unfinished downloads aren't moving, with what to do about it (#55): ones held back for Wi-Fi can go on mobile
+ * data, and failed ones can be tried again (they're also retried by themselves when the phone is back online).
+ */
+@Composable
+fun DownloadQueueStatus(unfinished: Collection<com.prism.music.download.DownloadInfo>) {
+    val c = LocalContainer.current
+    val scheme = MaterialTheme.colorScheme
+    val waiting by c.downloads.waitingForNetwork.collectAsState()
+    val failed = unfinished.count { it.state == Download.STATE_FAILED }
+    val queued = unfinished.count { it.state == Download.STATE_QUEUED }
+    if (waiting && queued > 0) Row(verticalAlignment = Alignment.CenterVertically) {
+        Text("$queued waiting for Wi-Fi", style = MaterialTheme.typography.labelMedium, color = scheme.onSurfaceVariant)
+        TextButton(onClick = { c.settings.setDownloadWifiOnly(false) }) { Text("Use mobile data") }
+    }
+    if (failed > 0) Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(if (failed == 1) "1 download failed" else "$failed downloads failed", style = MaterialTheme.typography.labelMedium, color = scheme.error)
+        TextButton(onClick = { c.downloads.retryFailed() }) { Text("Try again") }
     }
 }
 
