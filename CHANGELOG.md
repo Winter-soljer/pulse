@@ -2,7 +2,7 @@
 
 What changed in each release. Older releases are described on the [Releases page](https://github.com/Yigder/Prism/releases).
 
-## Unreleased
+## 1.6.8
 
 ### New
 - **Speed dial** on Home (Customize Home → Add a section), as on YouTube Music's app: your go-to songs, albums, playlists and artists as big tiles, nine to a page. YouTube's own Speed dial (or Listen again) leads, filled out with what you play most. It goes in at the top (#53).

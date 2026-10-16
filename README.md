@@ -13,7 +13,7 @@
 
 **[⬇ Download Prism.apk](../../releases/latest/download/Prism.apk)** · [Release notes](../../releases/latest) · [▶ Watch the showcase (1:55)](promo/prism-showcase.mp4)
 
-**New in [1.6.7](../../releases/tag/v1.6.7):** your own fonts (and a separate lyrics font), icon weights, six app icons, a reworked Local files page, and fixes for FLAC on Samsung phones, search history and phones in other languages.
+**New in [1.6.8](../../releases/tag/v1.6.8):** Speed dial on Home, Quick picks radios, searching your own music, an offline library with covers, data saver, new widgets, lyrics source choice and saving lyrics into your files, plus fixes for stuck downloads, headphone volume lag and music videos.
 
 <img src="docs/screenshots/home-dark.jpg" width="22%" alt="Home">
 <img src="docs/screenshots/player.jpg" width="22%" alt="Now playing">
