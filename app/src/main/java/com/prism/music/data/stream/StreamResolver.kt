@@ -340,6 +340,8 @@ class StreamResolver(
     }
 
     fun currentQuality(): AudioQuality = when {
+        // Data saver on mobile data (#40) wins over lossless: the mobile data quality, at most Normal.
+        settings.current.dataSaver && isMetered() -> settings.current.cellularQuality.takeIf { it != AudioQuality.HIGH } ?: AudioQuality.NORMAL
         settings.current.lossless -> AudioQuality.HIGH // lossless mode always takes the best stream there is
         isMetered() -> settings.current.cellularQuality
         else -> settings.current.audioQuality
@@ -621,7 +623,9 @@ class StreamResolver(
         val audio = pickAudio(f.audio, currentQuality())
             ?: throw StreamException("No playable audio stream was found")
         val video = if (withVideo) {
-            pickVideo(f.videoOnly, settings.current.videoMaxHeight) ?: f.muxed.maxByOrNull { it.height }
+            // Data saver on mobile data (#40): music videos at 480p at most.
+            val maxHeight = if (settings.current.dataSaver && isMetered()) minOf(480, settings.current.videoMaxHeight) else settings.current.videoMaxHeight
+            pickVideo(f.videoOnly, maxHeight) ?: f.muxed.minByOrNull { if (it.height <= maxHeight) maxHeight - it.height else it.height }
         } else null
         val uri = Uri.parse(audio.url)
         return ResolvedStream(

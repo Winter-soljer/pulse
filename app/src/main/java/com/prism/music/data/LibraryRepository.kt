@@ -169,6 +169,8 @@ class LibraryRepository(private val c: AppContainer) {
     private val thumbsLoading = java.util.Collections.synchronizedSet(HashSet<String>())
 
     fun loadArtistThumbs(ids: List<String>) {
+        // Each photo costs an artist page; data saver leaves them for Wi-Fi (#40).
+        if (c.dataSaving()) return
         val todo = ids.filter { it !in artistThumbs.value && thumbsLoading.add(it) }
         if (todo.isEmpty()) return
         c.scope.launch(Dispatchers.IO) {
@@ -200,6 +202,7 @@ class LibraryRepository(private val c: AppContainer) {
      * otherwise by searching for the name. Waits until they're in.
      */
     suspend fun fetchArtistPhotos(artists: List<Pair<String?, String>>) = withContext(Dispatchers.IO) {
+        if (c.dataSaving()) return@withContext
         val todo = artists.distinct().filter { (id, name) ->
             artistPhoto(artistThumbs.value, id, name) == null && thumbsLoading.add(id ?: nameKey(name))
         }

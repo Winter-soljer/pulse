@@ -878,6 +878,11 @@ private fun SoundPage() {
                     onClick = { scope.launch { c.losslessSync.sync() } },
                 )
                 else Item("Allow access to lossless files", null, onClick = { askFiles.launch(LocalLossless.permission) })
+                // Data saver plays songs at this quality on mobile data, lossless or not (#40).
+                if (s.dataSaver) {
+                    Label("Streaming quality on mobile data (data saver)")
+                    Chips(AudioQuality.entries.filter { it != AudioQuality.HIGH }, s.cellularQuality.takeIf { it != AudioQuality.HIGH } ?: AudioQuality.NORMAL, { it.label }) { prefs.setCellularQuality(it) }
+                }
             } else {
                 Label("Streaming quality on Wi-Fi")
                 Chips(AudioQuality.entries, s.audioQuality, { it.label }) { prefs.setAudioQuality(it) }
@@ -887,6 +892,15 @@ private fun SoundPage() {
             Label("Music video quality")
             Chips(listOf(480, 720, 1080, 1440), s.videoMaxHeight, { "${it}p" }) { prefs.setVideoMaxHeight(it) }
             Spacer(Modifier.height(6.dp))
+        }
+        Group("Mobile data") {
+            Toggle(
+                "Data saver",
+                "On mobile data: covers and pictures at the size they're shown (much smaller downloads), no artist photos " +
+                    "fetched for lists, no animated covers (saved ones still play), songs at your mobile data quality and at most " +
+                    "Normal (even with lossless on), and music videos at 480p at most. Wi-Fi is unaffected",
+                s.dataSaver,
+            ) { prefs.setDataSaver(it) }
         }
         Group("Sound") {
             Toggle(

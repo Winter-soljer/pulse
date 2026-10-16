@@ -95,6 +95,29 @@ class ArtworkStore(context: Context, private val http: OkHttpClient) {
     }
 }
 
+/**
+ * Data saver on mobile data (#40): pictures are asked of YouTube at the size they're shown at (at most [MAX_PX]), not
+ * at the full size the app otherwise asks for, so a cover costs a few KB rather than a few hundred.
+ */
+class DataSaverInterceptor(private val active: () -> Boolean) : Interceptor {
+    override suspend fun intercept(chain: Interceptor.Chain): ImageResult {
+        val url = chain.request.data as? String ?: return chain.proceed()
+        if (!url.startsWith("http") || !active()) return chain.proceed()
+        val want = (chain.size.width as? coil3.size.Dimension.Pixels)?.px ?: MAX_PX
+        val px = want.coerceIn(96, MAX_PX)
+        val small = when {
+            url.contains("googleusercontent.com") || url.contains("ggpht.com") -> url.substringBefore('=') + "=w$px-h$px-l70-rj"
+            url.contains("ytimg.com/vi") -> url.replace(Regex("/(maxresdefault|sddefault|hqdefault|hq720)\\.jpg"), "/mqdefault.jpg")
+            else -> return chain.proceed()
+        }
+        return chain.withRequest(chain.request.newBuilder().data(small).build()).proceed()
+    }
+
+    private companion object {
+        const val MAX_PX = 400
+    }
+}
+
 /** Answers image requests for saved covers from their files ([ArtworkStore]); the network is only asked if that fails. */
 class OfflineArtInterceptor(private val store: () -> ArtworkStore?) : Interceptor {
     override suspend fun intercept(chain: Interceptor.Chain): ImageResult {

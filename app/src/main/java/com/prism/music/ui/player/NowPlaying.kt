@@ -280,7 +280,7 @@ fun NowPlayingScreen(onCollapse: () -> Unit) {
     val canvasSaved = savedCanvases.has(song.id, com.prism.music.data.canvas.CanvasRepository.albumKey(song))
     val songCanvas by produceState<CanvasArtwork?>(c.canvas.cached(song), song.id, song.album?.title, settings.canvasEnabled) {
         // Saved clips play from the phone, so mobile data doesn't matter for them.
-        if (!settings.canvasEnabled || (metered && !settings.canvasOnCellular && !c.canvas.isSaved(song))) { value = null; return@produceState }
+        if (!settings.canvasEnabled || (metered && (!settings.canvasOnCellular || settings.dataSaver) && !c.canvas.isSaved(song))) { value = null; return@produceState }
         val known = c.canvas.cached(song)
         value = known
         if (known == null) delay(500)

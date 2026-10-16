@@ -57,6 +57,7 @@ class PrismApp : Application(), coil3.SingletonImageLoader.Factory {
         coil3.ImageLoader.Builder(context)
             .components {
                 add(com.prism.music.data.OfflineArtInterceptor { if (::container.isInitialized) container.artwork else null })
+                add(com.prism.music.data.DataSaverInterceptor { ::container.isInitialized && container.dataSaving() })
             }
             .diskCache {
                 coil3.disk.DiskCache.Builder()
@@ -212,6 +213,9 @@ class AppContainer(val app: Application) {
     val player = PlayerConnection(app, this)
     /** Listen Together sessions on the local network. */
     val together by lazy { com.prism.music.playback.together.Together(app, this) }
+
+    /** Data saver is on and the phone is on mobile data (#40): smaller pictures, no artist photos or animated covers. */
+    fun dataSaving(): Boolean = settings.current.dataSaver && network.metered.value
 
     /** Whether a song plays without the network: a file on the phone, a finished download, or a song cached whole. */
     fun availableOffline(id: String): Boolean =
