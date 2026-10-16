@@ -47,6 +47,7 @@ import androidx.compose.ui.graphics.ShaderBrush
 import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.clipRect
+import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
@@ -97,6 +98,15 @@ data class ArtPalette(
 
     /** The page colour far below the picture, where the frost settles. */
     fun settle(dark: Boolean): Color = dominant.withLightness(if (dark) 0.09f else 0.93f, if (dark) 0.85f else 0.6f)
+
+    /**
+     * The colours the page settles into below its picture (#47), as on Apple Music: the picture's main colour, a little
+     * deeper toward the bottom, rather than a near-black (or white).
+     */
+    fun field(dark: Boolean): List<Color> {
+        return if (dark) listOf(dominant.withLightness(0.20f, 1.05f), dominant.withLightness(0.15f, 1f), dominant.withLightness(0.11f, 0.95f))
+        else listOf(dominant.withLightness(0.84f, 0.85f), dominant.withLightness(0.89f, 0.75f), dominant.withLightness(0.93f, 0.65f))
+    }
 }
 
 private val paletteCache = object : LinkedHashMap<String, ArtPalette>(0, 0.75f, true) {
@@ -180,6 +190,8 @@ fun FrostedBackdrop(
     heroScroll: () -> Float,
     modifier: Modifier = Modifier,
     parallax: Float = 0.5f,
+    /** The picture's colours carry on down the page ([ArtPalette.field]), for artist, album and playlist pages (#47). */
+    bleed: Boolean = false,
 ) {
     val dark = LocalIsDark.current
     val settings = LocalAppSettings.current
@@ -188,16 +200,29 @@ fun FrostedBackdrop(
     // Turned off in Appearance: the page's own background, as before.
     if (!settings.frostedPages) { Box(modifier.fillMaxSize().background(bg)); return }
     val shown by animateFloatAsState(if (frost != null) 1f else 0f, tween(500), label = "frost")
-    val settle = palette?.settle(dark) ?: bg
     val grainBrush = remember { ShaderBrush(ImageShader(grain, TileMode.Repeated, TileMode.Repeated)) }
     Canvas(modifier.fillMaxSize()) {
+        drawFrostedBackdrop(frost?.image, shown, palette, bg, heroHeight.toPx(), heroScroll(), parallax, dark, pureBlack, bleed)
+        drawRect(grainBrush, alpha = if (dark) 0.5f else 0.35f)
+    }
+}
+
+/**
+ * [FrostedBackdrop]'s drawing (without its grain), apart so it can be drawn in tests. The hero's blurred picture, its
+ * foot running on down the page, and the picture's colours ([ArtPalette.field]) settling in below that.
+ */
+internal fun androidx.compose.ui.graphics.drawscope.DrawScope.drawFrostedBackdrop(
+    img: ImageBitmap?, shown: Float, palette: ArtPalette?, bg: Color, heroPx: Float, heroScroll: Float, parallax: Float, dark: Boolean, pureBlack: Boolean,
+    bleed: Boolean,
+) {
         val w = size.width
-        val heroPx = heroHeight.toPx()
-        val scroll = heroScroll().coerceIn(0f, heroPx)
+        val scroll = heroScroll.coerceIn(0f, heroPx)
         val heroBottom = heroPx - scroll
         val imgTop = -scroll * (1f - parallax)
+        // Pure black keeps its deep settle; otherwise the picture's own colours carry the page (#47).
+        val field = if (palette == null || pureBlack || !bleed) null else palette.field(dark)
+        val settle = field?.last() ?: palette?.settle(dark) ?: bg
         drawRect(settle)
-        val img = frost?.image
         if (img != null && shown > 0f) {
             // Centre-cropped to the hero's shape, as the photo above it is.
             val boxAspect = w / heroPx
@@ -209,29 +234,55 @@ fun FrostedBackdrop(
             if (heroBottom > 0f) clipRect(bottom = heroBottom) {
                 drawImage(img, IntOffset(sx, sy), srcSize, IntOffset(0, imgTop.roundToInt()), IntSize(w.roundToInt(), heroPx.roundToInt()), alpha = shown, colorFilter = saturate, filterQuality = FilterQuality.Low)
             }
-            // The row of the picture at the hero's foot, drawn tall: its colours run on down the page.
-            val frac = ((heroBottom - imgTop) / heroPx).coerceIn(0f, 1f)
-            val row = (sy + frac * srcSize.height).roundToInt().coerceIn(sy, sy + srcSize.height - 1)
-            val below = (size.height - heroBottom.coerceAtLeast(0f)).roundToInt()
-            if (below > 0) drawImage(
-                img, IntOffset(sx, (row - 1).coerceAtLeast(0)), IntSize(srcSize.width, 1),
-                IntOffset(0, heroBottom.coerceAtLeast(0f).roundToInt()), IntSize(w.roundToInt(), below),
-                alpha = shown, colorFilter = saturate, filterQuality = FilterQuality.Low,
-            )
-            // …and settle into the page's tint further down.
             val from = heroBottom.coerceAtLeast(0f)
-            drawRect(
-                Brush.verticalGradient(0f to settle.copy(alpha = 0f), 1f to settle, startY = from, endY = from + size.height * 0.9f),
-                topLeft = Offset(0f, from),
-            )
+            val below = (size.height - from).roundToInt()
+            if (field != null) {
+                // The picture carries on below itself, mirrored (#47): its foot meets its own reflection, so its colours
+                // flow on down the page where they are in the picture, rather than as streaks or a flat colour…
+                if (below > 0) clipRect(top = from) {
+                    scale(1f, -1f, pivot = Offset(0f, from)) {
+                        drawImage(img, IntOffset(sx, sy), srcSize, IntOffset(0, imgTop.roundToInt()), IntSize(w.roundToInt(), heroPx.roundToInt()), alpha = shown, colorFilter = saturate, filterQuality = FilterQuality.Low)
+                    }
+                }
+                // …then settle into the picture's main colour by the reflection's end, a little deeper toward the bottom.
+                val mirrorEnd = (2 * from - imgTop).coerceAtLeast(from + 1f)
+                drawRect(
+                    Brush.verticalGradient(
+                        0f to field[0].copy(alpha = 0f), 0.5f to field[0].copy(alpha = 0.55f), 1f to field[1],
+                        startY = from, endY = mirrorEnd,
+                    ),
+                    topLeft = Offset(0f, from), size = androidx.compose.ui.geometry.Size(w, mirrorEnd - from),
+                )
+                if (mirrorEnd < size.height) drawRect(
+                    Brush.verticalGradient(0f to field[1], 1f to field[2], startY = mirrorEnd, endY = size.height),
+                    topLeft = Offset(0f, mirrorEnd),
+                )
+            } else {
+                // The row of the picture at the hero's foot, drawn tall: its colours run on down the page.
+                val frac = ((heroBottom - imgTop) / heroPx).coerceIn(0f, 1f)
+                val row = (sy + frac * srcSize.height).roundToInt().coerceIn(sy, sy + srcSize.height - 1)
+                if (below > 0) drawImage(
+                    img, IntOffset(sx, (row - 1).coerceAtLeast(0)), IntSize(srcSize.width, 1),
+                    IntOffset(0, from.roundToInt()), IntSize(w.roundToInt(), below),
+                    alpha = shown, colorFilter = saturate, filterQuality = FilterQuality.Low,
+                )
+                // …and settle into the page's tint further down.
+                drawRect(
+                    Brush.verticalGradient(0f to settle.copy(alpha = 0f), 1f to settle, startY = from, endY = from + size.height * 0.9f),
+                    topLeft = Offset(0f, from),
+                )
+            }
         }
-        // Keeps text readable: darker (or lighter) toward the bottom of the screen.
+        // Keeps text readable: darker (or lighter) toward the bottom of the screen. Lighter-handed over the picture's
+        // colours, which are kept dark (or light) enough to read on already.
         val wash = if (dark) Color.Black else Color.White
         val k = if (dark && pureBlack) 1.25f else 1f
-        val (a0, a1, a2) = if (dark) Triple(0.12f, 0.30f, 0.55f) else Triple(0.30f, 0.52f, 0.70f)
+        val (a0, a1, a2) = when {
+            field == null -> if (dark) Triple(0.12f, 0.30f, 0.55f) else Triple(0.30f, 0.52f, 0.70f)
+            dark -> Triple(0.10f, 0.22f, 0.32f)
+            else -> Triple(0.24f, 0.40f, 0.52f)
+        }
         drawRect(Brush.verticalGradient(0f to wash.copy(alpha = a0 * k), 0.45f to wash.copy(alpha = (a1 * k).coerceAtMost(0.9f)), 1f to wash.copy(alpha = (a2 * k).coerceAtMost(0.92f))))
-        drawRect(grainBrush, alpha = if (dark) 0.5f else 0.35f)
-    }
 }
 
 /**

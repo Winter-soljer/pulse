@@ -52,6 +52,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -249,7 +250,7 @@ private fun ArtistContent(page: ArtistPage, bottomPadding: Dp) {
 
     ArtworkAccent(palette) {
         Box(Modifier.fillMaxSize().onSizeChanged { pageHeight = with(density) { it.height.toDp() } }) {
-            FrostedBackdrop(frost, palette, heroHeight, heroScroll)
+            FrostedBackdrop(frost, palette, heroHeight, heroScroll, bleed = true)
             LazyColumn(state = list, contentPadding = PaddingValues(bottom = bottomPadding + 32.dp)) {
                 item("hero") {
                     Hero(
@@ -287,7 +288,7 @@ private fun ArtistContent(page: ArtistPage, bottomPadding: Dp) {
             }
 
             // Content melts away under the bar into the page's own frost.
-            ScrollEdge({ solid }, statusTop + 60.dp + 34.dp, pageHeight) { m -> FrostedBackdrop(frost, palette, heroHeight, heroScroll, m) }
+            ScrollEdge({ solid }, statusTop + 60.dp + 34.dp, pageHeight) { m -> FrostedBackdrop(frost, palette, heroHeight, heroScroll, m, bleed = true) }
             TopBar(page, { solid }, hasMix = page.radioPlaylistId != null, favorite = favorite,
                 onMix = mix, onShare = { sharing = true }, onSignature = { showSignature = true }, onFavorite = toggleFavorite)
         }
@@ -328,17 +329,38 @@ private fun Hero(
                 )
             }
             Box(Modifier.fillMaxWidth().height(130.dp).background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.34f), Color.Transparent))))
-            ArtistSignature(
-                page.name, type, typeReady,
-                Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(horizontal = 22.dp).padding(bottom = 4.dp),
-                onLongPress = onSignature,
-            )
-        }
-        page.subscribers?.let {
-            Text(
-                it, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center, modifier = Modifier.padding(top = 4.dp),
-            )
+            // The name (and audience) sit on the photo and move with it (#37): they drift at the photo's pace as the page
+            // scrolls, fading and sinking into its foot, rather than sliding off over it at the page's.
+            val sink = with(androidx.compose.ui.platform.LocalDensity.current) { 14.dp.toPx() }
+            Box(
+                Modifier.matchParentSize().clipToBounds()
+                    .graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }
+                    .drawWithContent {
+                        drawContent()
+                        drawRect(Brush.verticalGradient(0f to Color.Black, (1f - sink / size.height) to Color.Black, 1f to Color.Transparent), blendMode = androidx.compose.ui.graphics.BlendMode.DstIn)
+                    },
+            ) {
+                Column(
+                    Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(bottom = 2.dp).graphicsLayer {
+                        val s = scroll().toFloat()
+                        translationY = s * 0.5f
+                        alpha = (1f - s / (size.height * 2.2f).coerceAtLeast(1f)).coerceIn(0f, 1f)
+                    },
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    ArtistSignature(
+                        page.name, type, typeReady,
+                        Modifier.fillMaxWidth().padding(horizontal = 22.dp).padding(bottom = 4.dp),
+                        onLongPress = onSignature,
+                    )
+                    page.subscribers?.let {
+                        Text(
+                            it, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center, modifier = Modifier.padding(top = 4.dp, bottom = 4.dp),
+                        )
+                    }
+                }
+            }
         }
         Spacer(Modifier.height(16.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {

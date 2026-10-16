@@ -415,7 +415,7 @@ private fun CollectionContent(type: CollectionType, live: LiveCollection, initia
 
     ArtworkAccent(palette) {
         Box(Modifier.fillMaxSize().onSizeChanged { pageHeight = with(density) { it.height.toDp() } }) {
-            FrostedBackdrop(frost, palette, heroHeight, heroScroll, parallax = if (hero) 0.5f else 0.35f)
+            FrostedBackdrop(frost, palette, heroHeight, heroScroll, parallax = if (hero) 0.5f else 0.35f, bleed = true)
             LazyColumn(state = listState, contentPadding = PaddingValues(bottom = bottomPadding + 24.dp)) {
                 item("header") {
                     if (hero) HeroHeader(type, shown, art, { if (listState.firstVisibleItemIndex == 0) listState.firstVisibleItemScrollOffset else 0 }, heroHeight)
@@ -528,7 +528,7 @@ private fun CollectionContent(type: CollectionType, live: LiveCollection, initia
 
             // Content melts away under the bar into the page's own frost.
             ScrollEdge({ solid }, statusTop + 60.dp + 34.dp, pageHeight) { m ->
-                FrostedBackdrop(frost, palette, heroHeight, heroScroll, m, parallax = if (hero) 0.5f else 0.35f)
+                FrostedBackdrop(frost, palette, heroHeight, heroScroll, m, parallax = if (hero) 0.5f else 0.35f, bleed = true)
             }
             CollectionTopBar(
                 title, { solid },
