@@ -94,6 +94,12 @@ class OfflineLibrary(context: Context) {
         )
     }.getOrNull()
 
+    /** Forgets everything kept (after signing out). */
+    fun clear() {
+        listsFile.delete()
+        pagesDir.listFiles()?.forEach { it.delete() }
+    }
+
     /** When the copy of [id] was saved (0 if there's none). */
     fun savedAt(id: String): Long = pageFile(id).lastModified()
 

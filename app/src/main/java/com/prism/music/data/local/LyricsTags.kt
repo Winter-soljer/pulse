@@ -24,7 +24,8 @@ object LyricsTags {
         if (!l.synced) return l.lines.joinToString("\n") { it.text }.trim()
         return l.lines.filter { it.timeMs >= 0 }.joinToString("\n") { line ->
             val cs = line.timeMs / 10
-            "[%02d:%02d.%02d]%s".format(cs / 6000, cs / 100 % 60, cs % 100, if (line.isGap) "" else line.text)
+            // Western digits whatever the phone's language: players read LRC times as those.
+            "[%02d:%02d.%02d]%s".format(java.util.Locale.ROOT, cs / 6000, cs / 100 % 60, cs % 100, if (line.isGap) "" else line.text)
         }
     }
 

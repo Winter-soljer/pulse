@@ -76,6 +76,10 @@ class PrismApp : Application(), coil3.SingletonImageLoader.Factory {
         com.prism.music.ui.theme.AppFonts.init(this)
         container = AppContainer(this)
         runCatching { container.backup.resumeDownloads() }
+        // A lyrics save into a music file that Prism closing cut short is put right (#16).
+        if (java.io.File(filesDir, "lyrics-tags").list()?.isNotEmpty() == true) {
+            container.scope.launch(kotlinx.coroutines.Dispatchers.IO) { runCatching { container.lyricsToFiles.recover() } }
+        }
     }
 }
 

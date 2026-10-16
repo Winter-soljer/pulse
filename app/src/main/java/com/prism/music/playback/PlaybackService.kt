@@ -360,11 +360,15 @@ class PlaybackService : MediaLibraryService(), Player.Listener {
         }
         // Offline, songs that aren't on the phone are passed over too (#55): they'd play as far as any cached start
         // goes and then cut to the next song.
-        if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO && !song.isLive && !c.network.online.value &&
-            !c.availableOffline(song.id) && player.hasNextMediaItem()
-        ) {
-            player.seekToNextMediaItem()
-            return
+        if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO && !song.isLive && !c.network.online.value && !c.availableOffline(song.id)) {
+            // Straight to the next one that is (in play order), not just the next: that one may not be here either.
+            val tl = player.currentTimeline
+            var i = tl.getNextWindowIndex(player.currentMediaItemIndex, Player.REPEAT_MODE_OFF, player.shuffleModeEnabled)
+            while (i != C.INDEX_UNSET) {
+                val next = player.getMediaItemAt(i)
+                if (next.toSong()?.isLive == true || c.availableOffline(next.mediaId)) { player.seekTo(i, 0); return }
+                i = tl.getNextWindowIndex(i, Player.REPEAT_MODE_OFF, player.shuffleModeEnabled)
+            }
         }
         trackedSong = song
         // Podcast episodes pick up where they were left, and play at the speed picked for episodes.

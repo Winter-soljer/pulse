@@ -328,6 +328,8 @@ private fun AccountCard() {
         }
         if (s.isLoggedIn) OutlinedButton(onClick = {
             c.settings.logout()
+            // The account's library kept for offline goes with it.
+            c.library.forgetAccount()
             CookieManager.getInstance().removeAllCookies(null)
         }) { Icon(PrismIcons.Logout, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Sign out") }
         else Icon(PrismIcons.ChevronRight, null, tint = ink)

@@ -15,15 +15,19 @@ class NetworkState(context: Context) {
     private val cm = context.getSystemService(ConnectivityManager::class.java)
 
     private val _online = MutableStateFlow(read().first)
-    /** A network that has been checked to reach the internet. */
+    /** A network with internet access (see [read]). */
     val online: StateFlow<Boolean> = _online
     private val _metered = MutableStateFlow(read().second)
     /** On mobile data (or another network that charges by use). */
     val metered: StateFlow<Boolean> = _metered
 
+    /**
+     * A network with internet that isn't stuck behind a sign-in page counts as online. Android's own check
+     * (VALIDATED) isn't required: it fails on some networks that work fine, and Prism would act offline there.
+     */
     private fun read(): Pair<Boolean, Boolean> {
         val caps = cm?.getNetworkCapabilities(cm.activeNetwork) ?: return false to true
-        return caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED) to
+        return (caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) && !caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_CAPTIVE_PORTAL)) to
             !caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED)
     }
 
@@ -51,5 +55,5 @@ class NetworkState(context: Context) {
     }
 
     /** True when it's worth trying the network (a fresh check, as the callback can lag a moment behind). */
-    fun isOnline(): Boolean = read().first.also { _online.value = it }
+    fun isOnline(): Boolean = read().first
 }

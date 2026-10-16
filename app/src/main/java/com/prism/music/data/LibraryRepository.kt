@@ -43,6 +43,7 @@ class LibraryRepository(private val c: AppContainer) {
     init {
         // The library as last synced, so it's all there offline (#55) and before the first sync of a launch finishes.
         c.scope.launch(Dispatchers.IO) {
+            if (!c.settings.current.isLoggedIn) return@launch
             val saved = c.offline.library() ?: return@launch
             if (playlists.value.isEmpty()) playlists.value = saved.playlists
             if (albums.value.isEmpty()) albums.value = saved.albums
@@ -50,12 +51,18 @@ class LibraryRepository(private val c: AppContainer) {
         }
     }
 
+    /** Signed out: the account's lists, and its playlists and albums kept for offline, are gone from the phone. */
+    fun forgetAccount() {
+        playlists.value = emptyList(); albums.value = emptyList(); artists.value = emptyList()
+        c.scope.launch(Dispatchers.IO) { c.offline.clear() }
+    }
+
     /** Keeps the library's lists for offline, with their covers. */
     private fun persist() {
         if (playlists.value.isEmpty() && albums.value.isEmpty() && artists.value.isEmpty()) return
         c.offline.saveLibrary(playlists.value, albums.value, artists.value)
         c.scope.launch(Dispatchers.IO) {
-            (playlists.value + albums.value).forEach { c.artwork.save(c.covers.art(it), 544) }
+            (playlists.value + albums.value).forEach { c.artwork.save(c.covers.art(it)) }
         }
     }
 

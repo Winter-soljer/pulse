@@ -58,7 +58,8 @@ class ArtworkStore(context: Context, private val http: OkHttpClient) {
     }
 
     private fun write(key: String, bytes: ByteArray): Boolean {
-        val tmp = File(dir, "$key.tmp")
+        // Its own temporary name: two saves of the same cover (an album's songs finishing together) can overlap.
+        val tmp = File(dir, "$key.${System.nanoTime()}.${Thread.currentThread().id}.tmp")
         tmp.writeBytes(bytes)
         if (!tmp.renameTo(File(dir, "$key.jpg"))) { tmp.delete(); return false }
         saved += key

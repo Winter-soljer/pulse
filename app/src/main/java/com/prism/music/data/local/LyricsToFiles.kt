@@ -68,19 +68,28 @@ class LyricsToFiles(private val context: Context, private val c: AppContainer) {
     fun writeRequest(items: List<Item>): IntentSender? =
         if (Build.VERSION.SDK_INT >= 30) MediaStore.createWriteRequest(context.contentResolver, items.map { it.target.uri }).intentSender else null
 
-    /** Writes each file's lyrics in. How many files were changed. */
-    suspend fun write(items: List<Item>): Int = withContext(Dispatchers.IO) {
-        val dir = File(context.cacheDir, "lyrics-tags").apply { mkdirs() }
+    /** Writes each file's lyrics in, on the app's own scope (it carries on if the screen that asked goes). How many changed. */
+    suspend fun write(items: List<Item>): Int = withContext(c.scope.coroutineContext + Dispatchers.IO) {
+        recover()
         var done = 0
-        for (item in items) {
-            val src = File(dir, "in"); val out = File(dir, "out")
+        for ((n, item) in items.withIndex()) {
+            val src = File(work, "in"); val out = File(work, "out")
             try {
                 context.contentResolver.openInputStream(item.target.uri)?.use { input -> src.outputStream().use { input.copyTo(it) } } ?: continue
                 if (!LyricsTags.write(src, out, item.target.kind, item.text)) continue
-                // Only a whole new file goes back over the old one.
-                if (out.length() < src.length()) continue
-                context.contentResolver.openOutputStream(item.target.uri, "wt")?.use { o -> out.inputStream().use { it.copyTo(o) } } ?: continue
-                done++
+                // The new file has to end with the same audio as the old one, or it doesn't go back.
+                if (!sameEnding(src, out)) continue
+                // Until the new file is fully back in place, the original is kept (with where it goes), so a failed or
+                // cut-short write can be put right, here or at the next launch ([recover]).
+                val backup = File(work, "backup-$n")
+                if (!src.renameTo(backup)) continue
+                File(work, "backup-$n.uri").writeText("${item.target.uri}\n${out.length()}")
+                val ok = runCatching {
+                    context.contentResolver.openOutputStream(item.target.uri, "wt")?.use { o -> out.inputStream().use { it.copyTo(o) } } != null &&
+                        sizeOf(item.target.uri) == out.length()
+                }.getOrDefault(false)
+                if (ok) done++ else restore(item.target.uri, backup)
+                backup.delete(); File(work, "backup-$n.uri").delete()
             } catch (e: Exception) {
                 Log.w("PrismLyricsTags", "Couldn't save lyrics into ${item.target.uri}: $e")
             } finally {
@@ -88,5 +97,38 @@ class LyricsToFiles(private val context: Context, private val c: AppContainer) {
             }
         }
         done
+    }
+
+    private val work get() = File(context.filesDir, "lyrics-tags").apply { mkdirs() }
+
+    /** The last up to 1 MB of both files match: the audio came through whole. */
+    private fun sameEnding(a: File, b: File): Boolean {
+        val n = minOf(1L shl 20, a.length(), b.length()).toInt()
+        if (n <= 0) return false
+        fun tail(f: File) = java.io.RandomAccessFile(f, "r").use { r -> ByteArray(n).also { r.seek(f.length() - n); r.readFully(it) } }
+        return tail(a).contentEquals(tail(b))
+    }
+
+    private fun sizeOf(uri: Uri): Long = context.contentResolver.openFileDescriptor(uri, "r")?.use { it.statSize } ?: -1
+
+    private fun restore(uri: Uri, backup: File) {
+        runCatching { context.contentResolver.openOutputStream(uri, "wt")?.use { o -> backup.inputStream().use { it.copyTo(o) } } }
+            .onFailure { Log.w("PrismLyricsTags", "Couldn't put $uri back: $it") }
+    }
+
+    /**
+     * A write that was cut short (Prism closed mid-way) left its original behind: if the file isn't the size the new
+     * one should have been, the original goes back. Runs at launch and before each batch.
+     */
+    fun recover() {
+        work.listFiles { f -> f.name.endsWith(".uri") }?.forEach { meta ->
+            val backup = File(work, meta.name.removeSuffix(".uri"))
+            val (uriText, size) = meta.readText().lines().let { it.getOrNull(0).orEmpty() to (it.getOrNull(1)?.toLongOrNull() ?: -1) }
+            if (backup.exists() && uriText.isNotBlank()) {
+                val uri = Uri.parse(uriText)
+                if (runCatching { sizeOf(uri) }.getOrDefault(-1) != size) restore(uri, backup)
+            }
+            backup.delete(); meta.delete()
+        }
     }
 }

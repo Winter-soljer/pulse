@@ -141,6 +141,13 @@ class DownloadRepository(private val context: Context, private val c: AppContain
     private val _lyricLevels = MutableStateFlow<Map<String, Int>>(emptyMap())
     /** Saved lyrics per downloaded song, as [com.prism.music.data.lyrics.LyricsRepository.level]. */
     val lyricLevels: StateFlow<Map<String, Int>> = _lyricLevels
+    // Above init: its background work and listeners use them straight away.
+    private val _waiting = MutableStateFlow(false)
+    /** Downloads are held back by their network rule (waiting for Wi-Fi). */
+    val waitingForNetwork: StateFlow<Boolean> = _waiting
+    /** Bytes each running download had at the last look, and how many looks in a row it hasn't moved. */
+    private val progressSeen = HashMap<String, Pair<Long, Int>>()
+
     init {
         NotificationManagerCompat.from(context).createNotificationChannel(
             NotificationChannelCompat.Builder(DOWNLOAD_CHANNEL, NotificationManagerCompat.IMPORTANCE_LOW)
@@ -239,9 +246,6 @@ class DownloadRepository(private val context: Context, private val c: AppContain
         }
     }
 
-    private val _waiting = MutableStateFlow(false)
-    /** Downloads are held back by their network rule (waiting for Wi-Fi). */
-    val waitingForNetwork: StateFlow<Boolean> = _waiting
 
     /**
      * Starts failed downloads again (#55), with fresh stream links. Before, a download that failed stayed failed for
@@ -266,8 +270,6 @@ class DownloadRepository(private val context: Context, private val c: AppContain
     /** The YouTube id a download's bytes come from (a video part's is its video's). */
     private fun streamOf(d: Download): String? = if (isVideoPart(d.request.id)) d.part()?.videoId else d.request.id
 
-    /** Bytes each running download had at the last look, and how many looks in a row it hasn't moved. */
-    private val progressSeen = HashMap<String, Pair<Long, Int>>()
 
     /**
      * Every minute: a download that hasn't moved for three minutes while online (a connection that hung, a stream link
@@ -316,7 +318,8 @@ class DownloadRepository(private val context: Context, private val c: AppContain
         c.scope.launch(Dispatchers.IO) {
             val songs = completedSongs()
             for (s in songs) runCatching { saveCover(s) }
-            if (songs.isNotEmpty()) runCatching { c.artwork.prune(songs.map { it.thumbnail } + c.offline.covers()) }
+            val library = (c.library.playlists.value + c.library.albums.value).map { c.covers.art(it) }
+            if (songs.isNotEmpty()) runCatching { c.artwork.prune(songs.map { it.thumbnail } + c.offline.covers() + library) }
         }
     }
 
