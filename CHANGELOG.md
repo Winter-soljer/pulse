@@ -2,6 +2,31 @@
 
 What changed in each release. Older releases are described on the [Releases page](https://github.com/Yigder/Prism/releases).
 
+## Unreleased
+
+### New
+- **Speed dial** on Home (Customize Home → Add a section), as on YouTube Music's app: your go-to songs, albums, playlists and artists as big tiles, nine to a page. YouTube's own Speed dial (or Listen again) leads, filled out with what you play most. It goes in at the top (#53).
+- **Quick picks start a radio**: tapping a pick plays it and then songs like it, as on YouTube Music. Customize Home → Options turns it back to playing Quick picks in order (#38).
+- **Search your own music**: Search has YouTube Music and **On this phone**, which finds your music files and downloads by title, artist or album. Offline, Search starts there (#46).
+- **Offline library**: your playlists, albums and artists are kept as last synced, and playlists and albums are saved with their songs when opened (and on Wi-Fi after a sync), so they open with no connection. Offline, a playlist plays its downloaded songs and shows the rest greyed out (#55).
+- **Covers offline**: downloaded songs' covers (a lossless file's own embedded cover first) and your playlists' and albums' are kept on the phone, for the player and its blurred background, the notification, widgets and lists. Local files whose album has no artwork in Android show the cover inside the file (#54, #55).
+- **Data saver** (Settings → Playback & sound → Mobile data): on mobile data, pictures come at the size they're shown, artist photos and animated covers wait for Wi-Fi, songs stream at your mobile data quality (at most Normal) and music videos at 480p at most (#40).
+- **Songs, not videos** (Settings → Playback, on by default): autoplay and radios play music videos as their songs and leave out videos with no song version (#39).
+- **Stop when swiped away** (Settings → Playback): swiping Prism out of your recent apps stops the music (#45).
+- **Choose your lyrics sources**: each source in Settings → Lyrics → Sources has a switch and a line on what it's good for; Prism only asks the ones switched on (#51).
+- **Save lyrics into your music files** (Settings → Lyrics, or a song's ⋯ menu): synced lyrics go into your FLAC and MP3 files' tags as LRC, so other players show them too (#16).
+- **New widgets**: Cover (2×2), Disc (2×2, with a progress ring) and Strip (4×1) (#34).
+- **Local files sorting**: a sort sheet with the direction in plain words and more orders (date added, year, length, file size), plus orders for Artists and Albums (#35).
+- **Every artist of a song**: a song's menu has "Go to …" for each of its artists, and tapping the artist on the player asks which one (#42).
+
+### Fixed
+- **Downloads stuck at a percentage** (#55): failed downloads now try again by themselves at launch and when you're back online, with fresh links; one that stalls restarts from where it got to; and Downloads says when they're waiting for Wi-Fi or failed, with "Use mobile data" and "Try again". Offline, songs that aren't fully on the phone are passed over instead of cutting off mid-song.
+- **Music videos with the Song / Video switch off** (#48): a music video picked from a list plays as its song, and nothing switches to video.
+- **Headphone volume lag** (#52): the player's volume slider only sends real changes, so Bluetooth headphones no longer fall seconds behind it.
+- **Grid** for Quick picks and other song sections shows covers in two rows; it looked the same as List (#44).
+- **Artist pages** (#47): the photo's colours carry on down the page and settle into its own tint instead of fading to black (album and playlist pages too). The artist's name moves with the photo as you scroll (#37).
+- **The player's title** is a size larger than the artist under it; they were both 20 sp (#41).
+
 ## 1.6.7
 
 ### New
