@@ -240,7 +240,9 @@ fun LoginScreen(onDone: () -> Unit, onBack: () -> Unit, addAccount: Boolean = fa
 
 /**
  * Signs in to Discord on Discord's own page, for "Listening to Prism" (Settings → Discord). Prism never sees the
- * password: once Discord's web app is open, it reads the session Discord keeps for that page, then leaves.
+ * password: once Discord's web app is open, it reads the session Discord keeps for that page, then leaves. When the
+ * page can't load (no connection, or a network that blocks Discord, as some work and school ones do) it says so,
+ * with Try again, rather than showing an empty page.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @SuppressLint("SetJavaScriptEnabled")
@@ -250,13 +252,18 @@ fun DiscordLoginScreen(onBack: () -> Unit) {
     var web by remember { mutableStateOf<WebView?>(null) }
     var done by remember { mutableStateOf(false) }
     var progress by remember { mutableStateOf(0f) }
+    /** Why Discord's page didn't load, when it didn't. */
+    var failed by remember { mutableStateOf<String?>(null) }
 
-    // Discord's web app keeps its session token in the page's storage, hidden from the page's own window once it's
-    // open; a fresh frame on the same page can still read it.
-    val readToken = """
-        (function(){try{var f=document.createElement('iframe');f.style.display='none';document.body.appendChild(f);
-        var t=f.contentWindow.localStorage.getItem('token');f.remove();return t||'';}catch(e){return '';}})()
-    """.trimIndent()
+    fun finish(token: String) {
+        if (done || token.isBlank()) return
+        done = true
+        c.discord.signIn(token)
+        c.settings.setDiscordPresence(true)
+        // The page's own copy goes; Prism keeps the session in its own storage (never in backups).
+        android.webkit.WebStorage.getInstance().deleteOrigin("https://discord.com")
+        onBack()
+    }
 
     LaunchedEffect(Unit) {
         while (isActive && !done) {
@@ -265,19 +272,12 @@ fun DiscordLoginScreen(onBack: () -> Unit) {
             val path = android.net.Uri.parse(view.url ?: continue).path.orEmpty()
             // Signed in: Discord has moved on from its login (and two-factor) pages into the app.
             if (!path.startsWith("/channels") && !path.startsWith("/app")) continue
-            view.evaluateJavascript(readToken) { result ->
+            view.evaluateJavascript(DISCORD_TOKEN_JS) { result ->
                 val token = runCatching {
                     com.prism.music.data.innertube.InnerTube.json.parseToJsonElement(result)
                         .let { (it as kotlinx.serialization.json.JsonPrimitive).content }.trim('"')
                 }.getOrNull()
-                if (!done && !token.isNullOrBlank()) {
-                    done = true
-                    c.discord.signIn(token)
-                    c.settings.setDiscordPresence(true)
-                    // The page's own copy goes; Prism keeps the session in its own storage (never in backups).
-                    android.webkit.WebStorage.getInstance().deleteOrigin("https://discord.com")
-                    onBack()
-                }
+                if (!token.isNullOrBlank()) finish(token)
             }
         }
     }
@@ -287,30 +287,103 @@ fun DiscordLoginScreen(onBack: () -> Unit) {
             title = { Text("Sign in to Discord") },
             navigationIcon = { IconButton(onClick = onBack) { Icon(PrismIcons.ArrowBack, "Back") } },
         )
-        if (progress < 1f) LinearProgressIndicator(progress = { progress }, Modifier.fillMaxWidth())
-        AndroidView(
-            modifier = Modifier.fillMaxSize(),
-            onRelease = { it.stopLoading(); it.destroy() },
-            factory = { ctx ->
-                WebView(ctx).apply {
-                    settings.javaScriptEnabled = true
-                    settings.domStorageEnabled = true
-                    settings.userAgentString = settings.userAgentString.replace("; wv", "")
-                    webChromeClient = object : android.webkit.WebChromeClient() {
-                        override fun onProgressChanged(view: WebView, newProgress: Int) { progress = newProgress / 100f }
+        if (progress < 1f && failed == null) LinearProgressIndicator(progress = { progress }, Modifier.fillMaxWidth())
+        Box(Modifier.fillMaxSize()) {
+            AndroidView(
+                modifier = Modifier.fillMaxSize(),
+                onRelease = { it.stopLoading(); it.destroy() },
+                factory = { ctx ->
+                    if (com.prism.music.BuildConfig.DEBUG) WebView.setWebContentsDebuggingEnabled(true)
+                    WebView(ctx).apply {
+                        settings.javaScriptEnabled = true
+                        settings.domStorageEnabled = true
+                        // As Chrome on the phone: Android's in-app browser marks itself ("; wv", "Version/4.0"), which
+                        // sites can treat as an embedded sign-in and refuse.
+                        settings.userAgentString = settings.userAgentString
+                            .replace(Regex(";\\s*wv\\)"), ")").replace(Regex("\\s*Version/\\d+(\\.\\d+)*"), "")
+                        CookieManager.getInstance().setAcceptCookie(true)
+                        CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
+                        webChromeClient = object : android.webkit.WebChromeClient() {
+                            override fun onProgressChanged(view: WebView, newProgress: Int) { progress = newProgress / 100f }
+                        }
+                        webViewClient = object : WebViewClient() {
+                            // Discord's links to its apps (discord://) would dead-end here.
+                            override fun shouldOverrideUrlLoading(view: WebView, request: android.webkit.WebResourceRequest): Boolean =
+                                request.url.scheme != "http" && request.url.scheme != "https"
+
+                            override fun onPageStarted(view: WebView, url: String, favicon: Bitmap?) { failed = null }
+
+                            override fun onReceivedError(view: WebView, request: android.webkit.WebResourceRequest, error: android.webkit.WebResourceError) {
+                                if (request.isForMainFrame) failed = error.description?.toString().orEmpty()
+                            }
+
+                            override fun onReceivedHttpError(view: WebView, request: android.webkit.WebResourceRequest, response: android.webkit.WebResourceResponse) {
+                                if (request.isForMainFrame && response.statusCode >= 400) failed = "Discord answered HTTP ${response.statusCode}"
+                            }
+
+                            // A load the network cut off can end without an error, on an empty page: say so too.
+                            override fun onPageFinished(view: WebView, url: String) {
+                                if (done) return
+                                view.evaluateJavascript("document.documentElement.innerHTML.length") { len ->
+                                    if ((len.toIntOrNull() ?: 0) < 200 && failed == null) failed = "The page came back empty"
+                                }
+                            }
+                        }
+                        loadUrl(DISCORD_LOGIN_URL)
+                        web = this
                     }
-                    webViewClient = object : WebViewClient() {
-                        // Discord's links to its apps (discord://) would dead-end here.
-                        override fun shouldOverrideUrlLoading(view: WebView, request: android.webkit.WebResourceRequest): Boolean =
-                            request.url.scheme != "http" && request.url.scheme != "https"
+                },
+            )
+            failed?.let { why ->
+                Column(
+                    Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(32.dp),
+                    verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Text("Couldn't reach Discord", style = MaterialTheme.typography.titleLarge)
+                    Spacer(Modifier.height(10.dp))
+                    Text(
+                        "Check your connection. Some networks, such as work and school ones, block Discord: try another " +
+                            "Wi-Fi or mobile data.",
+                        style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    if (why.isNotBlank()) {
+                        Spacer(Modifier.height(6.dp))
+                        Text(why, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
-                    loadUrl("https://discord.com/login")
-                    web = this
+                    Spacer(Modifier.height(20.dp))
+                    Button(onClick = { failed = null; progress = 0f; web?.loadUrl(DISCORD_LOGIN_URL) }) { Text("Try again") }
                 }
-            },
-        )
+            }
+        }
     }
 }
+
+private const val DISCORD_LOGIN_URL = "https://discord.com/login"
+
+/**
+ * The signed-in session from Discord's web app. Discord hides `localStorage` from its own window once it's open, but a
+ * fresh frame on the page can still read the token there; failing that, it's asked of Discord's own code (the
+ * module with `getToken`), the way other Android players sign in to Discord.
+ */
+private val DISCORD_TOKEN_JS = """
+    (function(){
+      var t='';
+      try{var f=document.createElement('iframe');f.style.display='none';document.body.appendChild(f);
+        t=f.contentWindow.localStorage.getItem('token')||'';f.remove();}catch(e){}
+      if(!t){try{
+        var mods=[];
+        window.webpackChunkdiscord_app.push([[Symbol()],{},function(r){for(var k in r.c)mods.push(r.c[k]);}]);
+        window.webpackChunkdiscord_app.pop();
+        for(var i=0;i<mods.length&&!t;i++){
+          var x=mods[i]&&mods[i].exports; if(!x)continue;
+          var cands=[x.default,x.Z,x.ZP,x];
+          for(var j=0;j<cands.length;j++){var o=cands[j];
+            try{if(o&&typeof o.getToken==='function'){var v=o.getToken();if(typeof v==='string'&&v){t=v;break;}}}catch(e){}}
+        }
+      }catch(e){}}
+      return t;
+    })()
+""".trimIndent()
 
 @Composable
 fun WelcomeScreen(onSignIn: () -> Unit, onSkip: () -> Unit) {

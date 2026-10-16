@@ -2,6 +2,12 @@
 
 What changed in each release. Older releases are described on the [Releases page](https://github.com/Yigder/Prism/releases).
 
+## 1.6.9.1
+
+### Fixed
+- **Discord sign-in showed a blank page** when Discord's page couldn't load (no connection, or a network that blocks Discord, as many work and school ones do). It now says it couldn't reach Discord, with Try again.
+- **Discord sign-in** looks like the phone's browser to Discord (Android's in-app browser marked itself), and reads the sign-in a second way if the first doesn't find it.
+
 ## 1.6.9
 
 ### New
