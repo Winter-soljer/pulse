@@ -175,6 +175,27 @@
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_ytmusic_info" />
         </receiver>
         <receiver
+            android:name=".widget.CoverWidget"
+            android:exported="false"
+            android:label="@string/widget_cover_name">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_cover_info" />
+        </receiver>
+        <receiver
+            android:name=".widget.DiscWidget"
+            android:exported="false"
+            android:label="@string/widget_disc_name">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_disc_info" />
+        </receiver>
+        <receiver
+            android:name=".widget.StripWidget"
+            android:exported="false"
+            android:label="@string/widget_strip_name">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_strip_info" />
+        </receiver>
+        <receiver
             android:name=".widget.WidgetActionReceiver"
             android:exported="false" />
 

@@ -48,6 +48,12 @@ enum class WidgetStyle(val layout: Int, val provider: Class<out AppWidgetProvide
     APPLE(R.layout.widget_apple, AppleStyleWidget::class.java, 0.11f),
     /** After YouTube Music's: dark grey, thumbs up, a red progress line. */
     YTMUSIC(R.layout.widget_ytmusic, YtMusicStyleWidget::class.java, 0.11f),
+    /** A small square (#34): the cover fills it, the title over its foot, and play. */
+    COVER(R.layout.widget_cover, CoverWidget::class.java, 0f),
+    /** A round disc (#34): the cover in a ring that fills as the song plays, play in the middle. */
+    DISC(R.layout.widget_disc, DiscWidget::class.java, 0.5f),
+    /** A slim bar (#34) in the cover's colour: the cover, the title, and previous / play / next. */
+    STRIP(R.layout.widget_strip, StripWidget::class.java, 0.18f),
 }
 
 abstract class NowPlayingWidget : AppWidgetProvider() {
@@ -59,6 +65,9 @@ class PrismWidget : NowPlayingWidget()
 class SpotifyStyleWidget : NowPlayingWidget()
 class AppleStyleWidget : NowPlayingWidget()
 class YtMusicStyleWidget : NowPlayingWidget()
+class CoverWidget : NowPlayingWidget()
+class DiscWidget : NowPlayingWidget()
+class StripWidget : NowPlayingWidget()
 
 /** The widgets' buttons. Tapping one counts as using Prism, so playback may start from here. */
 class WidgetActionReceiver : BroadcastReceiver() {
@@ -166,6 +175,7 @@ object Widgets {
                 v.setTextColor(R.id.widget_label, art?.color?.let { ColorUtils.blendARGB(it, Color.WHITE, 0.55f) } ?: 0xB3FFFFFF.toInt())
             }
             WidgetStyle.APPLE -> v.setInt(R.id.widget_tint, "setColorFilter", art?.color ?: 0xFF3A3A3C.toInt())
+            WidgetStyle.STRIP -> v.setInt(R.id.widget_tint, "setColorFilter", art?.color ?: 0xFF2A2A30.toInt())
             else -> Unit
         }
 
@@ -190,16 +200,19 @@ object Widgets {
     }
 
     private suspend fun loadArt(context: Context, url: String): Art? = runCatching {
-        val req = ImageRequest.Builder(context).data(hiRes(url, 544)).size(320).allowHardware(false).build()
+        val req = ImageRequest.Builder(context).data(hiRes(url, 544)).size(440).allowHardware(false).build()
         val bmp = (SingletonImageLoader.get(context).execute(req) as? SuccessResult)?.image?.toBitmap() ?: return null
-        val square = centerSquare(bmp, 300)
+        // The Cover widget's fills a 2×2 square, so it's bigger; the rest stay small (a widget's update has to fit
+        // through a ~1 MB pipe, the Prism widget's frost included).
+        val big = centerSquare(bmp, 400)
+        val square = Bitmap.createScaledBitmap(big, 300, 300, true)
         val palette = Palette.from(square).maximumColorCount(16).generate()
         val base = (palette.dominantSwatch ?: palette.mutedSwatch ?: palette.vibrantSwatch)?.rgb ?: 0xFF3A3A3C.toInt()
         // Deep enough for white text on it, like Apple Music's cards.
         val card = if (ColorUtils.calculateLuminance(base) > 0.35) ColorUtils.blendARGB(base, Color.BLACK, 0.45f) else base
         Art(
             url = url,
-            square = WidgetStyle.entries.associateWith { rounded(square, it.artCorner) },
+            square = WidgetStyle.entries.associateWith { rounded(if (it == WidgetStyle.COVER) big else square, it.artCorner) },
             frost = frost(square),
             color = card or 0xFF000000.toInt(),
         )
