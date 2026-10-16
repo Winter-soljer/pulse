@@ -106,7 +106,7 @@ class AppContainer(val app: Application) {
     val translator = com.prism.music.data.lyrics.LyricsTranslator(http)
     val network = com.prism.music.data.NetworkState(app)
     /** Covers kept on the phone for downloads and the library, so they show offline. */
-    val artwork = com.prism.music.data.ArtworkStore(app, http)
+    val artwork = com.prism.music.data.ArtworkStore(app, http) { quietNetwork() }
     /** The library's lists and opened playlists and albums, kept so they open offline. */
     val offline = com.prism.music.data.OfflineLibrary(app)
     val lyrics = LyricsRepository(http, db.lyrics(), ytm) { settings.current }.apply {
@@ -217,6 +217,28 @@ class AppContainer(val app: Application) {
     val updates by lazy { com.prism.music.data.UpdateChecker(app, http, scope) }
     val backup by lazy { com.prism.music.data.Backup(this) }
     val player = PlayerConnection(app, this)
+    @Volatile private var songStartedAt = 0L
+    init { scope.launch { player.currentSong.collect { songStartedAt = android.os.SystemClock.elapsedRealtime() } } }
+
+    /**
+     * Waits until the network is free for background saving (offline copies of playlists, covers, download retries):
+     * not while the music is buffering, nor in a song's first 20 s, when its stream is loading. Since 1.6.8 that saving
+     * ran at every launch and sync, and on slower connections the music stalled behind it.
+     */
+    suspend fun quietNetwork() {
+        while (player.buffering.value ||
+            (player.isPlaying.value && android.os.SystemClock.elapsedRealtime() - songStartedAt < 20_000)
+        ) kotlinx.coroutines.delay(2_000)
+    }
+
+    /** "Listening to Prism" on the listener's Discord profile, when they've turned it on (Settings → Discord). */
+    val discord = com.prism.music.playback.DiscordPresence(app, http, scope)
+    init {
+        scope.launch {
+            settings.flow.collect { s -> discord.setEnabled(s.discordPresence && discord.signedIn) }
+        }
+    }
+
     /** Listen Together sessions on the local network. */
     val together by lazy { com.prism.music.playback.together.Together(app, this) }
 

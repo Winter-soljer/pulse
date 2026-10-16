@@ -488,6 +488,38 @@ class YouTubeMusic(private val api: InnerTube) {
         )
     }
 
+    /**
+     * Every channel Prism can switch to: each Google account signed in on this session (up to ten), with its own
+     * channel and its brand accounts. [cookie]: a session other than the saved one (just after adding an account).
+     */
+    suspend fun accounts(cookie: String? = null): List<com.prism.music.data.model.YtAccount> {
+        val out = mutableListOf<com.prism.music.data.model.YtAccount>()
+        val emails = HashSet<String>()
+        for (authUser in 0 until 10) {
+            val res = (if (cookie != null) api.accountsList(authUser, cookie) else api.accountsList(authUser)) ?: break
+            val email = res.findFirst("googleAccountHeaderRenderer").obj("email").text()
+            // Past the last account YouTube answers with the first one again.
+            if (email != null && !emails.add(email)) break
+            val items = res.findAll("accountItem")
+            if (items.isEmpty()) break
+            for (item in items) {
+                val name = item.obj("accountName").text() ?: continue
+                val pageId = item.findFirst("pageIdToken").str("pageId")
+                val sync = item.findFirst("datasyncIdToken").str("datasyncIdToken")
+                    ?: if (pageId != null) "$pageId||brand" else "||"
+                out += com.prism.music.data.model.YtAccount(
+                    name = name,
+                    byline = item.obj("channelHandle").text() ?: item.obj("accountByline").text(),
+                    email = email,
+                    avatar = item.obj("accountPhoto").bestThumbnail(),
+                    authUser = authUser,
+                    dataSyncId = sync,
+                )
+            }
+        }
+        return out.distinctBy { it.authUser to it.dataSyncId }
+    }
+
     suspend fun likedSongs(limit: Int = 5000): List<Song> = playlistAll("LM", limit).songs
 
     suspend fun libraryPlaylists(): List<BrowseItem> =

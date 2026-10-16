@@ -275,6 +275,21 @@ data class NextResult(
 
 data class AccountInfo(val name: String, val email: String?, val avatar: String?)
 
+/**
+ * A YouTube channel Prism can use: a Google account's own, or one of its brand accounts (one email can have several).
+ * [authUser] picks the Google account in the session, [dataSyncId] the channel ("brand||user", or "user||").
+ */
+data class YtAccount(
+    val name: String,
+    /** The channel's @handle, or what YouTube shows under the name. */
+    val byline: String?,
+    /** The Google account it belongs to. */
+    val email: String?,
+    val avatar: String?,
+    val authUser: Int,
+    val dataSyncId: String,
+)
+
 data class PlayerExtras(
     val loudnessDb: Double?,
     val trackingUrl: String?,

@@ -30,6 +30,10 @@ object Routes {
     const val EQ = "eq"
     const val CATALOGUE = "catalogue"
     const val LOGIN = "login"
+    /** Signs another Google account in beside the current one (to switch between them). */
+    const val LOGIN_ADD = "login_add"
+    /** Signs in to Discord for "Listening to Prism" on the listener's profile. */
+    const val DISCORD_LOGIN = "discord_login"
     const val DOWNLOADS = "downloads"
     const val LOCAL = "local"
     const val MOODS = "moods"

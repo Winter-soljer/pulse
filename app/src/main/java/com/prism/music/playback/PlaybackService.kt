@@ -997,6 +997,8 @@ class PlaybackService : MediaLibraryService(), Player.Listener {
             song != null && song.id in c.library.likedIds.value,
             player.currentPosition, player.duration.takeIf { it > 0 },
         )
+        // Discord shows what's playing too, when that's on (it only sends what changed).
+        c.discord.show(song, player.isPlaying, player.currentPosition, player.duration.takeIf { it > 0 } ?: 0)
     }
 
     /** A fresh shuffle order each time shuffle goes on, current song first. */

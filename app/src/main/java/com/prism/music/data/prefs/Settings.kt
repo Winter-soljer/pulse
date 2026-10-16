@@ -185,6 +185,10 @@ data class AppSettings(
     val cookie: String = "",
     val visitorData: String = "",
     val dataSyncId: String = "",
+    /** Which of the Google accounts signed in on this phone's session requests go out as (X-Goog-AuthUser). */
+    val authUser: Int = 0,
+    /** Discord shows what's playing (Settings → Discord). Off until the listener signs in to Discord there. */
+    val discordPresence: Boolean = false,
     val accountName: String = "",
     val accountEmail: String = "",
     val accountAvatar: String = "",
@@ -395,6 +399,8 @@ class SettingsRepository(private val context: Context, scope: CoroutineScope) {
         val cookie = stringPreferencesKey("cookie")
         val visitorData = stringPreferencesKey("visitor_data")
         val dataSyncId = stringPreferencesKey("data_sync_id")
+        val authUser = intPreferencesKey("auth_user")
+        val discordPresence = booleanPreferencesKey("discord_presence")
         val accountName = stringPreferencesKey("account_name")
         val accountEmail = stringPreferencesKey("account_email")
         val accountAvatar = stringPreferencesKey("account_avatar")
@@ -536,6 +542,8 @@ class SettingsRepository(private val context: Context, scope: CoroutineScope) {
             cookie = p[K.cookie] ?: "",
             visitorData = p[K.visitorData] ?: "",
             dataSyncId = p[K.dataSyncId] ?: "",
+            authUser = p[K.authUser] ?: 0,
+            discordPresence = p[K.discordPresence] ?: d.discordPresence,
             accountName = p[K.accountName] ?: "",
             accountEmail = p[K.accountEmail] ?: "",
             accountAvatar = p[K.accountAvatar] ?: "",
@@ -697,6 +705,8 @@ class SettingsRepository(private val context: Context, scope: CoroutineScope) {
         it[K.cookie] = cookie
         it[K.visitorData] = visitorData
         it[K.dataSyncId] = dataSyncId
+        // A fresh sign-in is the session's first Google account.
+        it[K.authUser] = 0
     }
 
     fun saveAccountInfo(name: String, email: String?, avatar: String?) = edit {
@@ -705,10 +715,18 @@ class SettingsRepository(private val context: Context, scope: CoroutineScope) {
         it[K.accountAvatar] = avatar ?: ""
     }
 
+    /** Switches to another account or channel: [authUser] picks the Google account, [dataSyncId] the channel. */
+    suspend fun saveIdentity(authUser: Int, dataSyncId: String, cookie: String? = null) = editNow {
+        it[K.authUser] = authUser
+        it[K.dataSyncId] = dataSyncId
+        if (cookie != null) it[K.cookie] = cookie
+    }
+
     fun setVisitorData(v: String) = edit { it[K.visitorData] = v }
+    fun setDiscordPresence(v: Boolean) = edit { it[K.discordPresence] = v }
 
     fun logout() = edit {
-        it.remove(K.cookie); it.remove(K.dataSyncId)
+        it.remove(K.cookie); it.remove(K.dataSyncId); it.remove(K.authUser)
         it.remove(K.accountName); it.remove(K.accountEmail); it.remove(K.accountAvatar)
     }
 

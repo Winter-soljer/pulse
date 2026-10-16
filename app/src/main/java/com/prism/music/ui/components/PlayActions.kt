@@ -135,7 +135,16 @@ fun PlayActionsSheet(target: Playable, extra: List<SheetItem> = emptyList(), onD
             }
         }
         QuickActions(quick) { runAction(it, close) }
-        ActionGroup(null, extra.map { it.toAction() }) { runAction(it, close) }
+        // An album in the library can be taken out from here, by the library's own entry (a remaster or other edition
+        // opens as another album page, whose bookmark didn't reach this one).
+        val inLibrary = item is AlbumItem && c.settings.current.isLoggedIn && c.library.albums.value.any { it.id == item.id }
+        val remove = if (inLibrary) listOf(ActionItem(PrismIcons.Delete, "Remove from library") {
+            c.scope.launch(Dispatchers.Main) {
+                val ok = c.library.removeAlbum(item.id, (item as AlbumItem).playlistId)
+                Toast.makeText(context, if (ok) "Removed from your library" else "Couldn't update your library", Toast.LENGTH_SHORT).show()
+            }
+        }) else emptyList()
+        ActionGroup(null, extra.map { it.toAction() } + remove) { runAction(it, close) }
     }
 }
 

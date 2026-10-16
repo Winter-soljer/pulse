@@ -132,7 +132,7 @@ class InnerTube(
         if (s.isLoggedIn && !anonymous) {
             header("Cookie", s.cookie)
             authorization()?.let { header("Authorization", it) }
-            header("X-Goog-AuthUser", "0")
+            header("X-Goog-AuthUser", s.authUser.toString())
         }
         return this
     }
@@ -207,6 +207,31 @@ class InnerTube(
             ensureClientVersion()
             postOnce(endpoint, body, query, anonymous = true)
         }
+
+    /**
+     * The channels of the Google account at [authUser] (0 = the first signed in on [cookie]'s session), as YouTube's
+     * account switcher lists them: the account's own channel and its brand accounts. No channel delegation, so every
+     * one of them is listed whichever is in use. Null when there's no Google account at that index.
+     */
+    suspend fun accountsList(authUser: Int, cookie: String = current.cookie): JsonObject? = withContext(Dispatchers.IO) {
+        ensureClientVersion()
+        val payload = buildJsonObject { put("context", context(anonymous = true)) }
+        val sapisid = cookie.split(";").map { it.trim() }.firstNotNullOfOrNull { part ->
+            part.takeIf { it.startsWith("SAPISID=") || it.startsWith("__Secure-3PAPISID=") }?.substringAfter('=')
+        } ?: return@withContext null
+        val ts = System.currentTimeMillis() / 1000
+        val req = Request.Builder()
+            .url("${BASE}account/accounts_list?prettyPrint=false")
+            .post(payload.toString().toRequestBody(JSON_TYPE))
+            .applyHeaders(anonymous = true)
+            .header("Cookie", cookie)
+            .header("Authorization", "SAPISIDHASH ${ts}_${sha1("$ts $sapisid $ORIGIN")}")
+            .header("X-Goog-AuthUser", authUser.toString())
+            .build()
+        runCatching {
+            http.newCall(req).execute().use { resp -> if (resp.isSuccessful) json.parseToJsonElement(resp.body.string()).jsonObject else null }
+        }.getOrNull()
+    }
 
     private fun postOnce(endpoint: String, body: JsonObject, query: String, anonymous: Boolean = false): JsonObject {
         val payload = buildJsonObject {
@@ -353,7 +378,7 @@ class InnerTube(
                 if (visitorData.isNotBlank()) header("X-Goog-Visitor-Id", visitorData)
                 header("Cookie", s.cookie)
                 authorization(client.origin)?.let { header("Authorization", it) }
-                header("X-Goog-AuthUser", "0")
+                header("X-Goog-AuthUser", s.authUser.toString())
             }
             .build()
         http.newCall(req).execute().use { resp ->

@@ -157,6 +157,7 @@ fun SettingsScreen(bottomPadding: Dp, section: SettingsSection? = null) {
         when (section) {
             null -> {
                 item { AccountCard() }
+                item { DiscordGroup() }
                 hubGroups.forEach { (title, sections) ->
                     item {
                         Group(title) {
@@ -303,8 +304,11 @@ private fun AccountCard() {
     // A pane of frosted glass on a frosted page, the accent's gradient otherwise.
     val frosted = com.prism.music.ui.components.LocalFrosted.current
     val ink = com.prism.music.ui.components.featureInk()
+    var switching by remember { mutableStateOf(false) }
+    if (switching) AccountSwitcher { switching = false }
+    Column(Modifier.fillMaxWidth().featurePane(ui.card)) {
     Row(
-        Modifier.fillMaxWidth().featurePane(ui.card)
+        Modifier.fillMaxWidth()
             .then(if (s.isLoggedIn) Modifier else Modifier.clickable { nav.go(Routes.LOGIN) })
             .padding(18.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -333,6 +337,114 @@ private fun AccountCard() {
             CookieManager.getInstance().removeAllCookies(null)
         }) { Icon(PrismIcons.Logout, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Sign out") }
         else Icon(PrismIcons.ChevronRight, null, tint = ink)
+    }
+    // Another channel of the same Google account (brand accounts), or another Google account altogether.
+    if (s.isLoggedIn) Row(Modifier.fillMaxWidth().padding(start = 10.dp, end = 10.dp, bottom = 8.dp)) {
+        TextButton(onClick = { switching = true }) {
+            Icon(PrismIcons.Person, null, Modifier.size(18.dp), tint = ink); Spacer(Modifier.width(6.dp)); Text("Switch account", color = ink)
+        }
+        TextButton(onClick = { nav.go(Routes.LOGIN_ADD) }) {
+            Icon(PrismIcons.Add, null, Modifier.size(18.dp), tint = ink); Spacer(Modifier.width(6.dp)); Text("Add a Google account", color = ink)
+        }
+    }
+    }
+}
+
+/**
+ * Discord presence: "Listening to Prism" with the song on the listener's Discord profile. Turning it on the first time
+ * signs in to Discord (on Discord's own page); the session stays on this phone.
+ */
+@Composable
+private fun DiscordGroup() {
+    val c = LocalContainer.current
+    val s = LocalAppSettings.current
+    val nav = LocalNavigator.current
+    val state by c.discord.state.collectAsState()
+    val user by c.discord.userName.collectAsState()
+    Group("Discord") {
+        Toggle(
+            "Show what you're playing",
+            when {
+                !c.discord.signedIn -> "\"Listening to Prism\" on your Discord profile, with the song and how far in. You sign in to Discord on its own page; the sign-in stays on this phone"
+                state == com.prism.music.playback.DiscordPresence.State.CONNECTED -> "On as ${user ?: "you"} · song names and artists go to Discord while you listen"
+                state == com.prism.music.playback.DiscordPresence.State.CONNECTING -> "Connecting to Discord…"
+                else -> "On Discord as ${user ?: "you"}"
+            },
+            s.discordPresence && c.discord.signedIn,
+        ) { on ->
+            if (on && !c.discord.signedIn) nav.go(Routes.DISCORD_LOGIN) else c.settings.setDiscordPresence(on)
+        }
+        if (c.discord.signedIn) Item("Sign out of Discord", "Forgets the Discord sign-in on this phone", onClick = {
+            c.settings.setDiscordPresence(false)
+            c.discord.signOut()
+        })
+        Item(
+            "About this", "Discord has no way for Android apps to do this officially, so Prism uses your Discord sign-in the way " +
+                "other Android music players do. Discord doesn't allow that for third-party apps, so there's a small risk to " +
+                "your Discord account. Prism only ever changes your status.",
+            onClick = {},
+        )
+    }
+}
+
+/**
+ * Every channel Prism can use on this sign-in: each Google account's own and its brand accounts (one email can have
+ * several YouTube channels). Picking one switches the library, likes and recommendations to it.
+ */
+@Composable
+private fun AccountSwitcher(onDismiss: () -> Unit) {
+    val c = LocalContainer.current
+    val s = LocalAppSettings.current
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val accounts by androidx.compose.runtime.produceState<List<com.prism.music.data.model.YtAccount>?>(null) {
+        value = runCatching { c.ytm.accounts() }.getOrDefault(emptyList())
+    }
+    com.prism.music.ui.components.ActionSheet(s.accountAvatar.ifBlank { null }, onDismiss) { close ->
+        Text(
+            "Accounts and channels", Modifier.padding(start = 24.dp, end = 24.dp, top = 8.dp, bottom = 4.dp),
+            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+        )
+        val list = accounts
+        when {
+            list == null -> Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) { androidx.compose.material3.CircularProgressIndicator() }
+            list.isEmpty() -> Text(
+                "YouTube didn't list any other channels. Sign out and in again if you've just made one.",
+                Modifier.padding(24.dp), style = MaterialTheme.typography.bodyMedium,
+            )
+            else -> list.groupBy { it.email }.forEach { (email, channels) ->
+                if (email != null) Text(
+                    email, Modifier.padding(start = 24.dp, top = 14.dp, bottom = 4.dp),
+                    style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                channels.forEach { a ->
+                    val current = a.authUser == s.authUser && a.dataSyncId.substringBefore("||") == s.dataSyncId.substringBefore("||")
+                    Row(
+                        Modifier.fillMaxWidth().clickable(enabled = !current) {
+                            close {
+                                c.scope.launch {
+                                    c.library.switchAccount(a)
+                                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                        android.widget.Toast.makeText(context, "Switched to ${a.name}", android.widget.Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                            }
+                        }.padding(horizontal = 24.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Box(Modifier.size(40.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceVariant), contentAlignment = Alignment.Center) {
+                            if (a.avatar != null) AsyncImage(a.avatar, null, Modifier.fillMaxSize()) else Icon(PrismIcons.Person, null)
+                        }
+                        Spacer(Modifier.width(14.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(a.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            a.byline?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1) }
+                        }
+                        if (current) Icon(PrismIcons.Check, "In use", tint = MaterialTheme.colorScheme.primary)
+                    }
+                }
+            }
+        }
+        Spacer(Modifier.height(16.dp))
     }
 }
 
@@ -475,11 +587,18 @@ private fun IconSettings() {
         saved = v
         com.prism.music.ui.theme.IconStyle.save(context, v.first, v.second)
     }
+    var pack by remember { mutableStateOf(com.prism.music.ui.theme.IconStyle.savedPack(context)) }
     Group("Icons") {
+        Label("Pack")
+        Chips(com.prism.music.ui.theme.IconPack.entries, pack, { it.label }) {
+            pack = it
+            com.prism.music.ui.theme.IconStyle.savePack(context, it)
+        }
+        Note(pack.detail)
         Label("Weight")
         Chips(com.prism.music.ui.theme.IconWeight.entries, saved.first, { it.label }) { save(it to saved.second) }
         Toggle("Rounded", "Round line ends and softer corners. Off, icons have square ends and sharper corners", saved.second) { save(saved.first to it) }
-        if (saved != drawn) {
+        if (saved != drawn || pack != com.prism.music.ui.theme.IconStyle.pack) {
             Item("Restart Prism to see them", "Icons are drawn as Prism starts. Playback stops for a moment", onClick = {
                 val launch = context.packageManager.getLaunchIntentForPackage(context.packageName)
                 if (launch != null) {

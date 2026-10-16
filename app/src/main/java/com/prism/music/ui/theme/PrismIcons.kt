@@ -28,16 +28,34 @@ enum class IconWeight(val label: String, val scale: Float) { THIN("Thin", 0.64f)
  * The icons are built once, as Prism starts, so this is read then ([load], from plain shared preferences so it's there
  * before anything draws) and a change shows after Prism restarts.
  */
+/** Sets of icons to pick from (Settings → Appearance → Icons): Prism's own, or Cupertino, drawn after Apple's style. */
+enum class IconPack(val label: String, val detail: String) {
+    PRISM("Prism", "Prism's own icons"),
+    CUPERTINO("Cupertino", "In the style of Apple's apps: filled tabs, a chevron for Back, two-triangle skips, circled menus"),
+}
+
 object IconStyle {
     private const val PREFS = "icon_style"
     @Volatile var weight = IconWeight.REGULAR
         private set
     @Volatile var rounded = true
         private set
+    @Volatile var pack = IconPack.PRISM
+        private set
 
     fun load(context: android.content.Context) {
         val (w, r) = saved(context)
         weight = w; rounded = r
+        pack = savedPack(context)
+    }
+
+    fun savedPack(context: android.content.Context): IconPack {
+        val p = context.getSharedPreferences(PREFS, android.content.Context.MODE_PRIVATE)
+        return IconPack.entries.firstOrNull { it.name == p.getString("pack", null) } ?: IconPack.PRISM
+    }
+
+    fun savePack(context: android.content.Context, pack: IconPack) {
+        context.getSharedPreferences(PREFS, android.content.Context.MODE_PRIVATE).edit().putString("pack", pack.name).apply()
     }
 
     /** What's saved (it may differ from what's drawn until a restart). */
@@ -65,6 +83,9 @@ object PrismIcons {
         strokeLineCap = if (IconStyle.rounded) StrokeCap.Round else StrokeCap.Butt,
         strokeLineJoin = if (IconStyle.rounded) StrokeJoin.Round else StrokeJoin.Miter, pathBuilder = d,
     )
+
+    /** This icon, or its twin from the icon pack picked in Settings (only drawn when that pack is the one in use). */
+    private inline fun ImageVector.or(pack: () -> ImageVector): ImageVector = if (IconStyle.pack == IconPack.CUPERTINO) pack() else this
 
     private fun ImageVector.Builder.solid(evenOdd: Boolean = false, d: PathBuilder.() -> Unit) = path(
         fill = SolidColor(Color.Black), pathFillType = if (evenOdd) PathFillType.EvenOdd else PathFillType.NonZero, pathBuilder = d,
@@ -100,14 +121,14 @@ object PrismIcons {
         lineTo(3.5f, 11f); quadTo(3.5f, 9.8f, 4.4f, 9.1f)
         close()
     }
-    val Home = icon("Home") { line(d = house) }
-    val HomeFilled = icon("HomeFilled") { solid(d = house) }
+    val Home = icon("Home") { line(d = house) }.or { Cupertino.Home }
+    val HomeFilled = icon("HomeFilled") { solid(d = house) }.or { Cupertino.HomeFilled }
 
     private fun search(width: Float) = icon("Search$width") {
         line(width) { circle(10.5f, 10.5f, 6.5f) }
         line(width) { moveTo(15.4f, 15.4f); lineTo(20f, 20f) }
     }
-    val Search = search(STROKE)
+    val Search = search(STROKE).or { Cupertino.Search }
     val SearchBold = search(2.5f)
 
     /** A stack of cards, the library's records. */
@@ -115,12 +136,12 @@ object PrismIcons {
         line { roundRect(3.5f, 9f, 20.5f, 21f, 2.5f) }
         line { moveTo(5.5f, 5.8f); lineTo(18.5f, 5.8f) }
         line { moveTo(7.5f, 2.8f); lineTo(16.5f, 2.8f) }
-    }
+    }.or { Cupertino.Library }
     val LibraryFilled = icon("LibraryFilled") {
         solid { roundRect(3.5f, 9f, 20.5f, 21f, 2.5f) }
         line { moveTo(5.5f, 5.8f); lineTo(18.5f, 5.8f) }
         line { moveTo(7.5f, 2.8f); lineTo(16.5f, 2.8f) }
-    }
+    }.or { Cupertino.LibraryFilled }
 
     /** A four-point sparkle, its sides curving in. */
     private fun PathBuilder.sparkle(cx: Float, cy: Float, r: Float) {
@@ -155,12 +176,12 @@ object PrismIcons {
     val Settings = icon("Settings") {
         line(d = gear)
         line { circle(12f, 12f, 3f) }
-    }
+    }.or { Cupertino.Settings }
     val SettingsFilled = icon("SettingsFilled") {
         solid(evenOdd = true) { gear(); circle(12f, 12f, 3f) }
         // The filled gear keeps the soft corners the stroked one gets from its round joins.
         line(width = 1.2f, d = gear)
-    }
+    }.or { Cupertino.SettingsFilled }
 
     // ---------------------------------------------------------------- Home's top bar
 
@@ -186,7 +207,7 @@ object PrismIcons {
             moveTo(4.5f, 19f); quadTo(4.5f, 14.5f, 12f, 14.5f); quadTo(19.5f, 14.5f, 19.5f, 19f)
             quadTo(19.5f, 20.5f, 18f, 20.5f); lineTo(6f, 20.5f); quadTo(4.5f, 20.5f, 4.5f, 19f); close()
         }
-    }
+    }.or { Cupertino.Person }
 
     // ---------------------------------------------------------------- Player
 
@@ -196,11 +217,11 @@ object PrismIcons {
             lineTo(19.3f, 11f); quadTo(20.5f, 12f, 19.3f, 13f)
             lineTo(8.8f, 19.4f); quadTo(7.5f, 20.2f, 7.5f, 18.7f); close()
         }
-    }
+    }.or { Cupertino.Play }
 
     val Pause = icon("Pause") {
         solid { roundRect(5.8f, 4.5f, 10f, 19.5f, 1.6f); roundRect(14f, 4.5f, 18.2f, 19.5f, 1.6f) }
-    }
+    }.or { Cupertino.Pause }
 
     private fun PathBuilder.triangleRight(x: Float) {
         moveTo(x, 7.3f); quadTo(x, 6f, x + 1.1f, 6.6f)
@@ -217,8 +238,8 @@ object PrismIcons {
     val Forward = icon("Forward") { solid { triangleRight(2.3f); triangleRight(12f) } }
     val Backward = icon("Backward") { solid { triangleLeft(21.7f); triangleLeft(12f) } }
     /** Triangle and bar. */
-    val Next = icon("Next") { solid { triangleRight(4f); roundRect(16.2f, 5.5f, 18.8f, 18.5f, 1.3f) } }
-    val Previous = icon("Previous") { solid { triangleLeft(20f); roundRect(5.2f, 5.5f, 7.8f, 18.5f, 1.3f) } }
+    val Next = icon("Next") { solid { triangleRight(4f); roundRect(16.2f, 5.5f, 18.8f, 18.5f, 1.3f) } }.or { Cupertino.Next }
+    val Previous = icon("Previous") { solid { triangleLeft(20f); roundRect(5.2f, 5.5f, 7.8f, 18.5f, 1.3f) } }.or { Cupertino.Previous }
 
     private val heart: PathBuilder.() -> Unit = {
         moveTo(12f, 20.3f)
@@ -230,10 +251,10 @@ object PrismIcons {
         curveTo(21f, 15.5f, 12.4f, 20.3f, 12f, 20.3f)
         close()
     }
-    val Heart = icon("Heart") { line(d = heart) }
-    val HeartFilled = icon("HeartFilled") { solid(d = heart) }
+    val Heart = icon("Heart") { line(d = heart) }.or { Cupertino.Heart }
+    val HeartFilled = icon("HeartFilled") { solid(d = heart) }.or { Cupertino.HeartFilled }
 
-    val More = icon("More") { solid { circle(5.5f, 12f, 1.7f); circle(12f, 12f, 1.7f); circle(18.5f, 12f, 1.7f) } }
+    val More = icon("More") { solid { circle(5.5f, 12f, 1.7f); circle(12f, 12f, 1.7f); circle(18.5f, 12f, 1.7f) } }.or { Cupertino.More }
 
     private val bubble: PathBuilder.() -> Unit = {
         moveTo(7.5f, 4f); lineTo(16.5f, 4f); quadTo(21f, 4f, 21f, 8.5f)
@@ -245,16 +266,16 @@ object PrismIcons {
     val Lyrics = icon("Lyrics") {
         line(d = bubble)
         solid { circle(9.4f, 10.4f, 1.4f); circle(14.6f, 10.4f, 1.4f) }
-    }
+    }.or { Cupertino.Lyrics }
     val LyricsFilled = icon("LyricsFilled") {
         solid(evenOdd = true) { bubble(); circle(9.4f, 10.4f, 1.4f); circle(14.6f, 10.4f, 1.4f) }
-    }
+    }.or { Cupertino.LyricsFilled }
 
     /** Up next: three dotted rows. */
     val Queue = icon("Queue") {
         solid { circle(4.6f, 6f, 1.4f); circle(4.6f, 12f, 1.4f); circle(4.6f, 18f, 1.4f) }
         line { moveTo(9f, 6f); lineTo(20f, 6f); moveTo(9f, 12f); lineTo(20f, 12f); moveTo(9f, 18f); lineTo(20f, 18f) }
-    }
+    }.or { Cupertino.Queue }
 
     /** One note: the song itself. */
     val Song = icon("Song") {
@@ -276,7 +297,7 @@ object PrismIcons {
             moveTo(18f, 4.5f); lineTo(20.5f, 7f); lineTo(18f, 9.5f)
             moveTo(18f, 14.5f); lineTo(20.5f, 17f); lineTo(18f, 19.5f)
         }
-    }
+    }.or { Cupertino.Shuffle }
 
     val Repeat = icon("Repeat") {
         line {
@@ -285,7 +306,7 @@ object PrismIcons {
             moveTo(20f, 12.5f); lineTo(20f, 14.4f); quadTo(20f, 17f, 17.4f, 17f); lineTo(4.5f, 17f)
             moveTo(7f, 14.5f); lineTo(4.5f, 17f); lineTo(7f, 19.5f)
         }
-    }
+    }.or { Cupertino.Repeat }
 
     /** Endless: autoplay keeps going. */
     val Autoplay = icon("Autoplay") {
@@ -301,7 +322,7 @@ object PrismIcons {
 
     // ---------------------------------------------------------------- Arrows
 
-    val ArrowBack = icon("ArrowBack", mirror = true) { line { moveTo(19.5f, 12f); lineTo(4.8f, 12f); moveTo(10.5f, 6f); lineTo(4.5f, 12f); lineTo(10.5f, 18f) } }
+    val ArrowBack = icon("ArrowBack", mirror = true) { line { moveTo(19.5f, 12f); lineTo(4.8f, 12f); moveTo(10.5f, 6f); lineTo(4.5f, 12f); lineTo(10.5f, 18f) } }.or { Cupertino.ArrowBack }
     val ArrowForward = icon("ArrowForward", mirror = true) { line { moveTo(4.5f, 12f); lineTo(19.2f, 12f); moveTo(13.5f, 6f); lineTo(19.5f, 12f); lineTo(13.5f, 18f) } }
     val ChevronRight = icon("ChevronRight", mirror = true) { line(2f) { moveTo(9.5f, 5.5f); lineTo(16f, 12f); lineTo(9.5f, 18.5f) } }
     val ChevronDown = icon("ChevronDown") { line(2f) { moveTo(5.5f, 9f); lineTo(12f, 15.5f); lineTo(18.5f, 9f) } }
@@ -399,7 +420,7 @@ object PrismIcons {
             lineTo(17f, 20.5f); quadTo(19f, 20.5f, 19f, 18.5f); lineTo(19f, 11f); quadTo(19f, 9f, 17f, 9f); lineTo(15.5f, 9f)
             moveTo(12f, 14f); lineTo(12f, 3.8f); moveTo(8.5f, 7f); lineTo(12f, 3.5f); lineTo(15.5f, 7f)
         }
-    }
+    }.or { Cupertino.Share }
     val Link = icon("Link") {
         line {
             moveTo(10f, 14f); lineTo(14f, 10f)
@@ -465,8 +486,8 @@ object PrismIcons {
     private val tray: PathBuilder.() -> Unit = {
         moveTo(4.5f, 15.5f); lineTo(4.5f, 18f); quadTo(4.5f, 20f, 6.5f, 20f); lineTo(17.5f, 20f); quadTo(19.5f, 20f, 19.5f, 18f); lineTo(19.5f, 15.5f)
     }
-    val Download = icon("Download") { line { tray(); moveTo(12f, 4f); lineTo(12f, 15f); moveTo(7.5f, 10.5f); lineTo(12f, 15f); lineTo(16.5f, 10.5f) } }
-    val DownloadDone = icon("DownloadDone") { line { tray() }; line(2f) { moveTo(7f, 10.5f); lineTo(10.5f, 14f); lineTo(17.5f, 6f) } }
+    val Download = icon("Download") { line { tray(); moveTo(12f, 4f); lineTo(12f, 15f); moveTo(7.5f, 10.5f); lineTo(12f, 15f); lineTo(16.5f, 10.5f) } }.or { Cupertino.Download }
+    val DownloadDone = icon("DownloadDone") { line { tray() }; line(2f) { moveTo(7f, 10.5f); lineTo(10.5f, 14f); lineTo(17.5f, 6f) } }.or { Cupertino.DownloadDone }
     val DownloadCircle = icon("DownloadCircle") {
         line { circle(12f, 12f, 8.8f) }
         line { moveTo(12f, 7.5f); lineTo(12f, 15.5f); moveTo(8.5f, 12f); lineTo(12f, 15.5f); lineTo(15.5f, 12f) }
@@ -486,7 +507,7 @@ object PrismIcons {
     val PlayCircle = icon("PlayCircle") {
         line { circle(12f, 12f, 8.8f) }
         solid { moveTo(10f, 8.6f); lineTo(15.6f, 12f); lineTo(10f, 15.4f); close() }
-    }
+    }.or { Cupertino.PlayCircle }
     val Album = icon("Album") { line { circle(12f, 12f, 8.8f) }; line { circle(12f, 12f, 2.6f) } }
     val PlaylistPlay = icon("PlaylistPlay", mirror = true) {
         line { moveTo(4f, 6f); lineTo(17f, 6f); moveTo(4f, 11f); lineTo(17f, 11f); moveTo(4f, 16f); lineTo(10f, 16f) }
@@ -523,7 +544,7 @@ object PrismIcons {
             moveTo(8.5f, 8.5f); arcTo(5f, 5f, 0f, false, false, 8.5f, 15.5f); moveTo(15.5f, 8.5f); arcTo(5f, 5f, 0f, false, true, 15.5f, 15.5f)
             moveTo(5.6f, 5.6f); arcTo(9f, 9f, 0f, false, false, 5.6f, 18.4f); moveTo(18.4f, 5.6f); arcTo(9f, 9f, 0f, false, true, 18.4f, 18.4f)
         }
-    }
+    }.or { Cupertino.Radio }
     /** Sound all round: spatial audio. */
     val Spatial = icon("Spatial") { solid { circle(12f, 12f, 2.2f) }; line { circle(12f, 12f, 5.6f) }; line(1.5f) { circle(12f, 12f, 9.2f) } }
     val Equalizer = icon("Equalizer") {
@@ -667,5 +688,208 @@ object PrismIcons {
     val PictureInPicture = icon("PictureInPicture") {
         line { roundRect(3f, 5f, 21f, 19f, 2.8f) }
         solid { roundRect(12f, 12f, 18f, 16.2f, 1.2f) }
+    }
+
+    /**
+     * The Cupertino pack: the most-seen icons redrawn in the manner of Apple's apps (Prism's own drawings, not Apple's
+     * symbols): solid tab glyphs with cut-outs, a chevron for Back, skips as two touching triangles, arrows with solid
+     * heads, menus and downloads in circles. Icons it doesn't redraw stay Prism's. Built only when it's picked.
+     */
+    private object Cupertino {
+        private val house: PathBuilder.() -> Unit = {
+            moveTo(10.8f, 3.9f); quadTo(12f, 2.9f, 13.2f, 3.9f)
+            lineTo(20.2f, 9.9f); quadTo(20.9f, 10.5f, 20.9f, 11.5f)
+            lineTo(20.9f, 18.9f); quadTo(20.9f, 20.9f, 18.9f, 20.9f)
+            lineTo(5.1f, 20.9f); quadTo(3.1f, 20.9f, 3.1f, 18.9f)
+            lineTo(3.1f, 11.5f); quadTo(3.1f, 10.5f, 3.8f, 9.9f); close()
+        }
+        val Home = icon("CupertinoHome") {
+            line(d = house)
+            line { moveTo(9.8f, 20.9f); lineTo(9.8f, 15.6f); quadTo(9.8f, 14.4f, 11f, 14.4f); lineTo(13f, 14.4f); quadTo(14.2f, 14.4f, 14.2f, 15.6f); lineTo(14.2f, 20.9f) }
+        }
+        val HomeFilled = icon("CupertinoHomeFilled") {
+            solid(evenOdd = true) { house(); roundRect(9.8f, 14.4f, 14.2f, 20.9f, 1.2f) }
+        }
+
+        val Search = icon("CupertinoSearch") {
+            line(2f) { circle(10.4f, 10.4f, 6.6f) }
+            line(2.8f) { moveTo(15.4f, 15.4f); lineTo(20.2f, 20.2f) }
+        }
+
+        /** A stack with a note on its front card. */
+        private fun PathBuilder.note() {
+            circle(10.3f, 16.9f, 1.9f)
+            // Stem and flag touch the head without overlapping it, so the filled card can cut the whole note out.
+            moveTo(12.2f, 10.4f); lineTo(13.5f, 10.4f); lineTo(13.5f, 16.9f); lineTo(12.2f, 16.9f); close()
+            moveTo(13.5f, 10.4f); quadTo(15.8f, 10.6f, 16.4f, 12.6f); quadTo(15f, 11.9f, 13.5f, 12.2f); close()
+        }
+        val Library = icon("CupertinoLibrary") {
+            line { roundRect(3.6f, 8f, 20.4f, 21f, 3.2f) }
+            line { moveTo(6.2f, 4.6f); lineTo(17.8f, 4.6f) }
+            solid { note() }
+        }
+        val LibraryFilled = icon("CupertinoLibraryFilled") {
+            solid(evenOdd = true) { roundRect(3.6f, 8f, 20.4f, 21f, 3.2f); note() }
+            line { moveTo(6.2f, 4.6f); lineTo(17.8f, 4.6f) }
+        }
+
+        /** A rounder gear with twelve short teeth. */
+        private val gear: PathBuilder.() -> Unit = {
+            val teeth = 12
+            fun pt(deg: Double, r: Double) = (12 + r * cos(deg * PI / 180)).toFloat() to (12 + r * sin(deg * PI / 180)).toFloat()
+            for (k in 0 until teeth) {
+                val a = k * 360.0 / teeth
+                listOf(pt(a - 10, 7.9), pt(a - 6, 9.5), pt(a + 6, 9.5), pt(a + 10, 7.9))
+                    .forEachIndexed { i, (x, y) -> if (k == 0 && i == 0) moveTo(x, y) else lineTo(x, y) }
+            }
+            close()
+        }
+        val Settings = icon("CupertinoSettings") {
+            line(d = gear)
+            line { circle(12f, 12f, 3.2f) }
+        }
+        val SettingsFilled = icon("CupertinoSettingsFilled") {
+            solid(evenOdd = true) { gear(); circle(12f, 12f, 3.2f) }
+            line(width = 1.2f, d = gear)
+        }
+
+        /** A head and shoulders in a circle. */
+        val Person = icon("CupertinoPerson") {
+            line { circle(12f, 12f, 9.2f) }
+            solid { circle(12f, 9.6f, 3.3f) }
+            solid {
+                moveTo(6.1f, 18.2f); quadTo(7.6f, 14.6f, 12f, 14.6f); quadTo(16.4f, 14.6f, 17.9f, 18.2f)
+                quadTo(15.4f, 20.6f, 12f, 20.6f); quadTo(8.6f, 20.6f, 6.1f, 18.2f); close()
+            }
+        }
+
+        val Play = icon("CupertinoPlay") {
+            solid {
+                moveTo(6.8f, 5f); quadTo(6.8f, 3.4f, 8.2f, 4.2f)
+                lineTo(19.6f, 10.8f); quadTo(21f, 12f, 19.6f, 13.2f)
+                lineTo(8.2f, 19.8f); quadTo(6.8f, 20.6f, 6.8f, 19f); close()
+            }
+        }
+        val Pause = icon("CupertinoPause") {
+            solid { roundRect(6f, 4.2f, 9.9f, 19.8f, 1.9f); roundRect(14.1f, 4.2f, 18f, 19.8f, 1.9f) }
+        }
+
+        /** One triangle of a skip, [width] wide, pointing right from [x] (left from it when [left]). */
+        private fun PathBuilder.wedge(x: Float, left: Boolean = false, width: Float = 9.6f) {
+            val d = if (left) -1f else 1f
+            moveTo(x, 7f); quadTo(x, 5.8f, x + d * 1f, 6.4f)
+            lineTo(x + d * (width - 1.1f), 11.1f); quadTo(x + d * width, 12f, x + d * (width - 1.1f), 12.9f)
+            lineTo(x + d * 1f, 17.6f); quadTo(x, 18.2f, x, 17f); close()
+        }
+        /** Two triangles nose to tail, as Apple's players skip. */
+        val Next = icon("CupertinoNext") { solid { wedge(2.4f); wedge(11.6f) } }
+        val Previous = icon("CupertinoPrevious") { solid { wedge(21.6f, left = true); wedge(12.4f, left = true) } }
+
+        private val heart: PathBuilder.() -> Unit = {
+            moveTo(12f, 20.6f)
+            curveTo(11.6f, 20.6f, 2.5f, 15.4f, 2.5f, 8.9f)
+            curveTo(2.5f, 5.9f, 4.8f, 3.6f, 7.7f, 3.6f)
+            curveTo(9.6f, 3.6f, 11.1f, 4.6f, 12f, 6.2f)
+            curveTo(12.9f, 4.6f, 14.4f, 3.6f, 16.3f, 3.6f)
+            curveTo(19.2f, 3.6f, 21.5f, 5.9f, 21.5f, 8.9f)
+            curveTo(21.5f, 15.4f, 12.4f, 20.6f, 12f, 20.6f)
+            close()
+        }
+        val Heart = icon("CupertinoHeart") { line(d = heart) }
+        val HeartFilled = icon("CupertinoHeartFilled") { solid(d = heart) }
+
+        /** Three dots in a circle. */
+        val More = icon("CupertinoMore") {
+            line { circle(12f, 12f, 9.2f) }
+            solid { circle(7.6f, 12f, 1.35f); circle(12f, 12f, 1.35f); circle(16.4f, 12f, 1.35f) }
+        }
+
+        private val bubble: PathBuilder.() -> Unit = {
+            moveTo(12f, 3.6f)
+            curveTo(17.2f, 3.6f, 21f, 6.9f, 21f, 11f)
+            curveTo(21f, 15.1f, 17.2f, 18.4f, 12f, 18.4f)
+            curveTo(11f, 18.4f, 10.1f, 18.3f, 9.2f, 18f)
+            lineTo(5.6f, 20.2f); quadTo(4.8f, 20.6f, 5f, 19.7f)
+            lineTo(5.6f, 16.6f)
+            curveTo(3.9f, 15.2f, 3f, 13.2f, 3f, 11f)
+            curveTo(3f, 6.9f, 6.8f, 3.6f, 12f, 3.6f); close()
+        }
+        /** Two quotation marks: a dot with a tail. */
+        private fun PathBuilder.quotes() {
+            for (x in listOf(9.1f, 14.3f)) {
+                circle(x, 10f, 1.5f)
+                moveTo(x + 1.5f, 10f); quadTo(x + 1.6f, 12.6f, x - 0.6f, 13.6f); lineTo(x - 0.9f, 13f); quadTo(x + 0.5f, 12.2f, x, 11.4f); close()
+            }
+        }
+        val Lyrics = icon("CupertinoLyrics") { line(d = bubble); solid { quotes() } }
+        val LyricsFilled = icon("CupertinoLyricsFilled") { solid(evenOdd = true) { bubble(); quotes() } }
+
+        /** Rows, the first led by a small play triangle: what plays next. */
+        val Queue = icon("CupertinoQueue") {
+            solid { moveTo(3.4f, 4f); lineTo(7.6f, 6.4f); lineTo(3.4f, 8.8f); close() }
+            line { moveTo(10.5f, 6.4f); lineTo(20.5f, 6.4f); moveTo(3.8f, 12.2f); lineTo(20.5f, 12.2f); moveTo(3.8f, 18f); lineTo(20.5f, 18f) }
+        }
+
+        /** A solid arrowhead with its tip at ([x], [y]), pointing right (left when [left]). */
+        private fun PathBuilder.head(x: Float, y: Float, left: Boolean = false) {
+            val d = if (left) 1f else -1f
+            moveTo(x, y); lineTo(x + d * 3.6f, y - 2.6f); lineTo(x + d * 3.6f, y + 2.6f); close()
+        }
+        val Shuffle = icon("CupertinoShuffle") {
+            line {
+                moveTo(3f, 7f); lineTo(5.8f, 7f); curveTo(10.4f, 7f, 10.9f, 17f, 15.4f, 17f); lineTo(18f, 17f)
+                moveTo(3f, 17f); lineTo(5.8f, 17f); curveTo(7.7f, 17f, 8.9f, 15.4f, 9.8f, 13.5f)
+                moveTo(13.6f, 10.4f); curveTo(14.4f, 8.6f, 15.6f, 7f, 17.6f, 7f); lineTo(18f, 7f)
+            }
+            solid { head(21.2f, 7f); head(21.2f, 17f) }
+        }
+        val Repeat = icon("CupertinoRepeat") {
+            line {
+                moveTo(4f, 12f); lineTo(4f, 10f); quadTo(4f, 7f, 7f, 7f); lineTo(17.4f, 7f)
+                moveTo(20f, 12f); lineTo(20f, 14f); quadTo(20f, 17f, 17f, 17f); lineTo(6.6f, 17f)
+            }
+            solid { head(20.8f, 7f); head(3.2f, 17f, left = true) }
+        }
+
+        /** Back is a chevron, without a shaft. */
+        val ArrowBack = icon("CupertinoBack", mirror = true) { line(2.2f) { moveTo(15f, 4.6f); lineTo(7.6f, 12f); lineTo(15f, 19.4f) } }
+
+        /** An open box with an arrow rising out of it. */
+        val Share = icon("CupertinoShare") {
+            line {
+                moveTo(8.6f, 9.4f); lineTo(7f, 9.4f); quadTo(5f, 9.4f, 5f, 11.4f); lineTo(5f, 19f); quadTo(5f, 21f, 7f, 21f)
+                lineTo(17f, 21f); quadTo(19f, 21f, 19f, 19f); lineTo(19f, 11.4f); quadTo(19f, 9.4f, 17f, 9.4f); lineTo(15.4f, 9.4f)
+                moveTo(12f, 3.4f); lineTo(12f, 14.4f); moveTo(8.7f, 6.7f); lineTo(12f, 3.4f); lineTo(15.3f, 6.7f)
+            }
+        }
+
+        val Download = icon("CupertinoDownload") {
+            line { circle(12f, 12f, 9.2f) }
+            line { moveTo(12f, 7f); lineTo(12f, 16.4f); moveTo(8.4f, 12.8f); lineTo(12f, 16.4f); lineTo(15.6f, 12.8f) }
+        }
+        /** Downloaded: a solid circle with a check cut out of it. */
+        val DownloadDone = icon("CupertinoDownloadDone") {
+            solid(evenOdd = true) {
+                circle(12f, 12f, 9.6f)
+                moveTo(7.2f, 12.3f); lineTo(8.6f, 10.9f); lineTo(10.8f, 13.1f); lineTo(15.4f, 8.5f)
+                lineTo(16.8f, 9.9f); lineTo(10.8f, 15.9f); close()
+            }
+        }
+
+        /** A dot sending out waves to both sides. */
+        val Radio = icon("CupertinoRadio") {
+            solid { circle(12f, 12f, 2f) }
+            line {
+                moveTo(8.46f, 8.46f); arcTo(5f, 5f, 0f, false, false, 8.46f, 15.54f)
+                moveTo(15.54f, 8.46f); arcTo(5f, 5f, 0f, false, true, 15.54f, 15.54f)
+                moveTo(5.64f, 5.64f); arcTo(9f, 9f, 0f, false, false, 5.64f, 18.36f)
+                moveTo(18.36f, 5.64f); arcTo(9f, 9f, 0f, false, true, 18.36f, 18.36f)
+            }
+        }
+
+        val PlayCircle = icon("CupertinoPlayCircle") {
+            line { circle(12f, 12f, 9.2f) }
+            solid { moveTo(10f, 8.4f); quadTo(10f, 7.6f, 10.7f, 8f); lineTo(15.8f, 11.3f); quadTo(16.4f, 12f, 15.8f, 12.7f); lineTo(10.7f, 16f); quadTo(10f, 16.4f, 10f, 15.6f); close() }
+        }
     }
 }

@@ -174,10 +174,10 @@ class DownloadRepository(private val context: Context, private val c: AppContain
             // ...and their covers, so they show offline (#54).
             saveCovers()
             // Downloads that failed (a stream link that ran out, a dropped connection) try again by themselves (#55).
-            retryFailed()
+            retryFailedWhenQuiet()
             _waiting.value = manager.notMetRequirements != 0
         }
-        c.network.onReconnect { retryFailed(); saveCovers() }
+        c.network.onReconnect { retryFailedWhenQuiet(); saveCovers() }
         watchStalls(scope)
         manager.addListener(object : DownloadManager.Listener {
             override fun onDownloadChanged(manager: DownloadManager, download: Download, finalException: Exception?) {
@@ -251,6 +251,25 @@ class DownloadRepository(private val context: Context, private val c: AppContain
      * Starts failed downloads again (#55), with fresh stream links. Before, a download that failed stayed failed for
      * good, still showing how far it had got, and an app restart didn't help.
      */
+    /**
+     * [retryFailed] at launch and on reconnecting: once Prism is on screen (Android 12+ won't let the download service
+     * start from the background: 1.6.8 crashed when Prism was started in the background, by the playback service or a
+     * worker, with failed downloads waiting) and once the music has loaded, so the retries don't hold it up.
+     */
+    private fun retryFailedWhenQuiet() {
+        c.scope.launch {
+            while (!appOnScreen()) kotlinx.coroutines.delay(5_000)
+            c.quietNetwork()
+            if (appOnScreen()) retryFailed() else retryFailedWhenQuiet()
+        }
+    }
+
+    private fun appOnScreen(): Boolean {
+        val info = android.app.ActivityManager.RunningAppProcessInfo()
+        android.app.ActivityManager.getMyMemoryState(info)
+        return info.importance <= android.app.ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND
+    }
+
     fun retryFailed() {
         if (!c.network.isOnline()) return
         val failed = runCatching {

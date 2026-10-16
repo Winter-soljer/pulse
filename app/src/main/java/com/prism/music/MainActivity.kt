@@ -300,7 +300,7 @@ private fun PrismRoot(deepLink: MutableStateFlow<Uri?>) {
         val haze = rememberHazeState()
         val backStack by navController.currentBackStackEntryAsState()
         val route = backStack?.destination?.route
-        val showChrome = route != Routes.LOGIN && route != Routes.WELCOME
+        val showChrome = route != Routes.LOGIN && route != Routes.LOGIN_ADD && route != Routes.DISCORD_LOGIN && route != Routes.WELCOME
         val tabs = settings.navTabs.map { it.tab() }
 
         val together by c.together.state.collectAsState()
@@ -416,6 +416,16 @@ private fun PrismRoot(deepLink: MutableStateFlow<Uri?>) {
                             LoginScreen(
                                 onDone = goRoot,
                                 onBack = { navController.popBackStack() },
+                            )
+                        }
+                        composable(Routes.DISCORD_LOGIN) {
+                            com.prism.music.ui.screens.DiscordLoginScreen(onBack = { navController.popBackStack() })
+                        }
+                        composable(Routes.LOGIN_ADD) {
+                            LoginScreen(
+                                onDone = goRoot,
+                                onBack = { navController.popBackStack() },
+                                addAccount = true,
                             )
                         }
                         composable("album/{id}", listOf(navArgument("id") { type = NavType.StringType })) {

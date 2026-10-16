@@ -489,7 +489,21 @@ class LyricsRepository(
     private fun lengthFits(song: Song, sec: Double?): Boolean =
         song.durationSec <= 0 || sec == null || sec <= 0 || abs(sec - song.durationSec) <= MAX_LENGTH_GAP_SEC
 
-    private fun build(source: LyricsSource, text: String?): Lyrics? {
+    private fun build(source: LyricsSource, text: String?): Lyrics? = parse(source, text)?.let(::untimedIfBogus)
+
+    /**
+     * Some sources label plain lyrics as synced and stamp every line 0:00 (LyricsPlus for "4 Steps Back, 2 Steps Forward"
+     * by Motion Sick): the player then sits on the last line from the start. Lines that don't move through the song are
+     * shown as plain text instead, so a source with real timings wins.
+     */
+    private fun untimedIfBogus(l: Lyrics): Lyrics {
+        if (!l.synced) return l
+        val real = l.lines.filter { !it.isGap && it.timeMs >= 0 }
+        if (real.size < 3 || real.map { it.timeMs }.distinct().size > 1) return l
+        return Lyrics(l.source, false, l.lines.filter { !it.isGap }.map { LyricLine(-1, it.text) })
+    }
+
+    private fun parse(source: LyricsSource, text: String?): Lyrics? {
         if (text.isNullOrBlank()) return null
         val trimmed = text.trimStart()
         return when {

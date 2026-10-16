@@ -70,6 +70,8 @@ class Backup(private val c: AppContainer) {
         }
         File(data, "shared_prefs").listFiles()?.forEach { f ->
             // Saved animated covers live with the downloads; without them, the list of them would point at nothing.
+            // The Discord sign-in is a key to the whole Discord account: it never goes in a backup file.
+            if (f.name == "discord.xml") return@forEach
             if (withDownloads || f.name != "canvas_saved.xml") keep += f
         }
         File(data, "datastore").walkTopDown().filter { it.isFile }.forEach { keep += it }

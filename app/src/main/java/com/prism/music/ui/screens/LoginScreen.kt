@@ -71,12 +71,34 @@ import kotlin.math.sin
 @OptIn(ExperimentalMaterial3Api::class)
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
-fun LoginScreen(onDone: () -> Unit, onBack: () -> Unit) {
+fun LoginScreen(onDone: () -> Unit, onBack: () -> Unit, addAccount: Boolean = false) {
     val c = LocalContainer.current
     val scope = rememberCoroutineScope()
     var progress by remember { mutableStateOf(0f) }
     var finishing by remember { mutableStateOf(false) }
     var pasteDialog by remember { mutableStateOf(false) }
+    // Adding an account goes through Google's "add another account", which keeps the ones already signed in on this
+    // web session. Signed in with a pasted cookie, there's no such session here: it's then an ordinary sign-in.
+    val adding = remember {
+        addAccount && CookieManager.getInstance().getCookie("https://music.youtube.com")?.contains("SAPISID=") == true
+    }
+    /** While adding: Google's pages have been shown, so landing back on YouTube Music means the account is in. */
+    var sawGoogle by remember { mutableStateOf(false) }
+
+    /** The session now holds one more Google account: kept, and the account list opens from Settings. */
+    fun completeAdd(cookie: String) {
+        if (finishing) return
+        finishing = true
+        scope.launch {
+            CookieManager.getInstance().flush()
+            val s = c.settings.current
+            c.settings.saveIdentity(s.authUser, s.dataSyncId, cookie)
+            android.widget.Toast.makeText(
+                c.app, "Account added. Pick its channel under Switch account", android.widget.Toast.LENGTH_LONG,
+            ).show()
+            onBack()
+        }
+    }
 
     fun complete(cookie: String) {
         if (finishing) return
@@ -102,7 +124,8 @@ fun LoginScreen(onDone: () -> Unit, onBack: () -> Unit) {
 
     /** Signed in once the YouTube session cookies exist, whatever page the WebView is on. */
     fun checkCookies() {
-        if (finishing) return
+        // Adding: the cookies are there from the start; [completeAdd] waits for the way back to YouTube Music.
+        if (finishing || adding) return
         val cm = CookieManager.getInstance()
         val cookie = cm.getCookie("https://music.youtube.com") ?: cm.getCookie("https://www.youtube.com") ?: return
         if (cookie.contains("SAPISID=") || cookie.contains("__Secure-3PAPISID=")) complete(cookie)
@@ -166,6 +189,13 @@ fun LoginScreen(onDone: () -> Unit, onBack: () -> Unit) {
                             checkCookies()
                             if (finishing) return
                             val host = android.net.Uri.parse(url).host.orEmpty()
+                            if (adding) {
+                                if (host == "accounts.google.com") sawGoogle = true
+                                else if (sawGoogle && host == "music.youtube.com") {
+                                    CookieManager.getInstance().getCookie("https://music.youtube.com")?.let(::completeAdd)
+                                }
+                                return
+                            }
                             val cm = CookieManager.getInstance()
                             // Signed in, but left on a YouTube or Google page that isn't Music
                             // (youtube.com's home, Google's account page): hop to Music so its session cookies get set.
@@ -176,7 +206,10 @@ fun LoginScreen(onDone: () -> Unit, onBack: () -> Unit) {
                             if (strayYouTube || strayGoogle) view.loadUrl("https://music.youtube.com/")
                         }
                     }
-                    loadUrl("https://accounts.google.com/ServiceLogin?continue=https%3A%2F%2Fmusic.youtube.com%2F&service=youtube&passive=true")
+                    loadUrl(
+                        if (adding) "https://accounts.google.com/AddSession?continue=https%3A%2F%2Fmusic.youtube.com%2F&service=youtube"
+                        else "https://accounts.google.com/ServiceLogin?continue=https%3A%2F%2Fmusic.youtube.com%2F&service=youtube&passive=true",
+                    )
                 }
             },
         )
@@ -201,6 +234,80 @@ fun LoginScreen(onDone: () -> Unit, onBack: () -> Unit) {
                 TextButton(enabled = text.contains("SAPISID"), onClick = { pasteDialog = false; complete(text.trim()) }) { Text("Sign in") }
             },
             dismissButton = { TextButton(onClick = { pasteDialog = false }) { Text("Cancel") } },
+        )
+    }
+}
+
+/**
+ * Signs in to Discord on Discord's own page, for "Listening to Prism" (Settings → Discord). Prism never sees the
+ * password: once Discord's web app is open, it reads the session Discord keeps for that page, then leaves.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@SuppressLint("SetJavaScriptEnabled")
+@Composable
+fun DiscordLoginScreen(onBack: () -> Unit) {
+    val c = LocalContainer.current
+    var web by remember { mutableStateOf<WebView?>(null) }
+    var done by remember { mutableStateOf(false) }
+    var progress by remember { mutableStateOf(0f) }
+
+    // Discord's web app keeps its session token in the page's storage, hidden from the page's own window once it's
+    // open; a fresh frame on the same page can still read it.
+    val readToken = """
+        (function(){try{var f=document.createElement('iframe');f.style.display='none';document.body.appendChild(f);
+        var t=f.contentWindow.localStorage.getItem('token');f.remove();return t||'';}catch(e){return '';}})()
+    """.trimIndent()
+
+    LaunchedEffect(Unit) {
+        while (isActive && !done) {
+            delay(1_000)
+            val view = web ?: continue
+            val path = android.net.Uri.parse(view.url ?: continue).path.orEmpty()
+            // Signed in: Discord has moved on from its login (and two-factor) pages into the app.
+            if (!path.startsWith("/channels") && !path.startsWith("/app")) continue
+            view.evaluateJavascript(readToken) { result ->
+                val token = runCatching {
+                    com.prism.music.data.innertube.InnerTube.json.parseToJsonElement(result)
+                        .let { (it as kotlinx.serialization.json.JsonPrimitive).content }.trim('"')
+                }.getOrNull()
+                if (!done && !token.isNullOrBlank()) {
+                    done = true
+                    c.discord.signIn(token)
+                    c.settings.setDiscordPresence(true)
+                    // The page's own copy goes; Prism keeps the session in its own storage (never in backups).
+                    android.webkit.WebStorage.getInstance().deleteOrigin("https://discord.com")
+                    onBack()
+                }
+            }
+        }
+    }
+
+    Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+        TopAppBar(
+            title = { Text("Sign in to Discord") },
+            navigationIcon = { IconButton(onClick = onBack) { Icon(PrismIcons.ArrowBack, "Back") } },
+        )
+        if (progress < 1f) LinearProgressIndicator(progress = { progress }, Modifier.fillMaxWidth())
+        AndroidView(
+            modifier = Modifier.fillMaxSize(),
+            onRelease = { it.stopLoading(); it.destroy() },
+            factory = { ctx ->
+                WebView(ctx).apply {
+                    settings.javaScriptEnabled = true
+                    settings.domStorageEnabled = true
+                    settings.userAgentString = settings.userAgentString.replace("; wv", "")
+                    webChromeClient = object : android.webkit.WebChromeClient() {
+                        override fun onProgressChanged(view: WebView, newProgress: Int) { progress = newProgress / 100f }
+                    }
+                    webViewClient = object : WebViewClient() {
+                        // Discord's links to its apps (discord://) would dead-end here.
+                        override fun shouldOverrideUrlLoading(view: WebView, request: android.webkit.WebResourceRequest): Boolean =
+                            request.url.scheme != "http" && request.url.scheme != "https"
+                    }
+                    loadUrl("https://discord.com/login")
+                    web = this
+                }
+            },
         )
     }
 }

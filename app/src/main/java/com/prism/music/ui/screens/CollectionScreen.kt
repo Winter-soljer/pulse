@@ -321,7 +321,8 @@ private fun CollectionContent(type: CollectionType, live: LiveCollection, initia
         if (id != null && now != null) {
             saved = !now
             scope.launch {
-                if (!c.library.setSaved(id, !now)) {
+                val done = if (type == CollectionType.ALBUM && now) c.library.removeAlbum(page.id, id) else c.library.setSaved(id, !now)
+                if (!done) {
                     saved = now
                     Toast.makeText(context, "Couldn't update your library", Toast.LENGTH_SHORT).show()
                 }

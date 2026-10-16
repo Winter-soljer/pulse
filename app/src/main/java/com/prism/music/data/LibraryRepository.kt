@@ -9,6 +9,7 @@ import com.prism.music.data.model.Song
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -57,18 +58,35 @@ class LibraryRepository(private val c: AppContainer) {
         c.scope.launch(Dispatchers.IO) { c.offline.clear() }
     }
 
+    /**
+     * Switches Prism to another channel on the session: another Google account, or a brand account of the same one.
+     * The last channel's likes (from YouTube; files' likes are Prism's own), library lists, offline copies and Liked
+     * songs playlist go, and the new one's are synced. Replay and the phone's own history stay: they're this phone's.
+     */
+    suspend fun switchAccount(a: com.prism.music.data.model.YtAccount, cookie: String? = null) = withContext(Dispatchers.IO) {
+        c.settings.saveIdentity(a.authUser, a.dataSyncId, cookie)
+        c.settings.flow.first { it.authUser == a.authUser && it.dataSyncId == a.dataSyncId && (cookie == null || it.cookie == cookie) }
+        c.settings.saveAccountInfo(a.name, listOfNotNull(a.byline, a.email).distinct().joinToString(" · "), a.avatar)
+        // Before the likes go: the playlist mirror would take them out of the old channel's playlist.
+        c.likedPlaylist.forget()
+        likedIds.value.filterNot { it.startsWith(Song.LOCAL_PREFIX) }.forEach { songs.setLiked(it, false, 0) }
+        forgetAccount()
+        syncInBackground()
+    }
+
     /** Keeps the library's lists for offline, with their covers. */
     private fun persist() {
         if (playlists.value.isEmpty() && albums.value.isEmpty() && artists.value.isEmpty()) return
         c.offline.saveLibrary(playlists.value, albums.value, artists.value)
         c.scope.launch(Dispatchers.IO) {
-            (playlists.value + albums.value).forEach { c.artwork.save(c.covers.art(it)) }
+            // List-sized (they're shown as tiles and rows), one at a time when the music isn't loading.
+            (playlists.value + albums.value).forEach { c.artwork.save(c.covers.art(it), size = 544) }
         }
     }
 
     /**
-     * On Wi-Fi, after a sync: the library's playlists and albums are saved with their songs (one a day at most, a
-     * few at a time), so they open offline even if they haven't been opened lately.
+     * On Wi-Fi, after a sync: the library's playlists and albums are saved with their songs (each once a day at most,
+     * twelve per sync), so they open offline even if they haven't been opened lately.
      */
     private suspend fun keepForOffline() {
         if (!c.network.isOnline() || c.network.metered.value) return
@@ -76,14 +94,17 @@ class LibraryRepository(private val c: AppContainer) {
         val now = System.currentTimeMillis()
         val todo = (playlists.value.filterIsInstance<com.prism.music.data.model.PlaylistItem>().filter { !it.isMix && it.id != "LM" } + albums.value)
             .filter { now - c.offline.savedAt(it.id) > day }
-            .take(40)
+            .take(12)
         for (item in todo) {
+            // Never while the music is loading: a whole playlist is many requests, and since 1.6.8 they ran alongside
+            // the first songs of every launch (users heard buffering).
+            c.quietNetwork()
             if (c.network.metered.value) break
             val page = runCatching {
                 if (item is AlbumItem) c.ytm.album(item.id) else c.ytm.playlistAll(item.id, 1000)
             }.getOrNull() ?: continue
             c.offline.savePage(item.id, page)
-            kotlinx.coroutines.delay(1_500)
+            kotlinx.coroutines.delay(4_000)
         }
     }
 
@@ -304,6 +325,22 @@ class LibraryRepository(private val c: AppContainer) {
     /** Saves an album or playlist to the account's library, or takes it out. False if YouTube Music refused. */
     suspend fun setSaved(playlistId: String, saved: Boolean): Boolean = withContext(Dispatchers.IO) {
         runCatching { c.ytm.setLibrarySaved(playlistId, saved) }.isSuccess.also { ok -> if (ok) refreshCollections() }
+    }
+
+    /**
+     * Takes an album out of the library. YouTube can open a library album as another edition of it (a remaster, a
+     * deluxe), whose playlist id isn't the one the library holds, so un-saving the page left the library's copy there.
+     * The library's own entry for [albumId] (with its own playlist id) goes too. False if it's still in the library.
+     */
+    suspend fun removeAlbum(albumId: String, pagePlaylistId: String?): Boolean = withContext(Dispatchers.IO) {
+        val entry = albums.value.filterIsInstance<AlbumItem>().firstOrNull { it.id == albumId }
+        val ids = listOfNotNull(pagePlaylistId, entry?.playlistId).distinct()
+        if (ids.isEmpty()) return@withContext false
+        val ok = ids.map { runCatching { c.ytm.setLibrarySaved(it, false) }.isSuccess }.any { it }
+        if (!ok) return@withContext false
+        val fresh = runCatching { c.ytm.libraryAlbums() }.getOrNull()
+        if (fresh != null) { albums.value = fresh; persist() }
+        fresh?.none { it.id == albumId } ?: true
     }
 
     /** Fetches the library's playlists and albums again (after one is saved, created or changed). */

@@ -22,7 +22,12 @@ import java.util.concurrent.ConcurrentHashMap
  * backdrop, in lists, on the notification and on widgets. Any image request for a saved cover is answered from its
  * file, whatever size it asks for ([OfflineArtInterceptor]), so they also cost no data once saved.
  */
-class ArtworkStore(context: Context, private val http: OkHttpClient) {
+class ArtworkStore(
+    context: Context,
+    private val http: OkHttpClient,
+    /** Waits until saving won't compete with the music for the network. */
+    private val quiet: suspend () -> Unit = {},
+) {
     private val dir = File(context.filesDir, "artwork").apply { mkdirs() }
     private val saved: MutableSet<String> = ConcurrentHashMap.newKeySet<String>().apply {
         dir.list()?.filter { it.endsWith(".jpg") }?.forEach { add(it.removeSuffix(".jpg")) }
@@ -39,6 +44,8 @@ class ArtworkStore(context: Context, private val http: OkHttpClient) {
         val key = keyOf(url) ?: return false
         if (key in saved) return true
         return gate.withPermit {
+            quiet()
+            if (key in saved) return@withPermit true
             withContext(Dispatchers.IO) {
                 runCatching {
                     http.newCall(Request.Builder().url(hiRes(url, size) ?: url!!).build()).execute().use { res ->

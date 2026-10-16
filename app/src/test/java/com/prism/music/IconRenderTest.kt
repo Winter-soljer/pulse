@@ -93,6 +93,38 @@ class IconRenderTest {
         File(dir, "icon-styles.png").outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
     }
 
+    /**
+     * The Cupertino pack beside Prism's own icon it replaces (Prism left, Cupertino right, light on dark then dark on
+     * light), onto icon-previews/cupertino.png.
+     */
+    @Test
+    fun cupertinoPack() {
+        val holder = PrismIcons::class.java.declaredClasses.first { it.simpleName == "Cupertino" }
+        val instance = holder.getDeclaredField("INSTANCE").apply { isAccessible = true }.get(null)
+        val pack = holder.declaredFields.filter { it.type == ImageVector::class.java }
+            .map { f -> f.isAccessible = true; f.name to (f.get(instance) as ImageVector) }
+        val base = PrismIcons::class.java.declaredFields.filter { it.type == ImageVector::class.java }
+            .associate { f -> f.isAccessible = true; f.name to (f.get(PrismIcons) as ImageVector) }
+        val cell = 110
+        val cols = 4 // pairs per row
+        val rows = (pack.size + cols - 1) / cols
+        val bmp = Bitmap.createBitmap(cols * cell * 2, rows * cell * 2, Bitmap.Config.ARGB_8888)
+        CanvasDrawScope().draw(Density(1f), LayoutDirection.Ltr, Canvas(bmp.asImageBitmap()), Size(bmp.width.toFloat(), bmp.height.toFloat())) {
+            drawRect(Color(0xFF121212), Offset.Zero, Size(bmp.width.toFloat(), rows * cell.toFloat()))
+            drawRect(Color(0xFFF4F4F4), Offset(0f, rows * cell.toFloat()), Size(bmp.width.toFloat(), rows * cell.toFloat()))
+            for (half in 0..1) pack.forEachIndexed { i, (name, v) ->
+                val ink = if (half == 0) Color.White else Color(0xFF111111)
+                val x = (i % cols) * cell * 2 + 8f
+                val y = (i / cols) * cell + 8f + half * rows * cell
+                base[name]?.let { translate(x, y) { scale(3.8f, Offset.Zero) { drawIcon(it, ink.copy(alpha = 0.45f)) } } }
+                translate(x + cell, y) { scale(3.8f, Offset.Zero) { drawIcon(v, ink) } }
+            }
+        }
+        val dir = File("build/icon-previews").apply { mkdirs() }
+        File(dir, "cupertino.png").outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        println("cupertino: " + pack.joinToString { it.first })
+    }
+
     @Test
     fun contactSheet() {
         val cell = 120

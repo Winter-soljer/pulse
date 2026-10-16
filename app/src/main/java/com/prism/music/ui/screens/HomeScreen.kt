@@ -98,6 +98,11 @@ import java.util.Calendar
 /** Last fetched YouTube home shelves, shared with the Catalogue editor. */
 val homeShelfCache = MutableStateFlow<List<Shelf>>(emptyList())
 
+/** The last Quick picks YouTube served, the radio standing in when it served none, and Speed dial's own picks (per session). */
+private val lastQuickPicks = MutableStateFlow<Shelf?>(null)
+private val standInPicks = MutableStateFlow<List<Song>>(emptyList())
+private val speedDialMine = MutableStateFlow<List<BrowseItem>>(emptyList())
+
 fun shelfKey(title: String) = HomeSections.YT_PREFIX + title.trim().lowercase()
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -122,15 +127,42 @@ fun HomeScreen(bottomPadding: androidx.compose.ui.unit.Dp) {
     val liked by c.library.liked.collectAsState()
 
     val shelves = (home.state as? Load.Ok)?.value ?: emptyList()
-    val layout = remember(settings.homeLayout, shelves, settings.autoAddSections) {
+    // A reload whose feed has no Quick picks keeps the last ones, rather than the section vanishing or swapping.
+    val picks = remember(shelves) { shelves.quickPicks()?.also { lastQuickPicks.value = it } ?: lastQuickPicks.value }
+    val dialOn = settings.homeLayout.any { it.key == HomeSections.SPEED_DIAL && it.visible }
+    // The Speed dial section shows YouTube's own, so it isn't added again as a shelf of its own.
+    val dial = shelves.speedDial()?.takeIf { dialOn }
+    val layout = remember(settings.homeLayout, shelves, settings.autoAddSections, picks) {
         val known = settings.homeLayout.map { it.key }.toSet()
-        val picks = shelves.quickPicks()
-        // The Speed dial section shows YouTube's own, so it isn't added again as a shelf of its own.
-        val dial = shelves.speedDial()?.takeIf { settings.homeLayout.any { it.key == HomeSections.SPEED_DIAL && it.visible } }
         val extra = if (settings.autoAddSections) shelves
             .filter { shelfKey(it.title) !in known && it !== picks && it !== dial }
             .map { HomeSectionConfig(shelfKey(it.title), it.title) } else emptyList()
         settings.homeLayout.filter { it.visible } + extra
+    }
+
+    // Worked out here rather than inside their rows: a LazyColumn row forgets its state when scrolled off, so these were
+    // fetched again on the way back and the sections popped out and in, pushing everything under them.
+    var refreshes by remember { androidx.compose.runtime.mutableIntStateOf(0) }
+    val seed = recent.firstOrNull()?.takeIf { picks == null && home.state is Load.Ok }
+    val standIn by produceState(standInPicks.value, seed?.id, refreshes) {
+        // One stand-in per session (a pull to refresh asks again): each new play swapped the whole section before.
+        if (seed == null || standInPicks.value.isNotEmpty()) return@produceState
+        val heard = recent.take(50).map { it.id }.toSet()
+        value = runCatching { c.ytm.next(seed.id, playlistId = "RDAMVM${seed.id}").songs }.getOrDefault(emptyList())
+            .filter { it.id !in heard && !it.isVideo }.distinctBy { it.id }.take(20)
+            .also { standInPicks.value = it }
+    }
+    val lastPlayed = recent.firstOrNull()?.id
+    val dialMine by produceState(speedDialMine.value, lastPlayed, dialOn) {
+        if (!dialOn) return@produceState
+        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { runCatching { speedDialFromHistory(c) }.getOrDefault(emptyList()) }
+            .also { speedDialMine.value = it }
+    }
+    val dialItems = remember(dial, dialMine) { (dial?.items.orEmpty().filter { it !is MoodItem } + dialMine).distinctBy { it.id }.take(SPEED_DIAL_SIZE) }
+    // Songs already on a Speed dial tile aren't repeated in Quick picks.
+    val pickSongs = remember(picks, standIn, dialItems) {
+        val onDial = if (dialItems.size >= 3) dialItems.map { it.id }.toSet() else emptySet()
+        (picks?.items?.filterIsInstance<SongItem>()?.map { it.song } ?: standIn).filter { it.id !in onDial }
     }
 
     val onSong: (SongItem) -> Unit = { c.player.playSingle(it.song) }
@@ -143,7 +175,7 @@ fun HomeScreen(bottomPadding: androidx.compose.ui.unit.Dp) {
     Box(Modifier.fillMaxSize()) {
     PullToRefreshBox(
         isRefreshing = home.refreshing,
-        onRefresh = { home.reload(true); moods.reload(true) },
+        onRefresh = { standInPicks.value = emptyList(); refreshes++; home.reload(true); moods.reload(true) },
         modifier = Modifier.fillMaxSize(),
     ) {
         LazyColumn(Modifier.fillMaxSize(), state = list, contentPadding = PaddingValues(bottom = bottomPadding + 16.dp)) {
@@ -157,20 +189,11 @@ fun HomeScreen(bottomPadding: androidx.compose.ui.unit.Dp) {
                     when (cfg.key) {
                         HomeSections.GREETING -> GreetingSection(recent)
                         HomeSections.QUICK_PICKS -> {
-                            val qp = shelves.quickPicks()
                             // When YouTube serves no picks, songs like your latest play stand in (from its radio, less
                             // what you've just heard). Your recent plays themselves never do: that's Recently played.
-                            val seed = recent.firstOrNull()?.takeIf { qp == null && home.state is Load.Ok }
-                            val stand by produceState(emptyList<Song>(), seed?.id) {
-                                if (seed == null) { value = emptyList(); return@produceState }
-                                val heard = recent.take(50).map { it.id }.toSet()
-                                value = runCatching { c.ytm.next(seed.id, playlistId = "RDAMVM${seed.id}").songs }.getOrDefault(emptyList())
-                                    .filter { it.id !in heard && !it.isVideo }.distinctBy { it.id }.take(20)
-                            }
-                            val items = qp?.items?.filterIsInstance<SongItem>()?.map { it.song } ?: stand
                             // A pick starts a radio from it (#38), as on YouTube Music, unless Customize Home says to play them in order.
-                            if (items.isNotEmpty()) SongSection(
-                                cfg, "Quick picks", qp?.strapline, items, snap = true,
+                            if (pickSongs.isNotEmpty()) SongSection(
+                                cfg, "Quick picks", picks?.strapline, pickSongs, snap = true,
                                 play = if (settings.quickPicksRadio) { list, i -> c.player.playRadio(list[i]) } else null,
                             )
                         }
@@ -181,7 +204,7 @@ fun HomeScreen(bottomPadding: androidx.compose.ui.unit.Dp) {
                             val songs = remember(dls) { c.downloads.completedSongs() }
                             if (songs.isNotEmpty()) SongSection(cfg, "Downloads", null, songs.take(20)) { nav.go(Routes.DOWNLOADS) }
                         }
-                        HomeSections.SPEED_DIAL -> SpeedDialSection(cfg, shelves, recent.firstOrNull()?.id, openItem)
+                        HomeSections.SPEED_DIAL -> SpeedDialSection(cfg, dialItems, openItem)
                         HomeSections.REPLAY -> ReplayTeaser()
                         HomeSections.GENRES -> TopGenresSection()
                         HomeSections.MOODS -> {
@@ -198,7 +221,8 @@ fun HomeScreen(bottomPadding: androidx.compose.ui.unit.Dp) {
                             }
                         }
                         else -> {
-                            val shelf = shelves.firstOrNull { shelfKey(it.title) == cfg.key }
+                            // Not a shelf that already shows as Quick picks or Speed dial (it was on Home twice).
+                            val shelf = shelves.firstOrNull { shelfKey(it.title) == cfg.key }?.takeIf { it !== picks && it !== dial }
                             if (shelf != null) ShelfSection(cfg, shelf, openItem)
                         }
                     }
@@ -483,13 +507,7 @@ private fun ShelfSection(cfg: HomeSectionConfig, shelf: Shelf, open: (BrowseItem
  * (and stand in on their own when YouTube has none, signed out or offline).
  */
 @Composable
-private fun SpeedDialSection(cfg: HomeSectionConfig, shelves: List<Shelf>, lastPlayed: String?, open: (BrowseItem) -> Unit) {
-    val c = LocalContainer.current
-    val yt = remember(shelves) { shelves.speedDial()?.items.orEmpty().filter { it !is MoodItem } }
-    val mine by produceState(emptyList<BrowseItem>(), lastPlayed) {
-        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { runCatching { speedDialFromHistory(c) }.getOrDefault(emptyList()) }
-    }
-    val items = remember(yt, mine) { (yt + mine).distinctBy { it.id }.take(SPEED_DIAL_SIZE) }
+private fun SpeedDialSection(cfg: HomeSectionConfig, items: List<BrowseItem>, open: (BrowseItem) -> Unit) {
     if (items.size < 3) return
     SectionHeader(cfg.title, strapline = "Your go-to music")
     when (cfg.style) {
