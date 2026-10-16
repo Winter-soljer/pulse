@@ -584,14 +584,30 @@ fun NowPlayingScreen(onCollapse: () -> Unit) {
                         ) {
                             val scrolls = collapse.value < 0.01f && !covered
                             PlayerMarquee(
-                                song.title, MaterialTheme.typography.titleLarge.copy(fontSize = 20.sp), Color.White, scrolls,
+                                // The title leads, the artist under it a size smaller (#41): they were both 20 sp.
+                                song.title, MaterialTheme.typography.titleLarge.copy(fontSize = 22.sp, lineHeight = 28.sp), Color.White, scrolls,
                                 Modifier.clickable(enabled = song.album?.id != null) { song.album?.id?.let { onCollapse(); nav.go(Routes.album(it)) } },
                             )
-                            PlayerMarquee(
-                                song.artistText, MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.W500, fontSize = 20.sp), Color.White.copy(alpha = 0.55f), scrolls,
-                                Modifier.clickable(enabled = song.artists.firstOrNull()?.id != null) { song.artists.firstOrNull()?.id?.let { onCollapse(); nav.go(Routes.artist(it)) } },
-                                delayMs = 5500,
-                            )
+                            // With more than one artist, the name asks which one to open (#42).
+                            val linked = song.artists.filter { it.id != null }.distinctBy { it.id }
+                            var pickArtist by remember(song.id) { mutableStateOf(false) }
+                            Box {
+                                PlayerMarquee(
+                                    song.artistText, MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.W500, fontSize = 17.sp, lineHeight = 22.sp), Color.White.copy(alpha = 0.6f), scrolls,
+                                    Modifier.clickable(enabled = linked.isNotEmpty()) {
+                                        if (linked.size > 1) pickArtist = true else linked.firstOrNull()?.id?.let { onCollapse(); nav.go(Routes.artist(it)) }
+                                    },
+                                    delayMs = 5500,
+                                )
+                                androidx.compose.material3.DropdownMenu(pickArtist, { pickArtist = false }) {
+                                    linked.forEach { a ->
+                                        androidx.compose.material3.DropdownMenuItem(
+                                            { Text(a.name) }, { pickArtist = false; onCollapse(); nav.go(Routes.artist(a.id!!)) },
+                                            leadingIcon = { androidx.compose.material3.Icon(PrismIcons.Person, null) },
+                                        )
+                                    }
+                                }
+                            }
                         }
                         Spacer(Modifier.width(10.dp))
                         val isLiked = song.id in liked

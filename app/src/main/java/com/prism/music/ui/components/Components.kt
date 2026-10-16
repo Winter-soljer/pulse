@@ -492,8 +492,7 @@ fun SongActionsSheet(song: Song, extra: List<SheetItem> = emptyList(), onDismiss
         else if (song.isEpisode) ActionItem(PrismIcons.DoneAll, "Mark as played") { c.episodes.markPlayed(song.id) } else null,
         if (c.settings.current.isLoggedIn && !local) ActionItem(PrismIcons.PlaylistAdd, "Add to playlist", keepOpen = true) { pickPlaylist = true } else null,
         song.album?.id?.let { id -> ActionItem(PrismIcons.Album, "Go to album", value = song.album?.title?.takeIf { it.length <= 22 }) { nav.go(Routes.album(id)) } },
-        song.artists.firstOrNull { it.id != null }?.let { a -> ActionItem(PrismIcons.Person, "Go to ${a.name}") { nav.go(Routes.artist(a.id!!)) } },
-    )
+    ) + goToArtists(song) { id -> nav.go(Routes.artist(id)) }
     val more = extra.map { it.toAction() } + listOfNotNull(
         if (song.isEpisode || local) null else videoDownloadAction(song, videos[song.id]),
         if (song.isEpisode) null else if (song.id in disliked) ActionItem(PrismIcons.ThumbDownFilled, "Not for me", active = true, keepOpen = true) { c.library.setDisliked(song, false) }
@@ -667,6 +666,10 @@ fun <T> SortButton(options: List<T>, selected: T, label: (T) -> String, modifier
         }
     }
 }
+
+/** "Go to …" for each of a song's artists that has a page (#42): a song with features lists every one, not only the first. */
+fun goToArtists(song: Song, go: (String) -> Unit): List<ActionItem> =
+    song.artists.filter { it.id != null }.distinctBy { it.id }.take(5).map { a -> ActionItem(PrismIcons.Person, "Go to ${a.name}") { go(a.id!!) } }
 
 /** A list's count on the left and its [SortButton] on the right. */
 @Composable
