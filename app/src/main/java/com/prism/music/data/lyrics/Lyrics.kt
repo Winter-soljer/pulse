@@ -838,6 +838,9 @@ class LyricsRepository(
         else -> 1
     }
 
+    /** The best lyrics for [song]: saved on the phone, or (with [fetch]) the best any source has, karaoke first. */
+    suspend fun best(song: Song, fetch: Boolean): Lyrics? = saved(song) ?: if (fetch) download(song) else null
+
     /** The best lyrics saved on the phone for [song], as a [level]. */
     suspend fun savedLevel(song: Song): Int = level(saved(song))
 

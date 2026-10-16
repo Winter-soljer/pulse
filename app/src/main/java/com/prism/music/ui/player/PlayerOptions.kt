@@ -107,6 +107,10 @@ fun PlayerOptionsSheet(
             PrismIcons.Translate, "Translate lyrics", value = if (translating) "On" else "Off", active = translating, keepOpen = true,
         ) { c.settings.setLyricsTranslate(!translating) },
         ActionItem(PrismIcons.Refresh, "Download lyrics again") { onRedownloadLyrics(); toast("Downloading lyrics again") },
+    ) + listOfNotNull(
+        // Into your own FLAC / MP3 file, for other players (#16).
+        if (song.isLocal || c.downloads.downloads.value[song.id]?.lossless == true)
+            ActionItem(PrismIcons.Download, "Save lyrics into the file") { c.lyricsToFiles.request(listOf(song)) } else null,
     )
     val cover = com.prism.music.data.canvas.CanvasRepository.albumKey(song)
     val immersive = c.settings.flow.collectAsState().value.immersivePlayer

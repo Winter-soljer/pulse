@@ -228,8 +228,6 @@ data class AppSettings(
     val lyricsOrder: List<LyricsSource> = defaultLyricsOrder,
     /** Lyric sources the listener turned off: never asked (#51). */
     val lyricsOff: Set<LyricsSource> = emptySet(),
-    /** Saves synced lyrics into downloaded and local music files' tags, and as .lrc files beside local ones (#16). */
-    val lyricsToFiles: Boolean = false,
     val preferSynced: Boolean = true,
     /** Pass over sources whose lyrics star out swear words when another has them in full. */
     val skipCensored: Boolean = true,
@@ -428,7 +426,6 @@ class SettingsRepository(private val context: Context, scope: CoroutineScope) {
         val lyricsOnPlayer = booleanPreferencesKey("lyrics_on_player")
         val lyricsOrder = stringPreferencesKey("lyrics_order")
         val lyricsOff = stringPreferencesKey("lyrics_off")
-        val lyricsToFiles = booleanPreferencesKey("lyrics_to_files")
         val preferSynced = booleanPreferencesKey("prefer_synced")
         val skipCensored = booleanPreferencesKey("skip_censored")
         val lyricsTranslate = booleanPreferencesKey("lyrics_translate")
@@ -577,7 +574,6 @@ class SettingsRepository(private val context: Context, scope: CoroutineScope) {
                 merged
             } ?: d.lyricsOrder,
             lyricsOff = p[K.lyricsOff]?.split(",")?.mapNotNull { n -> LyricsSource.entries.firstOrNull { it.name == n } }?.toSet() ?: d.lyricsOff,
-            lyricsToFiles = p[K.lyricsToFiles] ?: d.lyricsToFiles,
             preferSynced = p[K.preferSynced] ?: d.preferSynced,
             skipCensored = p[K.skipCensored] ?: d.skipCensored,
             lyricsTranslate = p[K.lyricsTranslate] ?: d.lyricsTranslate,
@@ -745,7 +741,6 @@ class SettingsRepository(private val context: Context, scope: CoroutineScope) {
     fun setLyricsOrder(v: List<LyricsSource>) = edit { it[K.lyricsOrder] = v.joinToString(",") { s -> s.name } }
     fun setPreferSynced(v: Boolean) = edit { it[K.preferSynced] = v }
     fun setLyricsOff(v: Set<LyricsSource>) = edit { it[K.lyricsOff] = v.joinToString(",") { s -> s.name } }
-    fun setLyricsToFiles(v: Boolean) = edit { it[K.lyricsToFiles] = v }
     fun setSkipCensored(v: Boolean) = edit { it[K.skipCensored] = v }
     fun setLyricsTranslate(v: Boolean) = edit { it[K.lyricsTranslate] = v }
     fun setLyricsTranslateTo(v: String) = edit { it[K.lyricsTranslateTo] = v }

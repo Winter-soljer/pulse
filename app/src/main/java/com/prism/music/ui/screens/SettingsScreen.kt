@@ -985,6 +985,16 @@ private fun LyricsSettings() {
                 }
             }
         }
+        Group("Your music files") {
+            val c = LocalContainer.current
+            Item(
+                "Save lyrics into your music files",
+                "Synced lyrics go into your FLAC and MP3 files' tags (as LRC), so other players show them too: Local files, and " +
+                    "the lossless files played for songs. Lyrics already saved are used, others are looked up. Android asks once " +
+                    "before the files are changed. You can also do it for one song from its ⋯ menu",
+                onClick = { c.lyricsToFiles.request(null) },
+            )
+        }
         Group("Android Auto") {
             Toggle("Lyrics in the car", "On the car's player, in place of the song title and cover. The Lyrics button there turns them on and off too", s.carLyrics) { prefs.setCarLyrics(it) }
             if (s.carLyrics) {

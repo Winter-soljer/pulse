@@ -296,6 +296,7 @@ private fun PrismRoot(deepLink: MutableStateFlow<Uri?>) {
         }
         // Playback that should be watched (a music video picked from a list) brings the player up.
         LaunchedEffect(Unit) { c.player.showPlayer.collect { playerOpen = true } }
+        com.prism.music.ui.components.LyricsToFilesHost()
         val haze = rememberHazeState()
         val backStack by navController.currentBackStackEntryAsState()
         val route = backStack?.destination?.route

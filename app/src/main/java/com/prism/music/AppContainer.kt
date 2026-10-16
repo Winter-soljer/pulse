@@ -208,6 +208,8 @@ class AppContainer(val app: Application) {
     }
     val downloads by lazy { DownloadRepository(app, this, scope) }
     val covers by lazy { com.prism.music.data.PlaylistCovers(app) }
+    /** Saves lyrics into your own music files' tags (#16). */
+    val lyricsToFiles by lazy { com.prism.music.data.local.LyricsToFiles(app, this) }
     val updates by lazy { com.prism.music.data.UpdateChecker(app, http, scope) }
     val backup by lazy { com.prism.music.data.Backup(this) }
     val player = PlayerConnection(app, this)

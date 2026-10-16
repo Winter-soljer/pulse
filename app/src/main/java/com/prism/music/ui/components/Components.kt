@@ -494,6 +494,8 @@ fun SongActionsSheet(song: Song, extra: List<SheetItem> = emptyList(), onDismiss
         song.album?.id?.let { id -> ActionItem(PrismIcons.Album, "Go to album", value = song.album?.title?.takeIf { it.length <= 22 }) { nav.go(Routes.album(id)) } },
     ) + goToArtists(song) { id -> nav.go(Routes.artist(id)) }
     val more = extra.map { it.toAction() } + listOfNotNull(
+        // Your own FLAC / MP3 files (a Local file, or the lossless file played for this song) can keep its lyrics (#16).
+        if (local || dl?.lossless == true) ActionItem(PrismIcons.Lyrics, "Save lyrics into the file") { c.lyricsToFiles.request(listOf(song)) } else null,
         if (song.isEpisode || local) null else videoDownloadAction(song, videos[song.id]),
         if (song.isEpisode) null else if (song.id in disliked) ActionItem(PrismIcons.ThumbDownFilled, "Not for me", active = true, keepOpen = true) { c.library.setDisliked(song, false) }
         else ActionItem(PrismIcons.ThumbDown, "Not for me") { c.library.setDisliked(song, true); toast("Got it — Prism will steer clear of this song") },
