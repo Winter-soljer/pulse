@@ -145,6 +145,9 @@ data class Shelf(
 fun List<Shelf>.quickPicks(): Shelf? = firstOrNull { it.title.equals("Quick picks", true) }
     ?: firstOrNull { s -> s.rows && s.title.lowercase() !in RECENT_SHELVES && s.items.count { it is SongItem } * 2 > s.items.size }
 
+/** YouTube's own Speed dial (or, where it isn't offered, "Listen again"): what Home's Speed dial section starts from. */
+fun List<Shelf>.speedDial(): Shelf? = firstOrNull { it.title.equals("Speed dial", true) } ?: firstOrNull { it.title.equals("Listen again", true) }
+
 /** Home shelves that are your own history, by their English titles. */
 private val RECENT_SHELVES = setOf("listen again", "speed dial", "recently played", "keep listening")
 
@@ -251,7 +254,24 @@ data class NextResult(
     val counterparts: Map<String, String>,
     /** The other half of each pairing (the song for a music video, and the reverse), by the panel item's id. */
     val counterpartSongs: Map<String, Song> = emptyMap(),
-)
+) {
+    /**
+     * The queue as songs (#39): a music video that YouTube pairs with its song is swapped for the song (the video stays
+     * its counterpart, for the player's Video button), and videos with no song version (fan uploads, live clips) are
+     * left out. If that would leave almost nothing, the queue stays as it was.
+     */
+    fun songsOnly(keepFirst: Boolean = false): NextResult {
+        val pairs = counterparts.toMutableMap()
+        val swapped = songs.mapIndexedNotNull { i, s ->
+            if (!s.isVideo || s.isLive || s.isEpisode || (keepFirst && i == 0)) return@mapIndexedNotNull s
+            val song = counterpartSongs[s.id]?.takeIf { !it.isVideo } ?: return@mapIndexedNotNull null
+            pairs[song.id] = s.id
+            song
+        }.distinctBy { it.id }
+        if (swapped.size < minOf(3, songs.size)) return this
+        return copy(songs = swapped, counterparts = pairs)
+    }
+}
 
 data class AccountInfo(val name: String, val email: String?, val avatar: String?)
 

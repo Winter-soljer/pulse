@@ -196,8 +196,7 @@ private fun ArtistContent(page: ArtistPage, bottomPadding: Dp) {
     fun playList(playlistId: String?, title: String, videoId: String? = null, params: String? = null) {
         if (playlistId == null) return
         scope.launch {
-            runCatching { c.ytm.next(videoId, playlistId, params) }.onSuccess { r ->
-                c.queue.counterparts.putAll(r.counterparts)
+            runCatching { c.radio(videoId, playlistId, params) }.onSuccess { r ->
                 c.player.playQueue(r.songs, 0, QueueSource(QueueKind.RADIO, title))
             }
         }

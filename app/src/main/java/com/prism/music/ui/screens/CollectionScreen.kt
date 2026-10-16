@@ -304,8 +304,7 @@ private fun CollectionContent(type: CollectionType, live: LiveCollection, initia
     val startRadio: () -> Unit = {
         radioId?.let { rid ->
             scope.launch {
-                runCatching { c.ytm.next(null, rid) }.onSuccess { r ->
-                    c.queue.counterparts.putAll(r.counterparts)
+                runCatching { c.radio(null, rid) }.onSuccess { r ->
                     c.player.playQueue(r.songs, 0, QueueSource(QueueKind.RADIO, "${page.title} Radio"))
                 }.onFailure { Toast.makeText(context, "Couldn't start the radio", Toast.LENGTH_SHORT).show() }
             }

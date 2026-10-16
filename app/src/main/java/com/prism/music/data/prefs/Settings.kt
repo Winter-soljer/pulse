@@ -144,6 +144,8 @@ object HomeSections {
     const val DOWNLOADS = "local:downloads"
     const val REPLAY = "local:replay"
     const val GENRES = "local:genres"
+    /** YouTube Music's Speed dial (#53): your go-to songs, albums, playlists and artists as big tiles, nine to a page. */
+    const val SPEED_DIAL = "local:speed_dial"
     const val MOODS = "yt:moods"
     const val YT_PREFIX = "yt:shelf:"
     /** GREETING's key predates the rename: the section is only the shortcut tiles. */
@@ -158,6 +160,7 @@ object HomeSections {
         HomeSectionConfig(MOODS, "Moods & genres", style = SectionStyle.GRID),
         HomeSectionConfig(LIKED, "Liked songs"),
         HomeSectionConfig(DOWNLOADS, "Downloads", visible = false),
+        HomeSectionConfig(SPEED_DIAL, "Speed dial", style = SectionStyle.GRID),
     )
 
     /** What a fresh install's Home shows (and what Reset goes back to). */
@@ -222,6 +225,10 @@ data class AppSettings(
     // Lyrics
     val lyricsOnPlayer: Boolean = true,
     val lyricsOrder: List<LyricsSource> = defaultLyricsOrder,
+    /** Lyric sources the listener turned off: never asked (#51). */
+    val lyricsOff: Set<LyricsSource> = emptySet(),
+    /** Saves synced lyrics into downloaded and local music files' tags, and as .lrc files beside local ones (#16). */
+    val lyricsToFiles: Boolean = false,
     val preferSynced: Boolean = true,
     /** Pass over sources whose lyrics star out swear words when another has them in full. */
     val skipCensored: Boolean = true,
@@ -255,6 +262,15 @@ data class AppSettings(
     val audioQuality: AudioQuality = AudioQuality.HIGH,
     val cellularQuality: AudioQuality = AudioQuality.HIGH,
     val autoplay: Boolean = true,
+    /** Autoplay and radios play songs: music videos swap for their song, and videos with no song version are left out (#39). */
+    val radioSongsOnly: Boolean = true,
+    /** Swiping Prism away from Recents stops the music (#45); off, it keeps playing in the background. */
+    val stopOnSwipeAway: Boolean = false,
+    /**
+     * Data saver, on mobile data (#40): smaller pictures, no artist header photos or animated covers, and covers
+     * and lyrics only fetched for what's on screen. Wi-Fi is unaffected.
+     */
+    val dataSaver: Boolean = false,
     /** With a music video showing, the next song plays as its video too (until switched back to the song). */
     val videoContinues: Boolean = true,
     /** Lossless playback: always the best stream, hi-res output, and the lossless add-on when it's on. */
@@ -313,6 +329,8 @@ data class AppSettings(
     /** Playlists shown as tiles after the shortcuts. */
     val homePlaylists: List<PinnedPlaylist> = emptyList(),
     val homeCustomizeButton: Boolean = true,
+    /** Tapping a song in Quick picks starts a radio from it (as on YouTube Music), instead of playing Quick picks in order (#38). */
+    val quickPicksRadio: Boolean = true,
     /** The round Customize button at the top of Home (beside Podcasts); separate from the one at the bottom. */
     val homeCustomizeTopButton: Boolean = true,
     /** The Podcasts button at the top of Home. Off, Podcasts opens from a Library tile instead (#28). */
@@ -405,6 +423,8 @@ class SettingsRepository(private val context: Context, scope: CoroutineScope) {
         val backdropMotion = booleanPreferencesKey("backdrop_motion")
         val lyricsOnPlayer = booleanPreferencesKey("lyrics_on_player")
         val lyricsOrder = stringPreferencesKey("lyrics_order")
+        val lyricsOff = stringPreferencesKey("lyrics_off")
+        val lyricsToFiles = booleanPreferencesKey("lyrics_to_files")
         val preferSynced = booleanPreferencesKey("prefer_synced")
         val skipCensored = booleanPreferencesKey("skip_censored")
         val lyricsTranslate = booleanPreferencesKey("lyrics_translate")
@@ -423,6 +443,9 @@ class SettingsRepository(private val context: Context, scope: CoroutineScope) {
         val audioQuality = stringPreferencesKey("audio_quality")
         val cellularQuality = stringPreferencesKey("cellular_quality")
         val autoplay = booleanPreferencesKey("autoplay")
+        val radioSongsOnly = booleanPreferencesKey("radio_songs_only")
+        val stopOnSwipeAway = booleanPreferencesKey("stop_on_swipe_away")
+        val dataSaver = booleanPreferencesKey("data_saver")
         val videoContinues = booleanPreferencesKey("video_continues")
         val lossless = booleanPreferencesKey("lossless")
         val losslessLocal = booleanPreferencesKey("lossless_local")
@@ -452,6 +475,7 @@ class SettingsRepository(private val context: Context, scope: CoroutineScope) {
         val homeRecentTiles = intPreferencesKey("home_recent_tiles")
         val homePlaylists = stringPreferencesKey("home_playlists")
         val homeCustomizeButton = booleanPreferencesKey("home_customize_button")
+        val quickPicksRadio = booleanPreferencesKey("quick_picks_radio")
         val homeCustomizeTopButton = booleanPreferencesKey("home_customize_top_button")
         val homePodcastsButton = booleanPreferencesKey("home_podcasts_button")
         val fontChoice = stringPreferencesKey("font_choice")
@@ -548,6 +572,8 @@ class SettingsRepository(private val context: Context, scope: CoroutineScope) {
                 LyricsSource.entries.forEachIndexed { i, src -> if (src !in merged) merged.add(i.coerceAtMost(merged.size), src) }
                 merged
             } ?: d.lyricsOrder,
+            lyricsOff = p[K.lyricsOff]?.split(",")?.mapNotNull { n -> LyricsSource.entries.firstOrNull { it.name == n } }?.toSet() ?: d.lyricsOff,
+            lyricsToFiles = p[K.lyricsToFiles] ?: d.lyricsToFiles,
             preferSynced = p[K.preferSynced] ?: d.preferSynced,
             skipCensored = p[K.skipCensored] ?: d.skipCensored,
             lyricsTranslate = p[K.lyricsTranslate] ?: d.lyricsTranslate,
@@ -566,6 +592,9 @@ class SettingsRepository(private val context: Context, scope: CoroutineScope) {
             audioQuality = p.enum(K.audioQuality, d.audioQuality),
             cellularQuality = p.enum(K.cellularQuality, d.cellularQuality),
             autoplay = p[K.autoplay] ?: d.autoplay,
+            radioSongsOnly = p[K.radioSongsOnly] ?: d.radioSongsOnly,
+            stopOnSwipeAway = p[K.stopOnSwipeAway] ?: d.stopOnSwipeAway,
+            dataSaver = p[K.dataSaver] ?: d.dataSaver,
             videoContinues = p[K.videoContinues] ?: d.videoContinues,
             lossless = p[K.lossless] ?: d.lossless,
             losslessLocal = p[K.losslessLocal] ?: d.losslessLocal,
@@ -605,6 +634,7 @@ class SettingsRepository(private val context: Context, scope: CoroutineScope) {
             homeRecentTiles = p[K.homeRecentTiles] ?: d.homeRecentTiles,
             homePlaylists = p[K.homePlaylists]?.let { runCatching { json.decodeFromString<List<PinnedPlaylist>>(it) }.getOrNull() } ?: d.homePlaylists,
             homeCustomizeButton = p[K.homeCustomizeButton] ?: d.homeCustomizeButton,
+            quickPicksRadio = p[K.quickPicksRadio] ?: d.quickPicksRadio,
             homeCustomizeTopButton = p[K.homeCustomizeTopButton] ?: d.homeCustomizeTopButton,
             homePodcastsButton = p[K.homePodcastsButton] ?: d.homePodcastsButton,
             fontChoice = p.enum(K.fontChoice, d.fontChoice),
@@ -710,6 +740,8 @@ class SettingsRepository(private val context: Context, scope: CoroutineScope) {
     fun setLyricsOnPlayer(v: Boolean) = edit { it[K.lyricsOnPlayer] = v }
     fun setLyricsOrder(v: List<LyricsSource>) = edit { it[K.lyricsOrder] = v.joinToString(",") { s -> s.name } }
     fun setPreferSynced(v: Boolean) = edit { it[K.preferSynced] = v }
+    fun setLyricsOff(v: Set<LyricsSource>) = edit { it[K.lyricsOff] = v.joinToString(",") { s -> s.name } }
+    fun setLyricsToFiles(v: Boolean) = edit { it[K.lyricsToFiles] = v }
     fun setSkipCensored(v: Boolean) = edit { it[K.skipCensored] = v }
     fun setLyricsTranslate(v: Boolean) = edit { it[K.lyricsTranslate] = v }
     fun setLyricsTranslateTo(v: String) = edit { it[K.lyricsTranslateTo] = v }
@@ -727,6 +759,9 @@ class SettingsRepository(private val context: Context, scope: CoroutineScope) {
     fun setAudioQuality(v: AudioQuality) = edit { it[K.audioQuality] = v.name }
     fun setCellularQuality(v: AudioQuality) = edit { it[K.cellularQuality] = v.name }
     fun setAutoplay(v: Boolean) = edit { it[K.autoplay] = v }
+    fun setRadioSongsOnly(v: Boolean) = edit { it[K.radioSongsOnly] = v }
+    fun setStopOnSwipeAway(v: Boolean) = edit { it[K.stopOnSwipeAway] = v }
+    fun setDataSaver(v: Boolean) = edit { it[K.dataSaver] = v }
     fun setVideoContinues(v: Boolean) = edit { it[K.videoContinues] = v }
     fun setLossless(v: Boolean) = edit { it[K.lossless] = v }
     fun setLosslessLocal(v: Boolean) = edit { it[K.losslessLocal] = v }
@@ -758,6 +793,7 @@ class SettingsRepository(private val context: Context, scope: CoroutineScope) {
     fun setHomeRecentTiles(v: Int) = edit { it[K.homeRecentTiles] = v }
     fun setHomePlaylists(v: List<PinnedPlaylist>) = edit { it[K.homePlaylists] = json.encodeToString<List<PinnedPlaylist>>(v) }
     fun setHomeCustomizeButton(v: Boolean) = edit { it[K.homeCustomizeButton] = v }
+    fun setQuickPicksRadio(v: Boolean) = edit { it[K.quickPicksRadio] = v }
     fun setHomeCustomizeTopButton(v: Boolean) = edit { it[K.homeCustomizeTopButton] = v }
     fun setHomePodcastsButton(v: Boolean) = edit { it[K.homePodcastsButton] = v }
     fun setFontChoice(v: FontChoice) = edit { it[K.fontChoice] = v.name }

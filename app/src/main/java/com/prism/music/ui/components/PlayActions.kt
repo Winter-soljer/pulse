@@ -159,7 +159,6 @@ private suspend fun songsFor(c: AppContainer, target: Playable, shuffle: Boolean
 }
 
 private suspend fun radio(c: AppContainer, videoId: String?, playlistId: String, params: String?, title: String): Pair<List<Song>, QueueSource> {
-    val r = c.ytm.next(videoId, playlistId, params)
-    c.queue.counterparts.putAll(r.counterparts)
+    val r = c.radio(videoId, playlistId, params)
     return r.songs to QueueSource(QueueKind.RADIO, title)
 }

@@ -207,12 +207,20 @@ fun CatalogueScreen(bottomPadding: Dp) {
         item(key = "options") {
             Group("Options") {
                 Toggle("Add new sections automatically", "New shelves from YouTube Music appear at the bottom", settings.autoAddSections) { c.settings.setAutoAddSections(it) }
+                Toggle(
+                    "Quick picks start a radio",
+                    if (settings.quickPicksRadio) "Tapping a pick plays it, then songs like it, as on YouTube Music" else "Tapping a pick plays Quick picks in order from it",
+                    settings.quickPicksRadio,
+                ) { c.settings.setQuickPicksRadio(it) }
                 Toggle("Customize button on Home", null, settings.homeCustomizeButton) { c.settings.setHomeCustomizeButton(it) }
             }
         }
     }
 
-    if (adding) AddSectionSheet(available, ytShelves.isEmpty(), { adding = false }) { cfg -> save(layout + cfg.copy(visible = true)) }
+    if (adding) AddSectionSheet(available, ytShelves.isEmpty(), { adding = false }) { cfg ->
+        // Speed dial goes in at the top, where YouTube Music has it (#53); everything else at the bottom. Either can be dragged.
+        save(if (cfg.key == HomeSections.SPEED_DIAL) listOf(cfg.copy(visible = true)) + layout else layout + cfg.copy(visible = true))
+    }
     if (pinning) PinPlaylistsSheet { pinning = false }
 }
 

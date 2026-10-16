@@ -278,7 +278,7 @@ private fun PrismRoot(deepLink: MutableStateFlow<Uri?>) {
         val navigator = remember(navController) {
             Navigator(navController, openPlayer = { playerOpen = true }, playMix = { mix ->
                 c.scope.launch(kotlinx.coroutines.Dispatchers.Main) {
-                    val r = runCatching { kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { c.ytm.next(mix.seedVideoId, mix.id, mix.params) } }.getOrNull()
+                    val r = runCatching { kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { c.radio(mix.seedVideoId, mix.id, mix.params, keepFirst = true) } }.getOrNull()
                     if (r == null || r.songs.isEmpty()) {
                         Toast.makeText(context, "Couldn't start ${mix.title}", Toast.LENGTH_SHORT).show()
                         return@launch

@@ -806,8 +806,18 @@ private fun SoundPage() {
     Column(verticalArrangement = Arrangement.spacedBy(22.dp)) {
         Group("Playback") {
             Toggle("Autoplay", "When a song, album or playlist ends, keep going with similar music", s.autoplay) { prefs.setAutoplay(it) }
+            Toggle(
+                "Songs, not videos",
+                "Autoplay and radios play songs: a music video plays as its song, and videos with no song version are left out",
+                s.radioSongsOnly,
+            ) { prefs.setRadioSongsOnly(it) }
             Toggle("Keep playing videos", "While a music video is showing, the next song plays as its video too, until you switch back to Song", s.videoContinues) { prefs.setVideoContinues(it) }
             Toggle("Skip silence", "Trims silent gaps at the start and end of songs", s.skipSilence) { prefs.setSkipSilence(it) }
+            Toggle(
+                "Stop when swiped away",
+                "Swiping Prism away from your recent apps stops the music. Off, it keeps playing in the background",
+                s.stopOnSwipeAway,
+            ) { prefs.setStopOnSwipeAway(it) }
             Label("Load ahead")
             Chips(com.prism.music.data.prefs.Preload.entries, s.preload, { it.label }) { prefs.setPreload(it) }
             Note(

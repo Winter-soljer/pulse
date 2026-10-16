@@ -240,16 +240,19 @@ class PlayerConnection(private val context: Context, private val c: AppContainer
         val tapped = songs[startIndex.coerceIn(0, songs.lastIndex)]
         // Live streams play as they are: they have no "song version" to swap in.
         if (shuffle || !tapped.isVideo || tapped.isLive) { startQueue(songs, startIndex, source, shuffle, null); return }
+        // With the Song / Video switch off the player is audio only (#48): a music video plays as its song, or as
+        // the video's sound when it has no song, never with its picture (there'd be no switch to turn it off).
+        val audioOnly = !c.settings.current.showVideoSwitch
         // A music video or live performance opens as the song it's of, already showing the video
         // (the Song button then plays the track itself). With no song to match, the video plays as it is.
-        _showPlayer.tryEmit(Unit)
+        if (!audioOnly) _showPlayer.tryEmit(Unit)
         scope.launch {
             val song = videoSongs[tapped.id] ?: kotlinx.coroutines.withTimeoutOrNull(4_000) {
                 runCatching { kotlinx.coroutines.withContext(Dispatchers.IO) { c.ytm.songForVideo(tapped) } }.getOrNull()
             }?.also { videoSongs[tapped.id] = it }
             if (token != playToken) return@launch
             val list = if (song == null) songs else songs.toMutableList().also { it[startIndex.coerceIn(0, songs.lastIndex)] = song }
-            startQueue(list, startIndex, source, false, tapped.id)
+            startQueue(list, startIndex, source, false, tapped.id.takeUnless { audioOnly })
         }
     }
 
@@ -273,7 +276,8 @@ class PlayerConnection(private val context: Context, private val c: AppContainer
     /** Plays a lone song; autoplay then continues with similar music. */
     fun playSingle(song: Song) = playQueue(listOf(song), 0, QueueSource(QueueKind.SINGLE, "Autoplay", seedId = song.id))
 
-    fun playRadio(song: Song) = playQueue(listOf(song), 0, QueueSource(QueueKind.SINGLE, "${song.title} Radio", seedId = song.id))
+    /** Plays [song] and then a radio of songs like it (YouTube Music's), whether or not Autoplay is on. */
+    fun playRadio(song: Song) = playQueue(listOf(song), 0, QueueSource(QueueKind.RADIO, "${song.title} Radio", seedId = song.id))
 
     fun playNext(song: Song) = playNext(listOf(song), null)
 

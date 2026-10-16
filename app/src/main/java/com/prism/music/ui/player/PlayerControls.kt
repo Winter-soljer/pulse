@@ -354,19 +354,36 @@ private const val HOLD_SEEK_REPEAT_MS = 450L
 /** System media volume, mirrored into a value the bar can drag. */
 class PlayerVolume(context: Context) {
     private val am = context.getSystemService(AudioManager::class.java)
-    private val max = am?.getStreamMaxVolume(AudioManager.STREAM_MUSIC)?.coerceAtLeast(1) ?: 1
+    /** Read each time: some phones give Bluetooth headphones a different number of steps than the speaker. */
+    private val max get() = am?.getStreamMaxVolume(AudioManager.STREAM_MUSIC)?.coerceAtLeast(1) ?: 1
     var level by mutableFloatStateOf(read())
     var dragging by mutableStateOf(false)
+    /** The step last asked of Android, so a drag only sends the steps it crosses. */
+    private var sent = -1
 
     fun read(): Float = (am?.getStreamVolume(AudioManager.STREAM_MUSIC) ?: 0).toFloat() / max
 
+    /**
+     * Only a change of step reaches Android (#52). Every drag event used to set the volume, dozens a second: with
+     * Bluetooth headphones each one is a message to the headphones, and they fell seconds behind the slider (or
+     * dropped some), so the bar said 75% while the headphones played at 25%.
+     */
     fun drag(v: Float) {
         dragging = true
         level = v
-        am?.setStreamVolume(AudioManager.STREAM_MUSIC, (v * max).let { kotlin.math.round(it).toInt() }, 0)
+        val step = kotlin.math.round(v * max).toInt()
+        if (step != sent) {
+            sent = step
+            am?.setStreamVolume(AudioManager.STREAM_MUSIC, step, 0)
+        }
     }
 
-    fun release() { dragging = false }
+    fun release() {
+        dragging = false
+        sent = -1
+        // Back to the real level (the slider can rest between two steps).
+        level = read()
+    }
 }
 
 @Composable

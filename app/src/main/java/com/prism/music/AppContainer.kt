@@ -312,6 +312,18 @@ class AppContainer(val app: Application) {
             } else resolveAudio(spec, false)
         }
 
+    /**
+     * A radio or mix's queue from YouTube Music, as songs when Settings → Playback → "Songs, not videos" is on (#39), with
+     * each song's music video remembered for the Video button. [keepFirst]: a station's first item stays as it is
+     * (it can be a live stream).
+     */
+    suspend fun radio(
+        videoId: String?, playlistId: String?, params: String? = null, continuation: String? = null, keepFirst: Boolean = false,
+    ): com.prism.music.data.model.NextResult {
+        val r = ytm.next(videoId, playlistId, params, continuation)
+        return (if (settings.current.radioSongsOnly) r.songsOnly(keepFirst) else r).also { queue.counterparts.putAll(it.counterparts) }
+    }
+
     /** Animated-cover clips on the phone: recently played, and saved (from the player, by album, or with downloads). */
     val canvasStore by lazy { com.prism.music.data.canvas.CanvasStore(app, http, canvas, ytm, databaseProvider, scope) }
     fun songCacheBytes(): Long = runCatching { playerCache.cacheSpace }.getOrDefault(0)

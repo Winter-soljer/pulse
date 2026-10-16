@@ -298,6 +298,14 @@ class PlaybackService : MediaLibraryService(), Player.Listener {
 
     override fun onTaskRemoved(rootIntent: Intent?) {
         saveQueue()
+        // Settings → Playback → "Stop when swiped away" (#45): closing Prism from Recents ends the music too (some
+        // phones, Samsung's among them, otherwise keep it playing with no app on screen).
+        if (c.settings.current.stopOnSwipeAway) {
+            flushPlayTime()
+            saveEpisodePosition()
+            pauseAllPlayersAndStopSelf()
+            return
+        }
         if (!player.playWhenReady || player.mediaItemCount == 0) stopSelf()
     }
 
@@ -370,9 +378,14 @@ class PlaybackService : MediaLibraryService(), Player.Listener {
         c.streamDetails[song.id]?.let { applyStreamStats(song.id) }
         scope.launch(Dispatchers.IO) { c.library.recordPlayed(song) }
         loadExtras(song)
+        // Audio only (the Song / Video switch is off): nothing plays as its video, whatever lined it up (#48).
+        // Posted: swapping the item from inside this callback would report its transition after the swap was over.
+        if (!c.settings.current.showVideoSwitch && mediaItem.videoModeId != null && !song.isLive) scope.launch {
+            if (!c.settings.current.showVideoSwitch && player.currentMediaItem?.mediaId == song.id) setVideoMode(false)
+        }
         // Every new song starts as the song; the track that just finished goes back to audio too,
         // so returning to it doesn't land in its video.
-        if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO || reason == Player.MEDIA_ITEM_TRANSITION_REASON_SEEK) {
+        if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO || reason == Player.MEDIA_ITEM_TRANSITION_REASON_SEEK || !c.settings.current.showVideoSwitch) {
             for (i in 0 until player.mediaItemCount) {
                 if (i == player.currentMediaItemIndex) continue
                 val other = player.getMediaItemAt(i)
@@ -610,10 +623,12 @@ class PlaybackService : MediaLibraryService(), Player.Listener {
      */
     fun maybeAutoplay() {
         val src = c.queue.source.value
-        if (!c.settings.current.autoplay || player.mediaItemCount == 0 || c.queue.followingHost) return
+        // A song's radio (Quick picks, "Radio" in a song's menu) keeps going whether or not Autoplay is on: that's what it is.
+        val radio = src.isSongRadio
+        if ((!c.settings.current.autoplay && !radio) || player.mediaItemCount == 0 || c.queue.followingHost) return
         // No music radio after a podcast episode.
         if (player.currentMediaItem?.toSong()?.isEpisode == true) return
-        if (src.kind != QueueKind.SINGLE && player.repeatMode != Player.REPEAT_MODE_OFF) return
+        if (src.kind != QueueKind.SINGLE && !radio && player.repeatMode != Player.REPEAT_MODE_OFF) return
         if (player.mediaItemCount - player.currentMediaItemIndex > 3 || c.queue.autoplayLoading) return
         val seed = src.seedId ?: player.getMediaItemAt(player.mediaItemCount - 1).mediaId.takeIf { it.isNotBlank() } ?: return
         // YouTube Music's radio can't start from a file on the phone.
@@ -621,12 +636,11 @@ class PlaybackService : MediaLibraryService(), Player.Listener {
         c.queue.autoplayLoading = true
         scope.launch {
             val r = runCatching {
-                withContext(Dispatchers.IO) { c.ytm.next(seed, "RDAMVM$seed", continuation = c.queue.autoplayContinuation) }
+                withContext(Dispatchers.IO) { c.radio(seed, "RDAMVM$seed", continuation = c.queue.autoplayContinuation) }
             }.getOrNull()
             c.queue.autoplayLoading = false
             // Dropped if the queue was replaced, or Autoplay was switched off, while loading.
-            if (r == null || c.queue.source.value !== src || !c.settings.current.autoplay) return@launch
-            c.queue.counterparts.putAll(r.counterparts)
+            if (r == null || c.queue.source.value !== src || (!c.settings.current.autoplay && !radio)) return@launch
             c.queue.autoplayContinuation = r.continuation
             val existing = (0 until player.mediaItemCount).map { player.getMediaItemAt(it).mediaId }.toSet()
             val add = r.songs.filter { it.id !in existing && !c.library.isDisliked(it.id) }
@@ -640,6 +654,7 @@ class PlaybackService : MediaLibraryService(), Player.Listener {
     /** Switching Autoplay off takes its suggestions back out of the queue; on, fetches them. */
     private fun onAutoplayChanged(enabled: Boolean) {
         if (enabled) { maybeAutoplay(); return }
+        if (c.queue.source.value.isSongRadio) return
         val start = c.queue.autoplayStart.value
         if (start >= 0 && start < player.mediaItemCount) {
             val from = maxOf(start, player.currentMediaItemIndex + 1)
@@ -763,7 +778,7 @@ class PlaybackService : MediaLibraryService(), Player.Listener {
             if (v) armNextVideo() else disarmVideos()
         }
 
-    private fun keepVideos() = videoWanted && c.settings.current.videoContinues
+    private fun keepVideos() = videoWanted && c.settings.current.videoContinues && c.settings.current.showVideoSwitch
 
     /**
      * A new song started while videos are wanted. The next song is usually lined up as its video
@@ -982,9 +997,8 @@ class PlaybackService : MediaLibraryService(), Player.Listener {
     private fun startRadio() {
         val song = player.currentMediaItem?.toSong() ?: return
         scope.launch {
-            val r = runCatching { withContext(Dispatchers.IO) { c.ytm.next(song.id, "RDAMVM${song.id}") } }.getOrNull() ?: return@launch
+            val r = runCatching { withContext(Dispatchers.IO) { c.radio(song.id, "RDAMVM${song.id}") } }.getOrNull() ?: return@launch
             if (player.currentMediaItem?.mediaId != song.id) return@launch
-            c.queue.counterparts.putAll(r.counterparts)
             val add = r.songs.filter { it.id != song.id && !c.library.isDisliked(it.id) }
             if (add.isEmpty()) return@launch
             val idx = player.currentMediaItemIndex

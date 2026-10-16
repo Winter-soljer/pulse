@@ -12,7 +12,10 @@ data class QueueSource(
     val seedId: String? = null,
     /** The album, playlist or artist the queue was started from, so a play button for it can show pause. */
     val originId: String? = null,
-)
+) {
+    /** A radio started from one song: it keeps going with similar music, Autoplay or not. */
+    val isSongRadio: Boolean get() = kind == QueueKind.RADIO && seedId != null
+}
 
 /** Shared queue bookkeeping between the UI-facing [PlayerConnection] and [PlaybackService]. */
 class QueueState {

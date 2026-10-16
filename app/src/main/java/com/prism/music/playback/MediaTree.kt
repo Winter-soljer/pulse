@@ -112,9 +112,9 @@ class MediaTree(private val c: AppContainer) {
         parentId.startsWith("mix:") -> runCatching {
             // "mix:playlistId|seedVideoId|params" (stations need their seed song and params to start).
             val parts = parentId.removePrefix("mix:").split('|')
-            c.ytm.next(parts.getOrNull(1)?.ifBlank { null }, parts[0], parts.getOrNull(2)?.ifBlank { null })
+            c.radio(parts.getOrNull(1)?.ifBlank { null }, parts[0], parts.getOrNull(2)?.ifBlank { null }, keepFirst = true)
         }.getOrNull()
-            ?.let { r -> c.queue.counterparts.putAll(r.counterparts); songList(parentId, "Mix", r.songs) } ?: emptyList()
+            ?.let { r -> songList(parentId, "Mix", r.songs) } ?: emptyList()
         parentId.startsWith("ar:") -> runCatching { c.ytm.artist(parentId.removePrefix("ar:")) }.getOrNull()
             ?.let { a -> songList(parentId, a.name, a.shelves.flatMap { s -> s.items.filterIsInstance<SongItem>().map { it.song } }.distinctBy { it.id }) }
             ?: emptyList()

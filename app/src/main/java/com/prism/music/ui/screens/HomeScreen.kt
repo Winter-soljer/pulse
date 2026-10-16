@@ -1,6 +1,7 @@
 package com.prism.music.ui.screens
 
 import com.prism.music.data.model.quickPicks
+import com.prism.music.data.model.speedDial
 import com.prism.music.ui.theme.PrismIcons
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -124,8 +125,10 @@ fun HomeScreen(bottomPadding: androidx.compose.ui.unit.Dp) {
     val layout = remember(settings.homeLayout, shelves, settings.autoAddSections) {
         val known = settings.homeLayout.map { it.key }.toSet()
         val picks = shelves.quickPicks()
+        // The Speed dial section shows YouTube's own, so it isn't added again as a shelf of its own.
+        val dial = shelves.speedDial()?.takeIf { settings.homeLayout.any { it.key == HomeSections.SPEED_DIAL && it.visible } }
         val extra = if (settings.autoAddSections) shelves
-            .filter { shelfKey(it.title) !in known && it !== picks }
+            .filter { shelfKey(it.title) !in known && it !== picks && it !== dial }
             .map { HomeSectionConfig(shelfKey(it.title), it.title) } else emptyList()
         settings.homeLayout.filter { it.visible } + extra
     }
@@ -165,7 +168,11 @@ fun HomeScreen(bottomPadding: androidx.compose.ui.unit.Dp) {
                                     .filter { it.id !in heard && !it.isVideo }.distinctBy { it.id }.take(20)
                             }
                             val items = qp?.items?.filterIsInstance<SongItem>()?.map { it.song } ?: stand
-                            if (items.isNotEmpty()) SongSection(cfg, "Quick picks", qp?.strapline, items, snap = true)
+                            // A pick starts a radio from it (#38), as on YouTube Music, unless Customize Home says to play them in order.
+                            if (items.isNotEmpty()) SongSection(
+                                cfg, "Quick picks", qp?.strapline, items, snap = true,
+                                play = if (settings.quickPicksRadio) { list, i -> c.player.playRadio(list[i]) } else null,
+                            )
                         }
                         HomeSections.RECENT -> if (recent.isNotEmpty()) SongSection(cfg, cfg.title, null, recent.take(20))
                         HomeSections.LIKED -> if (liked.isNotEmpty()) SongSection(cfg, "Liked songs", null, liked.take(20)) { nav.go(Routes.liked()) }
@@ -174,6 +181,7 @@ fun HomeScreen(bottomPadding: androidx.compose.ui.unit.Dp) {
                             val songs = remember(dls) { c.downloads.completedSongs() }
                             if (songs.isNotEmpty()) SongSection(cfg, "Downloads", null, songs.take(20)) { nav.go(Routes.DOWNLOADS) }
                         }
+                        HomeSections.SPEED_DIAL -> SpeedDialSection(cfg, shelves, recent.firstOrNull()?.id, openItem)
                         HomeSections.REPLAY -> ReplayTeaser()
                         HomeSections.GENRES -> TopGenresSection()
                         HomeSections.MOODS -> {
@@ -404,12 +412,22 @@ private fun SongSection(
     cfg: HomeSectionConfig, title: String, strapline: String?, songs: List<Song>,
     /** Swipes stop on each column of rows, as YouTube Music's Quick picks do. */
     snap: Boolean = false,
+    /** What tapping a song does; null plays the section from it. */
+    play: ((List<Song>, Int) -> Unit)? = null,
     onMore: (() -> Unit)? = null,
 ) {
     val c = LocalContainer.current
+    val start: (Int) -> Unit = { i -> play?.invoke(songs, i) ?: c.player.playQueue(songs, i, QueueSource(QueueKind.OTHER, title)) }
+    val indexOf: (BrowseItem) -> Int = { item -> songs.indexOfFirst { it.id == item.id }.coerceAtLeast(0) }
     SectionHeader(title, strapline = strapline, onMore = onMore)
     when (cfg.style) {
-        SectionStyle.LIST, SectionStyle.GRID -> {
+        // Grid (#44): two rows of covers, where List is four rows of songs.
+        SectionStyle.GRID -> LazyHorizontalGrid(
+            GridCells.Fixed(2), Modifier.height(2 * 220.dp), contentPadding = PaddingValues(horizontal = 12.dp),
+        ) {
+            items(songs.size) { i -> ItemCard(SongItem(songs[i]), width = 140.dp) { start(i) } }
+        }
+        SectionStyle.LIST -> {
             val grid = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
             val snapping = androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior(
                 remember(grid) {
@@ -425,18 +443,12 @@ private fun SongSection(
                 flingBehavior = if (snap) snapping else androidx.compose.foundation.gestures.ScrollableDefaults.flingBehavior(),
             ) {
                 items(songs.size) { i ->
-                    Box(Modifier.width(330.dp)) {
-                        SongRow(songs[i]) { c.player.playQueue(songs, i, QueueSource(QueueKind.OTHER, title)) }
-                    }
+                    Box(Modifier.width(330.dp)) { SongRow(songs[i]) { start(i) } }
                 }
             }
         }
-        SectionStyle.HERO -> HeroRow(songs.map { SongItem(it) }) { item ->
-            c.player.playQueue(songs, songs.indexOfFirst { it.id == item.id }.coerceAtLeast(0), QueueSource(QueueKind.OTHER, title))
-        }
-        SectionStyle.CAROUSEL -> ItemCarousel(songs.map { SongItem(it) }, { item ->
-            c.player.playQueue(songs, songs.indexOfFirst { it.id == item.id }.coerceAtLeast(0), QueueSource(QueueKind.OTHER, title))
-        })
+        SectionStyle.HERO -> HeroRow(songs.map { SongItem(it) }) { item -> start(indexOf(item)) }
+        SectionStyle.CAROUSEL -> ItemCarousel(songs.map { SongItem(it) }, { item -> start(indexOf(item)) })
     }
 }
 
@@ -462,6 +474,106 @@ private fun ShelfSection(cfg: HomeSectionConfig, shelf: Shelf, open: (BrowseItem
             items(shelf.items) { item -> ItemCard(item, width = 140.dp) { open(item) } }
         }
         else -> ItemCarousel(shelf.items, open)
+    }
+}
+
+/**
+ * Speed dial (#53), as on YouTube Music's app: the music you go back to, as big tiles three by three, a page at a time.
+ * YouTube's own Speed dial (or "Listen again") leads; your most played albums and songs on this phone fill the rest
+ * (and stand in on their own when YouTube has none, signed out or offline).
+ */
+@Composable
+private fun SpeedDialSection(cfg: HomeSectionConfig, shelves: List<Shelf>, lastPlayed: String?, open: (BrowseItem) -> Unit) {
+    val c = LocalContainer.current
+    val yt = remember(shelves) { shelves.speedDial()?.items.orEmpty().filter { it !is MoodItem } }
+    val mine by produceState(emptyList<BrowseItem>(), lastPlayed) {
+        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { runCatching { speedDialFromHistory(c) }.getOrDefault(emptyList()) }
+    }
+    val items = remember(yt, mine) { (yt + mine).distinctBy { it.id }.take(SPEED_DIAL_SIZE) }
+    if (items.size < 3) return
+    SectionHeader(cfg.title, strapline = "Your go-to music")
+    when (cfg.style) {
+        SectionStyle.CAROUSEL -> ItemCarousel(items, open)
+        SectionStyle.HERO -> HeroRow(items, open)
+        else -> SpeedDialPages(items, open)
+    }
+}
+
+private const val SPEED_DIAL_SIZE = 27
+
+/** The last three months' most played: albums you've played two or more songs from, and the songs otherwise. */
+private suspend fun speedDialFromHistory(c: com.prism.music.AppContainer): List<BrowseItem> {
+    val since = System.currentTimeMillis() - 90L * 86_400_000L
+    val ids = c.db.plays().mostPlayedIds(since, 80)
+    if (ids.isEmpty()) return emptyList()
+    val byId = c.db.songs().getAll(ids).associateBy { it.id }
+    val songs = ids.mapNotNull { byId[it]?.toSong() }.filter { !it.isEpisode && !it.isLive }
+    val perAlbum = songs.filter { it.album?.id != null }.groupingBy { it.album!!.id!! }.eachCount()
+    return songs.map { s ->
+        val album = s.album?.id?.takeIf { (perAlbum[it] ?: 0) >= 2 }
+        if (album != null) AlbumItem(album, s.album.title, s.primaryArtist, s.thumbnail) else SongItem(s)
+    }.distinctBy { it.id }
+}
+
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+@Composable
+private fun SpeedDialPages(items: List<BrowseItem>, open: (BrowseItem) -> Unit) {
+    val pages = remember(items) { items.chunked(9) }
+    val pager = androidx.compose.foundation.pager.rememberPagerState { pages.size }
+    val ui = com.prism.music.ui.theme.LocalUi.current
+    val menu = rememberPlayMenu()
+    Column {
+        androidx.compose.foundation.pager.HorizontalPager(
+            pager,
+            // The next page peeks in from the side, so it's clear there's more.
+            contentPadding = PaddingValues(start = 16.dp, end = if (pages.size > 1) 40.dp else 16.dp),
+            pageSpacing = 10.dp,
+            verticalAlignment = Alignment.Top,
+        ) { p ->
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                pages[p].chunked(3).forEach { row ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        row.forEach { item ->
+                            SpeedDialTile(item, Modifier.weight(1f), ui.shape(14.dp), { open(item) }, item.playable()?.let { pl -> { menu(pl) } })
+                        }
+                        repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
+                    }
+                }
+            }
+        }
+        if (pages.size > 1) Row(
+            Modifier.fillMaxWidth().padding(top = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
+        ) {
+            repeat(pages.size) { i ->
+                Box(
+                    Modifier.size(if (i == pager.currentPage) 7.dp else 6.dp).clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.onSurface.copy(alpha = if (i == pager.currentPage) 0.8f else 0.25f)),
+                )
+            }
+        }
+    }
+}
+
+/** One Speed dial tile: the cover filling it (an artist's photo round), its name over the bottom. */
+@Composable
+private fun SpeedDialTile(item: BrowseItem, modifier: Modifier, shape: androidx.compose.ui.graphics.Shape, onClick: () -> Unit, onLongClick: (() -> Unit)?) {
+    val round = item is com.prism.music.data.model.ArtistItem
+    Box(
+        modifier.aspectRatio(1f).clip(shape)
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick),
+    ) {
+        if (round) Artwork(
+            LocalContainer.current.covers.art(item), Modifier.fillMaxSize().padding(10.dp), CircleShape, size = 400,
+            placeholderIcon = PrismIcons.Person,
+        ) else Artwork(LocalContainer.current.covers.art(item), Modifier.fillMaxSize(), RoundedCornerShape(0.dp), size = 400)
+        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.45f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.75f))))
+        Text(
+            item.title, Modifier.align(Alignment.BottomStart).padding(horizontal = 8.dp, vertical = 7.dp),
+            color = Color.White, style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+            maxLines = 2, overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 
