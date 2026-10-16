@@ -102,6 +102,8 @@ fun SearchScreen(bottomPadding: Dp) {
     // What the results are for: follows the typing, a moment after it pauses.
     var live by rememberSaveable { mutableStateOf("") }
     var filter by rememberSaveable { mutableStateOf(SearchFilter.TOP) }
+    // Where to look (#46): YouTube Music, or the music on this phone (your files and downloads). Offline, the phone.
+    var onPhone by rememberSaveable { mutableStateOf(!c.network.isOnline()) }
     var focused by remember { mutableStateOf(false) }
     val suggestions = remember { mutableStateListOf<String>() }
     val recents = remember {
@@ -144,8 +146,9 @@ fun SearchScreen(bottomPadding: Dp) {
         delay(320)
         live = query.trim()
     }
-    LaunchedEffect(live, filter) {
+    LaunchedEffect(live, filter, onPhone) {
         if (live.isBlank()) { top = null; list = null; return@LaunchedEffect }
+        if (onPhone) { loading = false; return@LaunchedEffect }
         loading = true
         // Earlier results stay on screen until these land, so nothing flashes.
         if (filter == SearchFilter.TOP) {
@@ -207,7 +210,11 @@ fun SearchScreen(bottomPadding: Dp) {
             return@Column
         }
 
-        com.prism.music.ui.components.ChipRow(
+        Row(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            com.prism.music.ui.components.PrismChip(!onPhone, { onPhone = false }, "YouTube Music", icon = PrismIcons.Globe)
+            com.prism.music.ui.components.PrismChip(onPhone, { onPhone = true }, "On this phone", icon = PrismIcons.Phone)
+        }
+        if (!onPhone) com.prism.music.ui.components.ChipRow(
             SearchFilter.entries, { it == filter }, { it.label },
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 6.dp),
         ) { filter = it }
@@ -221,7 +228,8 @@ fun SearchScreen(bottomPadding: Dp) {
             }
         }
 
-        if (filter == SearchFilter.TOP) {
+        if (onPhone) PhoneResults(live, bottomPadding) { saveQuery(live); focus.clearFocus() }
+        else if (filter == SearchFilter.TOP) {
             when (val r = top) {
                 null, Load.Loading -> LoadingState()
                 is Load.Err -> ErrorState(r.message)
@@ -253,6 +261,61 @@ fun SearchScreen(bottomPadding: Dp) {
         }
     }
 }
+
+/**
+ * Search on this phone (#46): your music files and downloads whose title, artist or album has every word typed, the
+ * best matches first (titles that start with it, then titles, artists and albums that have it). They play offline.
+ */
+@Composable
+private fun PhoneResults(query: String, bottomPadding: Dp, onPlay: () -> Unit) {
+    val c = LocalContainer.current
+    val tracks by c.localMusic.tracks.collectAsState()
+    val dls by c.downloads.downloads.collectAsState()
+    val current by c.player.currentSong.collectAsState()
+    val (files, downloads) = remember(query, tracks, dls) {
+        val q = phoneNorm(query)
+        val words = q.split(' ').filter { it.isNotBlank() }
+        fun rank(s: com.prism.music.data.model.Song): Int? {
+            val title = phoneNorm(s.title)
+            val hay = "$title ${phoneNorm(s.artistText)} ${phoneNorm(s.album?.title.orEmpty())}"
+            if (words.isEmpty() || !words.all { it in hay }) return null
+            return when {
+                title.startsWith(q) -> 0
+                words.all { it in title } -> 1
+                words.all { it in phoneNorm(s.artistText) } -> 2
+                else -> 3
+            }
+        }
+        fun find(songs: List<com.prism.music.data.model.Song>) =
+            songs.mapNotNull { s -> rank(s)?.let { it to s } }.sortedWith(compareBy({ it.first }, { it.second.title.lowercase() })).map { it.second }
+        find(tracks.map { it.song }) to find(c.downloads.completedSongs())
+    }
+    if (files.isEmpty() && downloads.isEmpty()) {
+        com.prism.music.ui.components.EmptyState(
+            PrismIcons.Phone, "Nothing on this phone matches",
+            if (tracks.isEmpty() && !c.localMusic.hasPermission()) "Allow access to your music files in Library → Local files to search them here too." else "Your music files and downloads are searched by title, artist and album.",
+        )
+        return
+    }
+    LazyColumn(contentPadding = PaddingValues(top = 4.dp, bottom = bottomPadding + 16.dp)) {
+        listOf("Your music files" to files, "Downloads" to downloads).forEach { (title, songs) ->
+            if (songs.isEmpty()) return@forEach
+            item(key = "h:$title") { SectionHeader(title, strapline = com.prism.music.data.model.songCount(songs.size)) }
+            items(songs.size, key = { "$title:" + songs[it].id }) { i ->
+                com.prism.music.ui.components.SwipeToQueue(songs[i]) {
+                    SongRow(songs[i], playing = current?.id == songs[i].id) {
+                        onPlay()
+                        c.player.playQueue(songs, i, QueueSource(QueueKind.LIBRARY, "Search: $query"))
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Lower case, without accents or punctuation, so "Beyonce" finds "Beyoncé" and "ac dc" finds "AC/DC". */
+private fun phoneNorm(s: String): String = java.text.Normalizer.normalize(s.lowercase(), java.text.Normalizer.Form.NFD)
+    .replace(Regex("\\p{Mn}+"), "").replace(Regex("[^\\p{L}\\p{N}]+"), " ").trim()
 
 /** The top card's play button: plays the song, the album or playlist from the start, or shuffles the artist. */
 private suspend fun playTop(c: com.prism.music.AppContainer, item: BrowseItem) {

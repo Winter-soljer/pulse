@@ -3,6 +3,7 @@ package com.prism.music.ui.screens
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -67,8 +68,50 @@ import com.prism.music.ui.theme.LocalUi
 import com.prism.music.ui.theme.PrismIcons
 import kotlinx.coroutines.launch
 
-/** The Songs section's orders: Album plays each album through in track order. */
-private enum class LocalSort(val label: String) { TITLE("Title"), ADDED("Recently added"), ARTIST("Artist"), ALBUM("Album") }
+/**
+ * What Local files' lists can be ordered by (#35), and the two ways round each goes ([dirs]: the usual way first).
+ * Artist and Album keep each album's songs in track order within them.
+ */
+private enum class SongKey(val label: String, val dirs: Pair<String, String> = AZ) {
+    TITLE("Title"), ARTIST("Artist"), ALBUM("Album"), ADDED("Date added", NEWEST), YEAR("Year", NEWEST),
+    DURATION("Length", "Longest first" to "Shortest first"), SIZE("File size", "Largest first" to "Smallest first"),
+}
+private enum class AlbumKey(val label: String, val dirs: Pair<String, String> = AZ) {
+    TITLE("Title"), ARTIST("Artist"), YEAR("Year", NEWEST), ADDED("Date added", NEWEST), SONGS("Number of songs", MOST),
+}
+private enum class ArtistKey(val label: String, val dirs: Pair<String, String> = AZ) {
+    NAME("Name"), SONGS("Number of songs", MOST), ALBUMS("Number of albums", MOST),
+}
+private val AZ = "A to Z" to "Z to A"
+private val NEWEST = "Newest first" to "Oldest first"
+private val MOST = "Most first" to "Fewest first"
+
+/** One list's order: what by, and whether it's the other way round from usual ([SongKey.dirs]' second). */
+private data class Order<K>(val key: K, val reversed: Boolean = false)
+
+/**
+ * Songs', albums' and artists' orders, kept in one setting: "songs:TITLE:0|albums:TITLE:0|artists:NAME:0". Before
+ * #35 it held the songs' order alone ("TITLE", "ADDED", "ARTIST", "ALBUM"), which still reads.
+ */
+private data class LocalOrders(val songs: Order<SongKey>, val albums: Order<AlbumKey>, val artists: Order<ArtistKey>) {
+    fun encode() = "songs:${songs.key}:${if (songs.reversed) 1 else 0}|albums:${albums.key}:${if (albums.reversed) 1 else 0}|" +
+        "artists:${artists.key}:${if (artists.reversed) 1 else 0}"
+
+    companion object {
+        private inline fun <reified K : Enum<K>> part(v: String, name: String, def: K): Order<K> {
+            val bits = v.split('|').firstOrNull { it.startsWith("$name:") }?.split(':') ?: return Order(def)
+            val key = enumValues<K>().firstOrNull { it.name == bits.getOrNull(1) } ?: def
+            return Order(key, bits.getOrNull(2) == "1")
+        }
+
+        fun parse(v: String): LocalOrders {
+            if (!v.contains(':')) return LocalOrders(Order(SongKey.entries.firstOrNull { it.name == v } ?: SongKey.TITLE), Order(AlbumKey.TITLE), Order(ArtistKey.NAME))
+            return LocalOrders(part(v, "songs", SongKey.TITLE), part(v, "albums", AlbumKey.TITLE), part(v, "artists", ArtistKey.NAME))
+        }
+    }
+}
+
+private fun <T> Comparator<T>.way(reversed: Boolean): Comparator<T> = if (reversed) this.reversed() else this
 
 /** One album among the files (by Android's album id), its songs in track order. */
 private class LocalAlbum(val id: Long, val title: String, val artist: String, val year: Int, val tracks: List<LocalMusic.Track>) {
@@ -77,13 +120,48 @@ private class LocalAlbum(val id: Long, val title: String, val artist: String, va
     val addedAt: Long get() = tracks.maxOf { it.addedAt }
 }
 
-private fun sorted(tracks: List<LocalMusic.Track>, sort: LocalSort): List<LocalMusic.Track> = when (sort) {
-    LocalSort.ADDED -> tracks.sortedByDescending { it.addedAt }
-    LocalSort.TITLE -> tracks.sortedBy { it.song.title.lowercase() }
-    LocalSort.ARTIST -> tracks.sortedWith(compareBy<LocalMusic.Track> { artistKey(it.song.primaryArtist) }
-        .thenBy { it.song.album?.title?.lowercase() ?: "" }.thenBy { it.trackNumber })
-    LocalSort.ALBUM -> tracks.sortedWith(compareBy<LocalMusic.Track> { it.song.album?.title?.lowercase() ?: "￿" }
-        .thenBy { it.albumId }.thenBy { it.trackNumber }.thenBy { it.song.title.lowercase() })
+private fun sorted(tracks: List<LocalMusic.Track>, o: Order<SongKey>): List<LocalMusic.Track> {
+    val r = o.reversed
+    val byTitle = compareBy<LocalMusic.Track> { it.song.title.lowercase() }
+    val inAlbum = compareBy<LocalMusic.Track> { it.albumId }.thenBy { it.trackNumber }.thenBy { it.song.title.lowercase() }
+    return tracks.sortedWith(
+        when (o.key) {
+            SongKey.TITLE -> byTitle.way(r)
+            SongKey.ARTIST -> compareBy<LocalMusic.Track> { artistKey(it.song.primaryArtist) }.way(r).thenBy { it.song.album?.title?.lowercase() ?: "" }.then(inAlbum)
+            SongKey.ALBUM -> compareBy<LocalMusic.Track> { it.song.album?.title?.lowercase() ?: "￿" }.way(r).then(inAlbum)
+            SongKey.ADDED -> compareByDescending<LocalMusic.Track> { it.addedAt }.way(r).then(byTitle)
+            SongKey.YEAR -> compareByDescending<LocalMusic.Track> { it.year }.way(r).then(inAlbum)
+            SongKey.DURATION -> compareByDescending<LocalMusic.Track> { it.song.durationSec }.way(r).then(byTitle)
+            SongKey.SIZE -> compareByDescending<LocalMusic.Track> { it.size }.way(r).then(byTitle)
+        }
+    )
+}
+
+private fun sortedAlbums(albums: List<LocalAlbum>, o: Order<AlbumKey>): List<LocalAlbum> {
+    val r = o.reversed
+    val unknownLast = compareBy<LocalAlbum> { it.title == "Unknown album" }
+    val byTitle = compareBy<LocalAlbum> { it.title.lowercase() }
+    return albums.sortedWith(
+        when (o.key) {
+            AlbumKey.TITLE -> unknownLast.then(byTitle.way(r))
+            AlbumKey.ARTIST -> compareBy<LocalAlbum> { artistKey(it.artist) }.way(r).thenByDescending { it.year }.then(byTitle)
+            AlbumKey.YEAR -> compareByDescending<LocalAlbum> { it.year }.way(r).then(byTitle)
+            AlbumKey.ADDED -> compareByDescending<LocalAlbum> { it.addedAt }.way(r)
+            AlbumKey.SONGS -> compareByDescending<LocalAlbum> { it.tracks.size }.way(r).then(byTitle)
+        }
+    )
+}
+
+private fun sortedArtists(artists: List<LocalArtist>, o: Order<ArtistKey>): List<LocalArtist> {
+    val r = o.reversed
+    val byName = compareBy<LocalArtist> { it.key == "￿" }.thenBy { it.name.lowercase().removePrefix("the ") }
+    return artists.sortedWith(
+        when (o.key) {
+            ArtistKey.NAME -> compareBy<LocalArtist> { it.key == "￿" }.then(compareBy<LocalArtist> { it.name.lowercase().removePrefix("the ") }.way(r))
+            ArtistKey.SONGS -> compareByDescending<LocalArtist> { it.tracks.size }.way(r).then(byName)
+            ArtistKey.ALBUMS -> compareByDescending<LocalArtist> { it.albums.size }.way(r).then(byName)
+        }
+    )
 }
 
 /** How many of the newest files and albums "Recently added" and "Added albums" show. */
@@ -125,7 +203,9 @@ fun LocalMusicScreen(bottomPadding: Dp) {
         }
     }
     val settings = com.prism.music.ui.theme.LocalAppSettings.current
-    val sort = LocalSort.entries.firstOrNull { it.name == settings.localSort } ?: LocalSort.TITLE
+    val orders = remember(settings.localSort) { LocalOrders.parse(settings.localSort) }
+    val sort = orders.songs
+    val saveOrders: (LocalOrders) -> Unit = { c.settings.setLocalSort(it.encode()) }
     val sections = settings.localSections
     val pager = rememberPagerState { sections.size }
     var openArtist by rememberSaveable { mutableStateOf<String?>(null) }
@@ -245,11 +325,11 @@ fun LocalMusicScreen(bottomPadding: Dp) {
                 // Sideways swipes on a song queue it (SwipeToQueue), so the sections change from the chips.
                 HorizontalPager(pager, Modifier.weight(1f), userScrollEnabled = false) { page ->
                     when (sections.getOrNull(page)) {
-                        LocalSection.SONGS -> SongsPage(songsSorted, sort, { c.settings.setLocalSort(it.name) }, "Local files", bottomPadding)
+                        LocalSection.SONGS -> SongsPage(songsSorted, sort, { saveOrders(orders.copy(songs = it)) }, "Local files", bottomPadding)
                         LocalSection.FAVOURITES -> if (favourites.isEmpty()) EmptyState(PrismIcons.Heart, "No favourites yet", "Like songs from your phone (♥ on the player or in a song's menu) and they gather here.")
-                            else SongsPage(favourites, sort, { c.settings.setLocalSort(it.name) }, "Favourites", bottomPadding)
-                        LocalSection.ARTISTS -> ArtistsPage(artists, bottomPadding) { openArtist = it.key }
-                        LocalSection.ALBUMS -> AlbumsPage(albums, bottomPadding) { openAlbum = it.id }
+                            else SongsPage(favourites, sort, { saveOrders(orders.copy(songs = it)) }, "Favourites", bottomPadding)
+                        LocalSection.ARTISTS -> ArtistsPage(sortedArtists(artists, orders.artists), bottomPadding, orders.artists, { saveOrders(orders.copy(artists = it)) }) { openArtist = it.key }
+                        LocalSection.ALBUMS -> AlbumsPage(sortedAlbums(albums, orders.albums), bottomPadding, orders.albums, { saveOrders(orders.copy(albums = it)) }) { openAlbum = it.id }
                         LocalSection.ADDED_SONGS -> TrackList(addedSongs, "Recently added", bottomPadding)
                         LocalSection.ADDED_ALBUMS -> AlbumsPage(addedAlbums, bottomPadding) { openAlbum = it.id }
                         LocalSection.DOWNLOADS -> if (downloads.isEmpty()) EmptyState(PrismIcons.DownloadDone, "No downloads yet", "Songs you download from YouTube Music show up here too.")
@@ -328,15 +408,12 @@ private fun TrackList(songs: List<Song>, title: String, bottomPadding: Dp, numbe
 
 /** Songs (or Favourites) in the chosen order; the sort is kept (Title unless changed). */
 @Composable
-private fun SongsPage(songs: List<Song>, sort: LocalSort, onSort: (LocalSort) -> Unit, title: String, bottomPadding: Dp) {
+private fun SongsPage(songs: List<Song>, sort: Order<SongKey>, onSort: (Order<SongKey>) -> Unit, title: String, bottomPadding: Dp) {
     val c = LocalContainer.current
     val current by c.player.currentSong.collectAsState()
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 0.dp, bottom = bottomPadding + 16.dp)) {
         item {
-            // The count is under the page title now; this row only holds the order.
-            Row(Modifier.fillMaxWidth().padding(end = 8.dp), horizontalArrangement = Arrangement.End) {
-                com.prism.music.ui.components.SortButton(LocalSort.entries, sort, { it.label }) { onSort(it) }
-            }
+            SortRow(songCount(songs.size), "Sort songs", SongKey.entries, sort, { it.label }, { it.dirs }, onSort)
         }
         itemsIndexed(songs, key = { _, s -> "l" + s.id }) { i, s ->
             SwipeToQueue(s) {
@@ -347,14 +424,11 @@ private fun SongsPage(songs: List<Song>, sort: LocalSort, onSort: (LocalSort) ->
 }
 
 @Composable
-private fun ArtistsPage(artists: List<LocalArtist>, bottomPadding: Dp, onOpen: (LocalArtist) -> Unit) {
+private fun ArtistsPage(artists: List<LocalArtist>, bottomPadding: Dp, sort: Order<ArtistKey>, onSort: (Order<ArtistKey>) -> Unit, onOpen: (LocalArtist) -> Unit) {
     val ui = LocalUi.current
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 4.dp, bottom = bottomPadding + 16.dp)) {
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 0.dp, bottom = bottomPadding + 16.dp)) {
         item {
-            Text(
-                if (artists.size == 1) "1 artist" else "${artists.size} artists", style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 8.dp),
-            )
+            SortRow(if (artists.size == 1) "1 artist" else "${artists.size} artists", "Sort artists", ArtistKey.entries, sort, { it.label }, { it.dirs }, onSort)
         }
         items(artists, key = { "a" + it.key }) { a ->
             Row(
@@ -375,13 +449,90 @@ private fun ArtistsPage(artists: List<LocalArtist>, bottomPadding: Dp, onOpen: (
     }
 }
 
+/** Albums as tiles; with [sort], in the order chosen there (Added albums keeps its own, newest first). */
 @Composable
-private fun AlbumsPage(albums: List<LocalAlbum>, bottomPadding: Dp, onOpen: (LocalAlbum) -> Unit) {
+private fun AlbumsPage(
+    albums: List<LocalAlbum>, bottomPadding: Dp, sort: Order<AlbumKey>? = null, onSort: (Order<AlbumKey>) -> Unit = {}, onOpen: (LocalAlbum) -> Unit,
+) {
     LazyVerticalGrid(
         GridCells.Adaptive(150.dp), Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 4.dp, bottom = bottomPadding + 16.dp),
+        contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = if (sort != null) 0.dp else 4.dp, bottom = bottomPadding + 16.dp),
     ) {
+        if (sort != null) item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) {
+            SortRow(if (albums.size == 1) "1 album" else "${albums.size} albums", "Sort albums", AlbumKey.entries, sort, { it.label }, { it.dirs }, onSort, inset = 4.dp)
+        }
         items(albums, key = { "b" + it.id }) { a -> AlbumTile(a) { onOpen(a) } }
+    }
+}
+
+/**
+ * A list's count, and its order as a quiet pill (what it's by, and an arrow for which way round), which opens
+ * [SortSheet] (#35).
+ */
+@Composable
+private fun <K> SortRow(
+    count: String, title: String, keys: List<K>, order: Order<K>, label: (K) -> String, dirs: (K) -> Pair<String, String>,
+    onSort: (Order<K>) -> Unit, inset: Dp = 16.dp,
+) {
+    var open by remember { mutableStateOf(false) }
+    val scheme = MaterialTheme.colorScheme
+    Row(Modifier.fillMaxWidth().padding(start = inset, end = 8.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(count, style = MaterialTheme.typography.labelLarge, color = scheme.onSurfaceVariant, modifier = Modifier.weight(1f))
+        Row(
+            Modifier.clip(CircleShape).background(com.prism.music.ui.components.quietFill()).clickable(onClickLabel = title) { open = true }
+                .padding(start = 12.dp, end = 10.dp, top = 7.dp, bottom = 7.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            androidx.compose.material3.Icon(PrismIcons.Sort, null, Modifier.size(17.dp), tint = scheme.onSurfaceVariant)
+            Spacer(Modifier.width(6.dp))
+            Text(label(order.key), style = MaterialTheme.typography.labelLarge, color = scheme.onSurface)
+            Spacer(Modifier.width(4.dp))
+            androidx.compose.material3.Icon(
+                if (order.reversed) PrismIcons.ChevronUp else PrismIcons.ChevronDown,
+                if (order.reversed) dirs(order.key).second else dirs(order.key).first, Modifier.size(16.dp), tint = scheme.primary,
+            )
+        }
+    }
+    if (open) SortSheet(title, keys, order, label, dirs, onSort) { open = false }
+}
+
+/**
+ * Choosing an order, in Prism's sheet: which way round at the top (in the order's own words: "A to Z", "Newest
+ * first", "Longest first"…), then what to order by. Picking one applies it and closes; the way round applies at once.
+ */
+@Composable
+private fun <K> SortSheet(
+    title: String, keys: List<K>, order: Order<K>, label: (K) -> String, dirs: (K) -> Pair<String, String>,
+    onSort: (Order<K>) -> Unit, onDismiss: () -> Unit,
+) {
+    val scheme = MaterialTheme.colorScheme
+    var shown by remember { mutableStateOf(order) }
+    com.prism.music.ui.components.PrismSheet(onDismiss = onDismiss) { close ->
+        Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 20.dp))
+        val (usual, other) = dirs(shown.key)
+        Row(Modifier.padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            PrismChip(!shown.reversed, { shown = shown.copy(reversed = false); onSort(shown) }, usual, icon = PrismIcons.ChevronDown)
+            PrismChip(shown.reversed, { shown = shown.copy(reversed = true); onSort(shown) }, other, icon = PrismIcons.ChevronUp)
+        }
+        keys.forEach { k ->
+            val on = k == shown.key
+            Row(
+                Modifier.fillMaxWidth().clickable {
+                    // A new order starts the usual way round; the one already chosen keeps its direction.
+                    val next = if (on) shown else Order(k)
+                    onSort(next)
+                    close {}
+                }.padding(horizontal = 20.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    label(k), Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = if (on) FontWeight.SemiBold else FontWeight.Normal, color = if (on) scheme.primary else scheme.onSurface,
+                )
+                if (on) androidx.compose.material3.Icon(PrismIcons.Check, null, tint = scheme.primary)
+            }
+        }
+        Spacer(Modifier.height(20.dp))
     }
 }
 
