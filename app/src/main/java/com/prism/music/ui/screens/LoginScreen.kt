@@ -269,9 +269,10 @@ fun DiscordLoginScreen(onBack: () -> Unit) {
         while (isActive && !done) {
             delay(1_000)
             val view = web ?: continue
-            val path = android.net.Uri.parse(view.url ?: continue).path.orEmpty()
-            // Signed in: Discord has moved on from its login (and two-factor) pages into the app.
-            if (!path.startsWith("/channels") && !path.startsWith("/app")) continue
+            if (view.url?.contains("discord.com") != true) continue
+            // Asked on every page: Discord signs in without leaving /login (the app draws in place), and with
+            // two-factor or a QR code the address can lag behind; no session simply comes back empty.
+            view.evaluateJavascript(DISCORD_HOOK_JS, null)
             view.evaluateJavascript(DISCORD_TOKEN_JS) { result ->
                 val token = runCatching {
                     com.prism.music.data.innertube.InnerTube.json.parseToJsonElement(result)
@@ -324,6 +325,8 @@ fun DiscordLoginScreen(onBack: () -> Unit) {
                             // A load the network cut off can end without an error, on an empty page: say so too.
                             override fun onPageFinished(view: WebView, url: String) {
                                 if (done) return
+                                // Listen to Discord's own requests before anyone types: the sign-in answer carries the session.
+                                view.evaluateJavascript(DISCORD_HOOK_JS, null)
                                 view.evaluateJavascript("document.documentElement.innerHTML.length") { len ->
                                     if ((len.toIntOrNull() ?: 0) < 200 && failed == null) failed = "The page came back empty"
                                 }
@@ -367,21 +370,44 @@ private const val DISCORD_LOGIN_URL = "https://discord.com/login"
  */
 private val DISCORD_TOKEN_JS = """
     (function(){
-      var t='';
+      var t=window.__prismToken||'';
+      if(!t){
       try{var f=document.createElement('iframe');f.style.display='none';document.body.appendChild(f);
-        t=f.contentWindow.localStorage.getItem('token')||'';f.remove();}catch(e){}
+        t=JSON.parse(f.contentWindow.localStorage.getItem('token')||'""')||'';f.remove();}catch(e){}}
       if(!t){try{
         var mods=[];
         window.webpackChunkdiscord_app.push([[Symbol()],{},function(r){for(var k in r.c)mods.push(r.c[k]);}]);
         window.webpackChunkdiscord_app.pop();
         for(var i=0;i<mods.length&&!t;i++){
           var x=mods[i]&&mods[i].exports; if(!x)continue;
-          var cands=[x.default,x.Z,x.ZP,x];
+          var cands=[x];try{for(var key in x)cands.push(x[key]);}catch(e){}
           for(var j=0;j<cands.length;j++){var o=cands[j];
             try{if(o&&typeof o.getToken==='function'){var v=o.getToken();if(typeof v==='string'&&v){t=v;break;}}}catch(e){}}
         }
       }catch(e){}}
-      return t;
+      return typeof t==='string'?t:'';
+    })()
+""".trimIndent()
+
+/**
+ * Keeps the session Discord's page itself hands out: the `token` in the answer to signing in (password, two-factor or
+ * QR code) and the `Authorization` its later requests carry. Installed once per page; Discord stays on one page.
+ */
+private val DISCORD_HOOK_JS = """
+    (function(){
+      if(window.__prismHooked)return; window.__prismHooked=true;
+      function keep(v){if(typeof v==='string'&&v.length>20&&v.indexOf(' ')<0)window.__prismToken=v;}
+      function read(txt){try{var j=JSON.parse(txt);if(j&&j.token)keep(j.token);}catch(e){}}
+      var X=XMLHttpRequest.prototype, open=X.open, send=X.send, set=X.setRequestHeader;
+      X.setRequestHeader=function(k,v){if(String(k).toLowerCase()==='authorization')keep(v);return set.apply(this,arguments);};
+      X.open=function(m,u){this.__u=String(u);return open.apply(this,arguments);};
+      X.send=function(){var x=this;if(/\/auth\/|\/login/.test(x.__u||''))x.addEventListener('load',function(){read(x.responseText);});
+        return send.apply(this,arguments);};
+      var f=window.fetch; if(f)window.fetch=function(i,o){
+        try{var h=o&&o.headers;if(h)keep(typeof h.get==='function'?h.get('Authorization'):(h.Authorization||h.authorization));}catch(e){}
+        var p=f.apply(this,arguments), u=String(i&&i.url||i);
+        if(/\/auth\/|\/login/.test(u))p.then(function(r){r.clone().text().then(read);}).catch(function(){});
+        return p;};
     })()
 """.trimIndent()
 
