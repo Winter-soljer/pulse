@@ -730,7 +730,8 @@ fun LyricsProviderSheet(state: LyricsState, onDismiss: () -> Unit) {
     val c = LocalContainer.current
     val settings by c.settings.flow.collectAsState()
     val scope = rememberCoroutineScope()
-    LaunchedEffect(state.song.id) { state.probeAll(settings.lyricsOrder) }
+    // Only the sources turned on in Settings → Lyrics (#51).
+    LaunchedEffect(state.song.id) { state.probeAll(settings.lyricsSources) }
     val scheme = MaterialTheme.colorScheme
     val ui = com.prism.music.ui.theme.LocalUi.current
     // The same frosted sheet as the player's ⋯ menu it opens from.
@@ -750,7 +751,7 @@ fun LyricsProviderSheet(state: LyricsState, onDismiss: () -> Unit) {
             )
         }
         Column(Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp).fillMaxWidth().pane(ui.card, scheme.surfaceContainerHigh)) {
-            settings.lyricsOrder.forEachIndexed { i, src ->
+            settings.lyricsSources.forEachIndexed { i, src ->
                 val st = state.providers[src] ?: ProviderState.UNKNOWN
                 val starred = state.censoredSources[src] == true
                 val chosen = state.source == src && state.lyrics != null

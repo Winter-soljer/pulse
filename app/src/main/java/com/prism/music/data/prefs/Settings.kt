@@ -34,17 +34,18 @@ enum class CarLyricsStyle(val label: String, val detail: String) {
     TEXT("Title only", "The current line in place of the song title; the cover stays as it is"),
 }
 
-enum class LyricsSource(val label: String) {
-    APPLE("Better Lyrics"),
-    LYRICSPLUS("LyricsPlus"),
-    BINI("Bini"),
-    QQ("QQ · Portato"),
-    LRCLIB("LRCLIB"),
-    NETEASE("NetEase"),
-    KUGOU("KuGou"),
-    UNISON("Unison"),
-    YTMUSIC("YouTube Music"),
-    GENIUS("Genius"),
+/** Where lyrics come from; [detail] says what each is good for, in Settings → Lyrics → Sources (#51). */
+enum class LyricsSource(val label: String, val detail: String) {
+    APPLE("Better Lyrics", "Apple Music's lyrics · word by word"),
+    LYRICSPLUS("LyricsPlus", "Apple Music, Musixmatch and Spotify's · word by word"),
+    BINI("Bini", "Apple Music's lyrics · word by word"),
+    QQ("QQ · Portato", "QQ Music · word by word, the most Chinese songs"),
+    LRCLIB("LRCLIB", "Open lyrics database · line by line"),
+    NETEASE("NetEase", "NetEase Cloud Music · word by word"),
+    KUGOU("KuGou", "KuGou · word by word, many Asian songs"),
+    UNISON("Unison", "Lyrics listeners submit · few songs so far"),
+    YTMUSIC("YouTube Music", "LyricFind, as on YouTube Music · lines or plain"),
+    GENIUS("Genius", "Plain text · also fills in starred-out words"),
 }
 
 /** Tiles in Home's greeting section. */
@@ -383,6 +384,9 @@ data class AppSettings(
     val replayThemeColors: Boolean = false,
 ) {
     val isLoggedIn: Boolean get() = cookie.contains("SAPISID")
+
+    /** The lyric sources Prism asks, in the listener's order: the ones turned off are left out (#51). */
+    val lyricsSources: List<LyricsSource> get() = lyricsOrder.filter { it !in lyricsOff }.ifEmpty { lyricsOrder }
 }
 
 class SettingsRepository(private val context: Context, scope: CoroutineScope) {

@@ -818,7 +818,7 @@ class LyricsRepository(
         val reference = if (!s.skipCensored) null else REFERENCE_SOURCES.firstNotNullOfOrNull { src ->
             rows[src.name]?.let { build(src, it.content) }?.takeIf { !it.censored }?.plain
         }
-        val all = s.lyricsOrder.mapNotNull { src -> rows[src.name]?.let { build(src, it.content) } }
+        val all = s.lyricsSources.mapNotNull { src -> rows[src.name]?.let { build(src, it.content) } }
             .map { if (it.source == LyricsSource.GENIUS) it else Uncensor.fill(it, reference) }
             .filterNot { skipCensored() && it.censored }
         if (!s.preferSynced) return@withContext all.firstOrNull()
@@ -849,7 +849,7 @@ class LyricsRepository(
     suspend fun download(song: Song): Lyrics? {
         chosen(song)?.let { src -> fetch(song, src)?.let { return it } }
         saved(song)?.takeIf { it.wordSynced }?.let { return it }
-        val order = settings().lyricsOrder
+        val order = settings().lyricsSources
         var best: Lyrics? = null
         var censored: Lyrics? = null
         for (src in order.filter { it in WORD_SOURCES } + order.filter { it !in WORD_SOURCES }) {
@@ -882,14 +882,14 @@ class LyricsRepository(
         }
         var plainFallback: Lyrics? = null
         var censored: Lyrics? = null
-        for ((i, src) in s.lyricsOrder.withIndex()) {
+        for ((i, src) in s.lyricsSources.withIndex()) {
             val l = fetch(song, src, force) ?: continue
             if (unwanted(l)) { if (censored == null || (l.synced && !censored.synced)) censored = l; continue }
             if (l.wordSynced || !s.preferSynced) return l
             if (l.synced) {
                 // Karaoke beats time-synced lines, even from a source further down the list: those that can have it
                 // are asked as well, all at once so it stays quick, and the first in the listener's order wins.
-                val rest = s.lyricsOrder.drop(i + 1).filter { it in WORD_SOURCES }
+                val rest = s.lyricsSources.drop(i + 1).filter { it in WORD_SOURCES }
                 val karaoke = kotlinx.coroutines.coroutineScope {
                     rest.map { r -> async { runCatching { fetch(song, r, force) }.getOrNull() } }
                         .map { it.await() }
