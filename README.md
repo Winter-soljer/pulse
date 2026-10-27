@@ -9,7 +9,7 @@
 ![Kotlin](https://img.shields.io/badge/Kotlin-Jetpack%20Compose-7f52ff?logo=kotlin&logoColor=white)
 ![No tracking](https://img.shields.io/badge/telemetry-none-555)
 [![License: GPL-3.0-or-later](https://img.shields.io/badge/license-GPL--3.0--or--later-blue)](LICENSE)
-[![Support on Ko-fi](https://img.shields.io/badge/Ko--fi-support%20Pulse-ff5e5b?logo=ko-fi&logoColor=white)](https://ko-fi.com/yigder)
+[![Support on Ko-fi](https://img.shields.io/badge/Ko--fi-support%20Pulse-ff5e5b?logo=ko-fi&logoColor=white)](https://ko-fi.com/Techfisher.inc)
 
 **[⬇ Download Pulse.apk](https://github.com/Winter-soljer/pulse/releases/latest/download/Pulse.apk)** · [Release notes](https://github.com/Winter-soljer/pulse/releases/latest)
 
@@ -171,9 +171,9 @@ Pulse talks to YouTube Music and the lyric services directly from your phone. Th
 
 ## Support Pulse
 
-Pulse is free, has no ads and doesn't track you. It's built and maintained in my spare time. If you enjoy it and want to help keep it going, you can buy me a coffee on **[Ko-fi](https://ko-fi.com/yigder)**. Every tip helps, and is never expected.
+Pulse is free, has no ads and doesn't track you. It's built and maintained in my spare time. If you enjoy it and want to help keep it going, you can buy me a coffee on **[Ko-fi](https://ko-fi.com/Techfisher.inc)**. Every tip helps, and is never expected.
 
-<a href="https://ko-fi.com/yigder"><img src="https://img.shields.io/badge/Buy%20me%20a%20coffee-Ko--fi-ff5e5b?style=for-the-badge&logo=ko-fi&logoColor=white" alt="Support Pulse on Ko-fi"></a>
+<a href="https://ko-fi.com/Techfisher.inc"><img src="https://img.shields.io/badge/Buy%20me%20a%20coffee-Ko--fi-ff5e5b?style=for-the-badge&logo=ko-fi&logoColor=white" alt="Support Pulse on Ko-fi"></a>
 
 ## Building from source
 
@@ -216,7 +216,7 @@ Bug reports, ideas and pull requests are welcome. See [CONTRIBUTING.md](CONTRIBU
 
 ## License
 
-Copyright (C) 2026 Yigder
+Copyright (C) 2026 Techfisher.inc
 
 Pulse is free software: you can redistribute it and/or modify it under the terms of the [GNU General Public License](LICENSE) as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version. It is distributed in the hope that it will be useful, but without any warranty; see the license for details.
 
