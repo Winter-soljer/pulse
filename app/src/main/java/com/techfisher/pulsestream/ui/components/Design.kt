@@ -1,0 +1,272 @@
+package com.techfisher.pulsestream.ui.components
+
+import com.techfisher.pulsestream.ui.theme.PulseIcons
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import com.techfisher.pulsestream.data.prefs.TitleSize
+import com.techfisher.pulsestream.ui.LocalNavigator
+import com.techfisher.pulsestream.ui.theme.GlassSurface
+import com.techfisher.pulsestream.ui.theme.LocalIsDark
+import com.techfisher.pulsestream.ui.theme.LocalUi
+
+/** The style for big page titles, following the Title size setting. */
+@Composable
+fun pageTitleStyle(): TextStyle = when (LocalUi.current.titleSize) {
+    TitleSize.LARGE -> MaterialTheme.typography.headlineLarge
+    TitleSize.MEDIUM -> MaterialTheme.typography.headlineMedium
+    TitleSize.SMALL -> MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.ExtraBold)
+}
+
+/** A top-level page's heading: a big title, an optional quiet line under it, and round actions on the right. */
+@Composable
+fun ScreenHeader(
+    title: String,
+    modifier: Modifier = Modifier,
+    subtitle: String? = null,
+    actions: @Composable RowScope.() -> Unit = {},
+) {
+    val ui = LocalUi.current
+    Row(
+        modifier.fillMaxWidth().statusBarsPadding().padding(start = 20.dp, end = 14.dp, top = ui.gap(14.dp), bottom = ui.gap(6.dp)),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(title, style = pageTitleStyle(), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (!subtitle.isNullOrBlank()) Text(
+                subtitle, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
+            )
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically, content = actions)
+    }
+}
+
+/**
+ * The disc behind a button that floats over a page (photos, artwork, scrolling content). Haze can't
+ * blur inside the NavHost, so it carries its own near-solid fill: dark glass with white ink in dark
+ * mode, milky white with near-black ink in light mode, legible over anything.
+ */
+@Composable
+fun FloatingDisc(modifier: Modifier = Modifier, content: @Composable androidx.compose.foundation.layout.BoxScope.(ink: Color) -> Unit) {
+    val dark = LocalIsDark.current
+    val fill = if (dark) Color(0xFF1B1B1F).copy(alpha = 0.78f) else Color.White.copy(alpha = 0.90f)
+    val ink = if (dark) Color.White else Color(0xFF111114)
+    Box(
+        modifier.size(42.dp)
+            .shadow(6.dp, CircleShape, ambientColor = Color.Black.copy(alpha = 0.3f), spotColor = Color.Black.copy(alpha = 0.3f))
+            .clip(CircleShape).background(fill)
+            .border(0.7.dp, if (dark) Color.White.copy(alpha = 0.16f) else Color.Black.copy(alpha = 0.08f), CircleShape),
+        contentAlignment = Alignment.Center,
+    ) { content(ink) }
+}
+
+/** A round, quiet action for headers: tonal by default, or a floating disc ([FloatingDisc]) when it floats over content. */
+@Composable
+fun RoundAction(icon: ImageVector, description: String, modifier: Modifier = Modifier, glass: Boolean = false, enabled: Boolean = true, onClick: () -> Unit) {
+    val tint = MaterialTheme.colorScheme.onSurface.copy(alpha = if (enabled) 1f else 0.38f)
+    if (glass) {
+        FloatingDisc(modifier) { ink ->
+            Box(Modifier.fillMaxSize().clickable(enabled = enabled, onClickLabel = description, onClick = onClick), contentAlignment = Alignment.Center) {
+                Icon(icon, description, Modifier.size(22.dp), tint = ink.copy(alpha = if (enabled) 1f else 0.38f))
+            }
+        }
+    } else {
+        // On a frosted page: a round of frosted glass, like the artist page's buttons.
+        val edge = if (LocalFrosted.current) Modifier.border(0.7.dp, Color.White.copy(alpha = if (LocalIsDark.current) 0.14f else 0.6f), CircleShape) else Modifier
+        Box(
+            modifier.size(42.dp).clip(CircleShape).background(quietFill()).then(edge)
+                .clickable(enabled = enabled, onClickLabel = description, onClick = onClick),
+            contentAlignment = Alignment.Center,
+        ) { Icon(icon, description, Modifier.size(22.dp), tint = tint) }
+    }
+}
+
+/**
+ * A secondary page (settings pages, Customize Home, Equalizer…): a big title that scrolls away under
+ * a slim bar with a glass back button, which turns solid and shows the title once you've scrolled.
+ */
+@Composable
+fun SubPage(
+    title: String,
+    bottomPadding: Dp,
+    modifier: Modifier = Modifier,
+    subtitle: String? = null,
+    state: LazyListState = rememberLazyListState(),
+    horizontalPadding: Dp = 0.dp,
+    spacing: Dp = 0.dp,
+    showBack: Boolean = true,
+    actions: @Composable RowScope.() -> Unit = {},
+    content: LazyListScope.() -> Unit,
+) {
+    val nav = LocalNavigator.current
+    val scheme = MaterialTheme.colorScheme
+    val statusTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val scrolled by remember(state) { derivedStateOf { state.firstVisibleItemIndex > 0 || state.firstVisibleItemScrollOffset > 60 } }
+    val bar by animateFloatAsState(if (scrolled) 1f else 0f, tween(220), label = "bar")
+    // On a frosted page the content melts away under the bar into the page's own backdrop, as
+    // on the artist and album pages; elsewhere the bar turns solid.
+    val melts = LocalFrosted.current && LocalPageBackdrop.current != null
+    Box(modifier.fillMaxSize()) {
+        LazyColumn(
+            state = state,
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(start = horizontalPadding, end = horizontalPadding, top = statusTop + 60.dp, bottom = bottomPadding + 28.dp),
+            verticalArrangement = Arrangement.spacedBy(spacing),
+        ) {
+            item(key = "subpage:title") {
+                Column(Modifier.padding(start = 20.dp - horizontalPadding.coerceAtMost(20.dp), end = 20.dp, bottom = 10.dp)) {
+                    Text(title, style = pageTitleStyle(), maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    if (!subtitle.isNullOrBlank()) Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = scheme.onSurfaceVariant)
+                }
+            }
+            content()
+        }
+        if (melts) TopScrollEdge({ bar }, 60.dp)
+        Box(
+            Modifier.fillMaxWidth()
+                .background(if (melts) Color.Transparent else scheme.surface.copy(alpha = 0.92f * bar))
+                .statusBarsPadding()
+                .height(60.dp),
+        ) {
+            if (showBack) RoundAction(PulseIcons.ArrowBack, "Back", Modifier.align(Alignment.CenterStart).padding(start = 12.dp), glass = true) { nav.back() }
+            Text(
+                title, Modifier.align(Alignment.Center).padding(horizontal = 72.dp).graphicsLayer { alpha = bar },
+                style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            )
+            Row(
+                Modifier.align(Alignment.CenterEnd).padding(end = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically, content = actions,
+            )
+        }
+    }
+}
+
+/** A pill-shaped choice: solid when picked, quiet otherwise ([idle], or the theme's container colour). */
+@Composable
+fun PulseChip(selected: Boolean, onClick: () -> Unit, label: String, modifier: Modifier = Modifier, icon: ImageVector? = null, idle: Color = Color.Unspecified) {
+    val scheme = MaterialTheme.colorScheme
+    val ui = LocalUi.current
+    val bg by animateColorAsState(if (selected) scheme.onSurface else if (idle != Color.Unspecified) idle else quietFill(), tween(180), label = "chipBg")
+    val fg by animateColorAsState(if (selected) scheme.surface else scheme.onSurface, tween(180), label = "chipFg")
+    Row(
+        modifier.height(36.dp).clip(ui.shape(18.dp)).background(bg).clickable(onClick = onClick).padding(horizontal = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (icon != null) { Icon(icon, null, Modifier.size(18.dp), tint = fg); Spacer(Modifier.width(6.dp)) }
+        Text(label, style = MaterialTheme.typography.labelLarge, color = fg, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
+}
+
+/** A sideways-scrolling row of [PulseChip]s. */
+@Composable
+fun <T> ChipRow(
+    options: List<T>,
+    selected: (T) -> Boolean,
+    label: (T) -> String,
+    modifier: Modifier = Modifier,
+    contentPadding: PaddingValues = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
+    onSelect: (T) -> Unit,
+) {
+    LazyRow(modifier, contentPadding = contentPadding, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        items(options.size) { i -> val o = options[i]; PulseChip(selected(o), { onSelect(o) }, label(o)) }
+    }
+}
+
+/** Two to four options side by side in one capsule; the picked one is lifted out. */
+@Composable
+fun <T> Segmented(options: List<T>, selected: T, label: (T) -> String, modifier: Modifier = Modifier, onSelect: (T) -> Unit) {
+    val scheme = MaterialTheme.colorScheme
+    val ui = LocalUi.current
+    val frosted = LocalFrosted.current
+    val dark = LocalIsDark.current
+    val picked = if (frosted) (if (dark) Color.White.copy(alpha = 0.22f) else Color.White.copy(alpha = 0.95f)) else scheme.surface
+    Row(
+        modifier.fillMaxWidth().height(42.dp).clip(ui.shape(21.dp))
+            .background(if (frosted) frostFill(1.2f) else scheme.surfaceContainerHighest.copy(alpha = 0.7f)).padding(3.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        options.forEach { o ->
+            val on = o == selected
+            val bg by animateColorAsState(if (on) picked else Color.Transparent, tween(180), label = "seg")
+            Box(
+                Modifier.weight(1f).fillMaxHeight().clip(ui.shape(18.dp)).background(bg).clickable { onSelect(o) },
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    label(o), style = MaterialTheme.typography.labelLarge, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    color = if (on) scheme.onSurface else scheme.onSurfaceVariant,
+                    fontWeight = if (on) FontWeight.Bold else FontWeight.Medium,
+                    modifier = Modifier.padding(horizontal = 6.dp),
+                )
+            }
+        }
+    }
+}
+
+/** Choices that wrap onto more lines when there are many. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun <T> ChoiceFlow(options: List<T>, selected: (T) -> Boolean, label: (T) -> String, modifier: Modifier = Modifier, onSelect: (T) -> Unit) {
+    FlowRow(modifier, horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        options.forEach { o -> PulseChip(selected(o), { onSelect(o) }, label(o)) }
+    }
+}
+
+/** A small uppercase label over a group. */
+@Composable
+fun Eyebrow(text: String, modifier: Modifier = Modifier, color: Color = MaterialTheme.colorScheme.onSurfaceVariant) {
+    Text(
+        text.uppercase(), modifier, style = MaterialTheme.typography.labelMedium.copy(letterSpacing = MaterialTheme.typography.labelMedium.letterSpacing * 1.6f),
+        color = color, fontWeight = FontWeight.SemiBold, maxLines = 1,
+    )
+}

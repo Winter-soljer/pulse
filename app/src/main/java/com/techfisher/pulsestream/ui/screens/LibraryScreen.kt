@@ -1,0 +1,453 @@
+package com.techfisher.pulsestream.ui.screens
+
+import com.techfisher.pulsestream.ui.theme.PulseIcons
+import com.techfisher.pulsestream.data.friendlyMessage
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import com.techfisher.pulsestream.ui.components.pane
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import com.techfisher.pulsestream.data.LibraryRepository
+import com.techfisher.pulsestream.data.SyncState
+import com.techfisher.pulsestream.data.model.ArtistItem
+import com.techfisher.pulsestream.data.model.SongItem
+import com.techfisher.pulsestream.ui.LocalNavigator
+import com.techfisher.pulsestream.ui.Routes
+import com.techfisher.pulsestream.ui.components.EmptyState
+import com.techfisher.pulsestream.ui.components.ItemCard
+import com.techfisher.pulsestream.ui.components.PagerChips
+import com.techfisher.pulsestream.ui.components.SortBar
+import com.techfisher.pulsestream.ui.components.SongRow
+import com.techfisher.pulsestream.ui.components.featureInk
+import com.techfisher.pulsestream.ui.components.featurePane
+import com.techfisher.pulsestream.ui.theme.LocalAppSettings
+import com.techfisher.pulsestream.ui.theme.LocalContainer
+import kotlinx.coroutines.launch
+
+// The phone's own music files have their own page (Local files, from Playlists), with Songs, Artists and Albums.
+private enum class LibTab(val label: String) { PLAYLISTS("Playlists"), SONGS("Songs"), ALBUMS("Albums"), ARTISTS("Artists"), DOWNLOADS("Downloads") }
+
+private enum class SongSort(val label: String) { RECENT("Recently liked"), TITLE("Title"), ARTIST("Artist"), ALBUM("Album") }
+private enum class AlbumSort(val label: String) { LIBRARY("Library order"), MOST("Most songs"), TITLE("Title"), ARTIST("Artist") }
+private enum class ArtistSort(val label: String) { LIBRARY("Library order"), MOST("Most songs"), NAME("Name") }
+/** Saved by name ([com.techfisher.pulsestream.data.LibraryRepository.playlistSort]); CUSTOM is the listener's own order. */
+private enum class PlaylistSort(val label: String) { CUSTOM("Your order"), LIBRARY("Recent activity"), TITLE("Title") }
+
+@Composable
+fun LibraryScreen(bottomPadding: Dp) {
+    val c = LocalContainer.current
+    val nav = LocalNavigator.current
+    val settings = LocalAppSettings.current
+    val playlists by c.library.playlists.collectAsState()
+    val remoteAlbums by c.library.albums.collectAsState()
+    val remoteArtists by c.library.artists.collectAsState()
+    val liked by c.library.liked.collectAsState()
+    val sync by c.library.syncState.collectAsState()
+    val dls by c.downloads.downloads.collectAsState()
+    val thumbs by c.library.artistThumbs.collectAsState()
+    val favorites by c.artistPrefs.favorites.collectAsState()
+    val scope = rememberCoroutineScope()
+    var creating by remember { mutableStateOf(false) }
+    var aiCreating by remember { mutableStateOf(false) }
+    val startPage = remember { LibTab.entries.indexOfFirst { it.name == settings.libraryStartTab }.coerceAtLeast(0) }
+    val pager = rememberPagerState(initialPage = startPage) { LibTab.entries.size }
+    val asList = settings.libraryView == com.techfisher.pulsestream.data.prefs.LibraryView.LIST
+    val onSong: (SongItem) -> Unit = { c.player.playSingle(it.song) }
+    // A long press on a playlist offers play / shuffle / delete; the one it asked to delete.
+    var menuFor by remember { mutableStateOf<com.techfisher.pulsestream.data.model.BrowseItem?>(null) }
+    var deleting by remember { mutableStateOf<com.techfisher.pulsestream.data.model.BrowseItem?>(null) }
+    val menu = com.techfisher.pulsestream.ui.components.rememberPlayMenu()
+
+    // The account's saved albums / artists first, then the ones your liked and downloaded songs come from.
+    val mine = remember(liked, dls) {
+        (liked + dls.values.filter { it.state == androidx.media3.exoplayer.offline.Download.STATE_COMPLETED }.mapNotNull { it.song }).distinctBy { it.id }
+    }
+    val albums = remember(remoteAlbums, mine) {
+        (remoteAlbums + LibraryRepository.albumsFrom(mine)).distinctBy { it.id }
+    }
+    // Starred artists lead, marked as favourites.
+    val artists = remember(remoteArtists, mine, thumbs, favorites) {
+        val starred = favorites.map { f -> ArtistItem(f.id, f.name, "★ Favourite", f.thumbnail) }
+        (starred + remoteArtists + LibraryRepository.artistsFrom(mine)).distinctBy { it.id }.map { a ->
+            if (a.thumbnail == null && a is ArtistItem) a.copy(thumbnail = thumbs[a.id]) else a
+        }
+    }
+
+    // ---- Sorting (each tab remembers its own)
+    var songSort by rememberSaveable { mutableStateOf(SongSort.RECENT) }
+    var albumSort by rememberSaveable { mutableStateOf(AlbumSort.LIBRARY) }
+    var artistSort by rememberSaveable { mutableStateOf(ArtistSort.LIBRARY) }
+    val sortedSongs = remember(liked, songSort) {
+        when (songSort) {
+            SongSort.RECENT -> liked
+            SongSort.TITLE -> liked.sortedBy { it.title.lowercase() }
+            SongSort.ARTIST -> liked.sortedWith(compareBy<com.techfisher.pulsestream.data.model.Song> { it.primaryArtist.lowercase() }.thenBy { it.album?.title?.lowercase() ?: "" })
+            SongSort.ALBUM -> liked.sortedWith(compareBy<com.techfisher.pulsestream.data.model.Song> { it.album?.title?.lowercase() ?: "\uFFFF" }.thenBy { it.title.lowercase() })
+        }
+    }
+    val albumSongs = remember(mine) { mine.filter { it.album?.id != null }.groupBy { it.album!!.id!! } }
+    val sortedAlbums = remember(albums, albumSort, albumSongs) {
+        fun artistOf(a: com.techfisher.pulsestream.data.model.BrowseItem) = albumSongs[a.id]?.first()?.primaryArtist ?: a.subtitle.split(" • ").firstOrNull { it != "Album" && it != "Single" && it != "EP" } ?: ""
+        when (albumSort) {
+            AlbumSort.LIBRARY -> albums
+            AlbumSort.MOST -> albums.sortedByDescending { albumSongs[it.id]?.size ?: 0 }
+            AlbumSort.TITLE -> albums.sortedBy { it.title.lowercase() }
+            AlbumSort.ARTIST -> albums.sortedWith(compareBy<com.techfisher.pulsestream.data.model.BrowseItem> { artistOf(it).lowercase() }.thenBy { it.title.lowercase() })
+        }
+    }
+    val artistSongs = remember(mine) { mine.flatMap { s -> s.artists.mapNotNull { it.id } }.groupingBy { it }.eachCount() }
+    val sortedArtists = remember(artists, artistSort, artistSongs, favorites) {
+        val fav = favorites.map { it.id }.toSet()
+        when (artistSort) {
+            ArtistSort.LIBRARY -> artists
+            ArtistSort.MOST -> artists.sortedWith(compareByDescending<com.techfisher.pulsestream.data.model.BrowseItem> { it.id in fav }.thenByDescending { artistSongs[it.id] ?: 0 })
+            ArtistSort.NAME -> artists.sortedWith(compareByDescending<com.techfisher.pulsestream.data.model.BrowseItem> { it.id in fav }.thenBy { it.title.lowercase().removePrefix("the ") })
+        }
+    }
+    // Playlists: YouTube Music's order, by title, or the listener's own (arranged in Rearrange mode).
+    val playlistOrder by c.library.playlistOrder.collectAsState()
+    val playlistSortName by c.library.playlistSort.collectAsState()
+    val playlistSort = PlaylistSort.entries.firstOrNull { it.name == playlistSortName }
+        ?: if (playlistOrder.isEmpty()) PlaylistSort.LIBRARY else PlaylistSort.CUSTOM
+    val myPlaylists = remember(playlists) { playlists.filter { it.id != "LM" } }
+    val sortedPlaylists = remember(myPlaylists, playlistOrder, playlistSort) {
+        when (playlistSort) {
+            PlaylistSort.CUSTOM -> LibraryRepository.inOrder(myPlaylists, playlistOrder)
+            PlaylistSort.LIBRARY -> myPlaylists
+            PlaylistSort.TITLE -> myPlaylists.sortedBy { it.title.lowercase() }
+        }
+    }
+    var rearranging by rememberSaveable { mutableStateOf(false) }
+    // Moving one (or starting to) saves the whole order as shown, and switches to it.
+    fun saveOrder(list: List<com.techfisher.pulsestream.data.model.BrowseItem>) {
+        c.library.setPlaylistOrder(list.map { it.id })
+        c.library.setPlaylistSort(PlaylistSort.CUSTOM.name)
+    }
+    val localTracks by c.localMusic.tracks.collectAsState()
+
+    LaunchedEffect(pager.currentPage == LibTab.ARTISTS.ordinal, artists.size) {
+        if (pager.currentPage == LibTab.ARTISTS.ordinal) c.library.loadArtistThumbs(artists.filter { it.thumbnail == null }.take(60).map { it.id })
+    }
+
+    LaunchedEffect(settings.isLoggedIn) {
+        // Once per session (Pulse also syncs at launch); the refresh button forces another.
+        if (settings.isLoggedIn && (playlists.isEmpty() || sync == SyncState.IDLE)) c.library.sync()
+    }
+
+    Column(Modifier.fillMaxSize()) {
+        com.techfisher.pulsestream.ui.components.ScreenHeader("Library") {
+            if (settings.isLoggedIn) {
+                if (sync == SyncState.SYNCING) Box(Modifier.size(42.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp) }
+                else com.techfisher.pulsestream.ui.components.RoundAction(PulseIcons.Sync, "Sync with YouTube Music") { scope.launch { c.library.sync() } }
+            }
+            com.techfisher.pulsestream.ui.components.RoundAction(
+                if (asList) PulseIcons.Customize else PulseIcons.Queue,
+                if (asList) "Show as grid" else "Show as list",
+            ) { c.settings.setLibraryView(if (asList) com.techfisher.pulsestream.data.prefs.LibraryView.GRID else com.techfisher.pulsestream.data.prefs.LibraryView.LIST) }
+            if (com.techfisher.pulsestream.data.prefs.NavTab.SETTINGS !in settings.navTabs) com.techfisher.pulsestream.ui.components.RoundAction(PulseIcons.SettingsFilled, "Settings") { nav.go(Routes.SETTINGS) }
+        }
+        PagerChips(LibTab.entries.map { it.label }, pager)
+
+        HorizontalPager(pager, Modifier.weight(1f), beyondViewportPageCount = 1) { page ->
+            val tab = LibTab.entries[page]
+            LazyVerticalGrid(
+                if (asList) GridCells.Fixed(1) else GridCells.Adaptive(160.dp),
+                Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(start = if (asList) 0.dp else 12.dp, end = if (asList) 0.dp else 12.dp, top = 4.dp, bottom = bottomPadding + 16.dp),
+            ) {
+                val empty = when (tab) {
+                    LibTab.ALBUMS -> albums.isEmpty()
+                    LibTab.ARTISTS -> artists.isEmpty()
+                    LibTab.SONGS -> liked.isEmpty()
+                    else -> false
+                }
+                if (empty) item(span = { GridItemSpan(maxLineSpan) }) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        if (!settings.isLoggedIn) {
+                            EmptyState(PulseIcons.LibraryFilled, "Sign in to sync your library", "Your playlists, albums, artists and likes from YouTube Music will appear here.")
+                            Button(onClick = { nav.go(Routes.LOGIN) }) { Icon(PulseIcons.Login, null); Spacer(Modifier.width(8.dp)); Text("Sign in") }
+                        } else {
+                            EmptyState(PulseIcons.LibraryFilled, "Nothing here yet", "Like or download songs, or star artists, and they'll show up here.")
+                        }
+                    }
+                }
+                when (tab) {
+                    LibTab.PLAYLISTS -> {
+                        item { ShortcutTile("Liked songs", com.techfisher.pulsestream.data.model.songCount(liked.size), PulseIcons.HeartFilled, asList, art = c.covers.custom("liked"), onLongClick = { menu(com.techfisher.pulsestream.ui.components.Playable.Liked) }) { nav.go(Routes.liked()) } }
+                        item { ShortcutTile("Downloads", com.techfisher.pulsestream.data.model.songCount(dls.values.count { it.state == androidx.media3.exoplayer.offline.Download.STATE_COMPLETED }), PulseIcons.DownloadDone, asList, onLongClick = { menu(com.techfisher.pulsestream.ui.components.Playable.Downloads) }) { nav.go(Routes.DOWNLOADS) } }
+                        item {
+                            ShortcutTile(
+                                "Local files", if (localTracks.isEmpty()) "Music files on this phone" else com.techfisher.pulsestream.data.model.songCount(localTracks.size),
+                                PulseIcons.Phone, asList,
+                            ) { nav.go(Routes.LOCAL) }
+                        }
+                        item { ShortcutTile("Replay", "Your listening recap", PulseIcons.History, asList) { nav.go(Routes.REPLAY) } }
+                        // Home's Podcasts button turned off (#28): Podcasts lives here instead.
+                        if (!settings.homePodcastsButton) item { ShortcutTile("Podcasts", "Shows and episodes", PulseIcons.Podcasts, asList) { nav.go(Routes.PODCASTS) } }
+                        item { ShortcutTile("Listen together", "With friends on the same Wi-Fi", PulseIcons.Groups, asList) { nav.go(Routes.TOGETHER) } }
+                        item { ShortcutTile("AI Playlist", "Create with mood, vibe or prompt", PulseIcons.Replay, asList) { aiCreating = true } }
+                        if (settings.isLoggedIn) item { ShortcutTile("New playlist", "Make one on YouTube Music", PulseIcons.Add, asList) { creating = true } }
+                        if (settings.isLoggedIn) item { ShortcutTile("Import playlists", "From Spotify, Apple Music…", PulseIcons.PlaylistAdd, asList) { nav.go(Routes.IMPORT) } }
+                        if (!settings.isLoggedIn) item(span = { GridItemSpan(maxLineSpan) }) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                EmptyState(PulseIcons.LibraryFilled, "Sign in to sync your playlists", "Your YouTube Music playlists will appear here.")
+                                Button(onClick = { nav.go(Routes.LOGIN) }) { Icon(PulseIcons.Login, null); Spacer(Modifier.width(8.dp)); Text("Sign in") }
+                            }
+                        }
+                        if (myPlaylists.size > 1) item(span = { GridItemSpan(maxLineSpan) }) {
+                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(end = 8.dp)) {
+                                if (rearranging) Text(
+                                    "Hold and drag, or use the arrows", style = MaterialTheme.typography.labelLarge,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f).padding(start = 8.dp),
+                                ) else SortBar("${myPlaylists.size} playlists", PlaylistSort.entries, playlistSort, { it.label }, Modifier.weight(1f)) {
+                                    c.library.setPlaylistSort(it.name)
+                                }
+                                com.techfisher.pulsestream.ui.components.PulseChip(
+                                    rearranging,
+                                    {
+                                        if (!rearranging) saveOrder(sortedPlaylists)
+                                        rearranging = !rearranging
+                                    },
+                                    if (rearranging) "Done" else "Rearrange",
+                                    icon = if (rearranging) PulseIcons.Check else PulseIcons.SwapVertical,
+                                )
+                            }
+                        }
+                        if (rearranging) item(span = { GridItemSpan(maxLineSpan) }) {
+                            RearrangePlaylists(sortedPlaylists, ::saveOrder)
+                        } else items(sortedPlaylists, key = { "p" + it.id }) { p ->
+                            LibraryItem(p, asList, onLongClick = { menuFor = p }) { nav.open(p, onSong) }
+                        }
+                    }
+                    LibTab.SONGS -> {
+                        if (liked.isNotEmpty()) item(span = { GridItemSpan(maxLineSpan) }) {
+                            SortBar(com.techfisher.pulsestream.data.model.songCount(liked.size), SongSort.entries, songSort, { it.label }) { songSort = it }
+                        }
+                        items(sortedSongs, key = { "s" + it.id }, span = { GridItemSpan(maxLineSpan) }) { s ->
+                            SongRow(s) { c.player.playQueue(sortedSongs, sortedSongs.indexOf(s), com.techfisher.pulsestream.playback.QueueSource(com.techfisher.pulsestream.playback.QueueKind.LIBRARY, "Liked songs")) }
+                        }
+                    }
+                    LibTab.ALBUMS -> {
+                        if (albums.isNotEmpty()) item(span = { GridItemSpan(maxLineSpan) }) {
+                            SortBar("${albums.size} albums", AlbumSort.entries, albumSort, { it.label }) { albumSort = it }
+                        }
+                        items(sortedAlbums, key = { "a" + it.id }) { a -> LibraryItem(a, asList) { nav.open(a, onSong) } }
+                    }
+                    LibTab.ARTISTS -> {
+                        if (artists.isNotEmpty()) item(span = { GridItemSpan(maxLineSpan) }) {
+                            SortBar(if (artists.size == 1) "1 artist" else "${artists.size} artists", ArtistSort.entries, artistSort, { it.label }) { artistSort = it }
+                        }
+                        items(sortedArtists, key = { "r" + it.id }) { a -> LibraryItem(a, asList) { nav.open(a, onSong) } }
+                    }
+                    LibTab.DOWNLOADS -> item(span = { GridItemSpan(maxLineSpan) }) { DownloadsSummary() }
+                }
+            }
+        }
+    }
+
+    if (creating) {
+        val context = androidx.compose.ui.platform.LocalContext.current
+        com.techfisher.pulsestream.ui.components.NewPlaylistDialog(onDismiss = { creating = false }) { name, privacy ->
+            creating = false
+            scope.launch {
+                val id = runCatching { c.ytm.createPlaylist(name, emptyList(), privacy = privacy) }.getOrNull()
+                if (id == null) android.widget.Toast.makeText(context, "Couldn't make the playlist", android.widget.Toast.LENGTH_SHORT).show()
+                else {
+                    c.library.refreshCollections()
+                    nav.go(Routes.playlist(id))
+                }
+            }
+        }
+    }
+
+    if (aiCreating) {
+        com.techfisher.pulsestream.ui.components.AiPlaylistDialog(
+            onDismiss = { aiCreating = false }
+        )
+    }
+
+    menuFor?.let { p ->
+        com.techfisher.pulsestream.ui.components.PlayActionsSheet(
+            com.techfisher.pulsestream.ui.components.Playable.Of(p),
+            extra = listOf(
+                com.techfisher.pulsestream.ui.components.SheetItem(PulseIcons.SwapVertical, "Rearrange playlists") { saveOrder(sortedPlaylists); rearranging = true },
+                com.techfisher.pulsestream.ui.components.SheetItem(PulseIcons.Delete, "Delete playlist", danger = true) { deleting = p },
+            ),
+        ) { menuFor = null }
+    }
+
+    deleting?.let { p ->
+        val context = androidx.compose.ui.platform.LocalContext.current
+        AlertDialog(
+            onDismissRequest = { deleting = null },
+            title = { Text("Delete playlist?") },
+            text = { Text("\"${p.title}\" will be deleted from your YouTube Music account. If it's someone else's playlist, it's only removed from your library.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    deleting = null
+                    scope.launch {
+                        c.library.deletePlaylist(p).onFailure {
+                            android.widget.Toast.makeText(context, "Couldn't delete \"${p.title}\": ${it.friendlyMessage()}", android.widget.Toast.LENGTH_LONG).show()
+                        }
+                    }
+                }) { Text("Delete", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = { TextButton(onClick = { deleting = null }) { Text("Cancel") } },
+        )
+    }
+}
+/** The playlists as a list to put in order: hold and drag a row, or nudge it with its arrows. */
+@Composable
+private fun RearrangePlaylists(playlists: List<com.techfisher.pulsestream.data.model.BrowseItem>, onReorder: (List<com.techfisher.pulsestream.data.model.BrowseItem>) -> Unit) {
+    val c = LocalContainer.current
+    val ui = com.techfisher.pulsestream.ui.theme.LocalUi.current
+    val scheme = MaterialTheme.colorScheme
+    fun move(from: Int, to: Int) {
+        if (to !in playlists.indices) return
+        onReorder(playlists.toMutableList().apply { add(to, removeAt(from)) })
+    }
+    com.techfisher.pulsestream.ui.components.ReorderList(
+        playlists, { it.id }, onReorder,
+        Modifier.padding(horizontal = 8.dp).pane(ui.card).padding(vertical = 6.dp),
+    ) { p, i, held, drag ->
+        Row(
+            drag.fillMaxWidth().then(if (held) Modifier.background(scheme.surfaceContainerHighest) else Modifier)
+                .padding(start = 12.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            com.techfisher.pulsestream.ui.components.Artwork(
+                c.covers.art(p), Modifier.size(44.dp), ui.smallArt, size = 226,
+                placeholderIcon = PulseIcons.QueueMusic,
+            )
+            Spacer(Modifier.width(12.dp))
+            Text(
+                p.title, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge, fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
+                maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+            )
+            IconButton(onClick = { move(i, i - 1) }, enabled = i > 0) { Icon(PulseIcons.ChevronUp, "Move ${p.title} up") }
+            IconButton(onClick = { move(i, i + 1) }, enabled = i < playlists.lastIndex) { Icon(PulseIcons.ChevronDown, "Move ${p.title} down") }
+            Icon(PulseIcons.DragHandle, null, Modifier.padding(end = 8.dp).size(20.dp), tint = scheme.onSurfaceVariant.copy(alpha = 0.6f))
+        }
+    }
+}
+
+/** An album, artist or playlist as a card (grid view) or a row (list view). */
+@Composable
+private fun LibraryItem(item: com.techfisher.pulsestream.data.model.BrowseItem, asList: Boolean, onLongClick: (() -> Unit)? = null, onClick: () -> Unit) {
+    if (asList) ResultRow(item, onLongClick, onClick) else ItemCard(item, width = 400.dp, onLongClick = onLongClick, onClick = onClick)
+}
+
+@Composable
+private fun ShortcutTile(title: String, subtitle: String, icon: ImageVector, asList: Boolean, art: String? = null, onLongClick: (() -> Unit)? = null, onClick: () -> Unit) {
+    val scheme = MaterialTheme.colorScheme
+    val ui = com.techfisher.pulsestream.ui.theme.LocalUi.current
+    @Composable
+    fun Cover(modifier: Modifier, shape: androidx.compose.ui.graphics.Shape, iconSize: Dp) {
+        // A picture the listener chose (Liked songs can have one too).
+        if (art != null) com.techfisher.pulsestream.ui.components.Artwork(art, modifier, shape, size = 544)
+        else Box(
+            modifier.clip(shape).background(Brush.linearGradient(listOf(scheme.primary, scheme.tertiary))),
+            contentAlignment = Alignment.Center,
+        ) { Icon(icon, null, Modifier.size(iconSize), tint = scheme.onPrimary) }
+    }
+    if (asList) {
+        Row(
+            Modifier.fillMaxWidth().combinedClickable(onClick = onClick, onLongClick = onLongClick).padding(horizontal = 16.dp, vertical = ui.gap(7.dp)),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Cover(Modifier.size(56.dp), ui.smallArt, 26.dp)
+            Spacer(Modifier.width(14.dp))
+            Column {
+                Text(title, style = MaterialTheme.typography.bodyLarge, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
+                Text(subtitle, style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant)
+            }
+        }
+        return
+    }
+    Column(Modifier.padding(4.dp).clip(ui.tile).combinedClickable(onClick = onClick, onLongClick = onLongClick).padding(4.dp)) {
+        Cover(Modifier.fillMaxWidth().aspectRatio(1f), ui.art, 56.dp)
+        Spacer(Modifier.height(8.dp))
+        Text(title, style = MaterialTheme.typography.titleSmall)
+        Text(subtitle, style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant)
+    }
+}
+
+@Composable
+private fun DownloadsSummary() {
+    val c = LocalContainer.current
+    val nav = LocalNavigator.current
+    val dls by c.downloads.downloads.collectAsState()
+    val done = dls.values.filter { it.state == androidx.media3.exoplayer.offline.Download.STATE_COMPLETED }
+    val active = dls.values.filter { it.state != androidx.media3.exoplayer.offline.Download.STATE_COMPLETED }
+    val waiting by c.downloads.waitingForNetwork.collectAsState()
+    val ink = featureInk()
+    Column(Modifier.padding(8.dp)) {
+        Box(
+            Modifier.fillMaxWidth().featurePane(com.techfisher.pulsestream.ui.theme.LocalUi.current.card)
+                .clickable { nav.go(Routes.DOWNLOADS) }.padding(20.dp),
+        ) {
+            Column {
+                Text("${com.techfisher.pulsestream.data.model.songCount(done.size)} offline", style = MaterialTheme.typography.titleLarge, color = ink)
+                Text(
+                    "%.1f MB used".format(done.sumOf { it.bytes } / 1_048_576.0) + if (active.isNotEmpty()) " · ${active.size} in progress" else "",
+                    style = MaterialTheme.typography.bodyMedium, color = ink.copy(alpha = 0.8f),
+                )
+                Text("Open downloads →", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 8.dp))
+            }
+        }
+        if (active.isNotEmpty()) com.techfisher.pulsestream.ui.screens.DownloadQueueStatus(active)
+        active.forEach { d ->
+            d.song?.let { s ->
+                Row(Modifier.padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(s.title, Modifier.weight(1f), maxLines = 1, style = MaterialTheme.typography.bodyMedium)
+                    Text(com.techfisher.pulsestream.ui.screens.downloadStateText(d, waiting), style = MaterialTheme.typography.labelMedium, color = Color.Gray)
+                }
+            }
+        }
+    }
+}

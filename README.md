@@ -1,19 +1,19 @@
 <div align="center">
 
-# Prism
+# Pulse
 
 **A YouTube Music client for Android, with word-by-word lyrics, Replay, offline downloads and full Android Auto support.**
 
-[![Latest release](https://img.shields.io/github/v/release/Yigder/Prism?label=download&color=7c4dff)](../../releases/latest)
+[![Latest release](https://img.shields.io/github/v/release/Winter-soljer/pulse?label=download&color=7c4dff)](https://github.com/Winter-soljer/pulse/releases/latest)
 ![Android 8.0+](https://img.shields.io/badge/Android-8.0%2B-3ddc84?logo=android&logoColor=white)
 ![Kotlin](https://img.shields.io/badge/Kotlin-Jetpack%20Compose-7f52ff?logo=kotlin&logoColor=white)
 ![No tracking](https://img.shields.io/badge/telemetry-none-555)
 [![License: GPL-3.0-or-later](https://img.shields.io/badge/license-GPL--3.0--or--later-blue)](LICENSE)
-[![Support on Ko-fi](https://img.shields.io/badge/Ko--fi-support%20Prism-ff5e5b?logo=ko-fi&logoColor=white)](https://ko-fi.com/yigder)
+[![Support on Ko-fi](https://img.shields.io/badge/Ko--fi-support%20Pulse-ff5e5b?logo=ko-fi&logoColor=white)](https://ko-fi.com/yigder)
 
-**[⬇ Download Prism.apk](../../releases/latest/download/Prism.apk)** · [Release notes](../../releases/latest) · [▶ Watch the showcase (1:55)](promo/prism-showcase.mp4)
+**[⬇ Download Pulse.apk](https://github.com/Winter-soljer/pulse/releases/latest/download/Pulse.apk)** · [Release notes](https://github.com/Winter-soljer/pulse/releases/latest)
 
-**New in [1.6.8](../../releases/tag/v1.6.8):** Speed dial on Home, Quick picks radios, searching your own music, an offline library with covers, data saver, new widgets, lyrics source choice and saving lyrics into your files, plus fixes for stuck downloads, headphone volume lag and music videos.
+**New in [1.6.9.2](https://github.com/Winter-soljer/pulse/releases/tag/v1.6.9.2):** AI DJ & prompt-based smart playlists, real-time audio analysis (BPM & harmonic key detection), social presence (Discord & Telegram status, WhatsApp sharing), streaming fallback resilience, multiple accounts & brand channels, Speed dial on Home, offline library with covers, new home screen widgets, and enhanced word-by-word lyrics.
 
 <img src="docs/screenshots/home-dark.jpg" width="22%" alt="Home">
 <img src="docs/screenshots/player.jpg" width="22%" alt="Now playing">
@@ -23,11 +23,11 @@
 </div>
 
 > [!NOTE]
-> Prism is an independent, unofficial app. It is not affiliated with, endorsed by, or connected to Google, YouTube or YouTube Music.
+> Pulse is an independent, unofficial app. It is not affiliated with, endorsed by, or connected to Google, YouTube or YouTube Music.
 
 ## Install
 
-1. Download **`Prism.apk`** from the [latest release](../../releases/latest) on your phone.
+1. Download **`Pulse.apk`** from the [latest release](https://github.com/Winter-soljer/pulse/releases/latest) on your phone.
 2. Open it. Android will ask you to allow installs from your browser or file manager.
 3. Optional: sign in with your YouTube Music account to sync likes, playlists, albums and artists.
 
@@ -38,13 +38,15 @@ Updating works the same way: install the new APK over the old one, and your down
 | | |
 |---|---|
 | 🎤 **Word-by-word lyrics** | Ten lyric sources, karaoke timing first, then line-synced, then plain. Switch source per song and nudge the timing. |
+| 🤖 **AI DJ & Smart Playlists** | Context-aware music recommendations, mood prompts, and transition-aware AI DJ queue sequencing. |
+| 📊 **Audio Analysis** | Real-time BPM and key estimation, audio dynamics, and dynamic waveform visualization. |
 | 🎨 **Make it yours** | Font, text size, corners, spacing, nav bar, mini player, player background and controls, lyrics alignment, Replay colours and eleven screen backgrounds. |
-| 📊 **Replay** | A private, on-device recap of your listening, with a full-screen story. |
+| 📈 **Replay** | A private, on-device recap of your listening, with a full-screen story. |
 | 🎬 **Music videos** | Switch any song to its music video in one tap, with lyrics in sync and full-screen landscape. |
 | 🎧 **Listen together** | Phones on the same Wi-Fi play in step, or friends add songs to your queue. No account, no server. |
-| 🔗 **Share anything** | Story cards and links for songs, albums, playlists and artists, plus "Play in Prism" for YouTube links. |
+| 💬 **Social Presence & Share** | Discord Rich Presence, Telegram status, WhatsApp sharing, plus story cards and "Play in Pulse" deep links. |
 | 📥 **Offline** | Downloads, Smart Downloads and your own music files, with lyrics saved alongside every song. |
-| 🎚️ **Sound** | 10-band EQ, loudness normalization, Prism Spatial, skip silence and lossless playback. |
+| 🎚️ **Sound** | 10-band EQ, loudness normalization, Pulse Spatial, skip silence and lossless playback. |
 | 🎛️ **Crossfade** | Songs fade into each other as on Spotify, with the length worked out for each pair, or beat-matched like a DJ set. |
 | 🚗 **Android Auto** | Shuffle play, extra player buttons and lyrics on the car screen. |
 
@@ -52,12 +54,12 @@ Updating works the same way: install the new APK over the old one, and your down
 
 ### Listening
 - **Lyrics, word by word.** Better Lyrics (Apple Music's timed lyrics), QQ Music, NetEase, KuGou, LyricsPlus, Bini, LRCLIB, Unison, Genius and YouTube Music. Starred-out swear words ("f**k") are filled back in from Genius's full text, keeping the word-by-word timing. Lyrics in another language can show a translation under each line.
-- **Crossfade.** When a song runs into the next, the ending song fades out while the next one fades in, as on Spotify. With **Automatic length**, Prism listens to how each song ends and the next begins (measured on the phone, on Wi-Fi): it crossfades over a song's fade-out or the next song's quiet intro, and only briefly between two hard edges; or pick 1 to 12 seconds yourself. **Match tempo and beats** makes it DJ-style: the next song starts on the beat and plays at the same tempo while they overlap, then eases back to its own. An album's own tracks still play straight through.
+- **Crossfade.** When a song runs into the next, the ending song fades out while the next one fades in, as on Spotify. With **Automatic length**, Pulse listens to how each song ends and the next begins (measured on the phone, on Wi-Fi): it crossfades over a song's fade-out or the next song's quiet intro, and only briefly between two hard edges; or pick 1 to 12 seconds yourself. **Match tempo and beats** makes it DJ-style: the next song starts on the beat and plays at the same tempo while they overlap, then eases back to its own. An album's own tracks still play straight through.
 - **Player.** Full-bleed artwork and animated covers (saved with downloads, for offline), in three cover sizes up to full width, with optional shuffle and repeat buttons beside play. Hold previous or next to jump back or forward (1 to 20 seconds a step, your pick), and hide the Song / Video switch if you only want audio. Shows the codec and bitrate (or Lossless / Downloaded) under the progress bar, with stats in an in-player panel.
 - **Lyrics in any direction.** Arabic, Hebrew and other right-to-left lyrics sit on the right and light up from the right.
 - **Podcasts.** Popular shows, your followed shows when signed in, episodes that pick up where you left off, and 0.75× to 2× speed.
 - **Music videos.** Tap the video toggle under the player to switch any song to its official music video. Playback carries on from the same spot, and the lyrics stay in sync. Fit or fill the frame, go full screen, or turn the phone sideways for edge-to-edge landscape. Video quality goes from 480p up to 1440p in Playback & sound.
-- **Sound.** 10-band equalizer with presets, bass boost, loudness normalization (each song measured on the phone, to -14 LUFS; works offline), Prism Spatial for any headphones, skip silence, and a lossless mode that plays matching FLAC files on the phone.
+- **Sound.** 10-band equalizer with presets, bass boost, loudness normalization (each song measured on the phone, to -14 LUFS; works offline), Pulse Spatial for any headphones, skip silence, and a lossless mode that plays matching FLAC files on the phone.
 - **Immersive mode.** The cover fills the screen (its animated version when it has one) and the lyrics play over it like a lyric video. Swipe for the next or previous song; pick how the cover fits and where the lyrics sit.
 - **Autoplay and radio.** The queue keeps going with similar music after an album or playlist ends. Shuffle makes a fresh order every time, and Previous goes back to the song you just heard. Swipe a song in an album or playlist right to play it next, or left to add it to the queue. Save the queue as a playlist, or clear what's up next.
 - **Sleep timer** for a set time or until the current song ends.
@@ -75,13 +77,13 @@ Updating works the same way: install the new APK over the old one, and your down
 - **Make it yours:** your own font file (and a separate one for lyrics), thin, regular or bold icons, and six app icons to pick from.
 - Signed in, likes, playlists, albums and artists sync both ways. **Add albums and playlists to your library**, **star your favourite artists** (they lead Library → Artists and are subscribed on YouTube Music), **make new playlists**, and add songs to them from a searchable sheet.
 - **Your playlists, your way:** rename them, rewrite the description, choose private, unlisted or public, take songs out, or delete them.
-- **Import playlists from Spotify, Apple Music and more** with [TuneMyMusic](https://www.tunemymusic.com) (Library → Import playlists). It copies them into your YouTube Music account, and Prism syncs them in when you come back.
+- **Import playlists from Spotify, Apple Music and more** with [TuneMyMusic](https://www.tunemymusic.com) (Library → Import playlists). It copies them into your YouTube Music account, and Pulse syncs them in when you come back.
 
 ### Together and sharing
-- **Listen together.** Start a session and friends on the same Wi-Fi (or your hotspot) join with a four-digit code. They can play the same music on their own phones, kept in step with yours, or just add songs to your queue, party style. You decide whether guests can also play, pause and skip. Phones talk to each other directly: there's no Prism server, and nothing is shared once the session ends.
+- **Listen together.** Start a session and friends on the same Wi-Fi (or your hotspot) join with a four-digit code. They can play the same music on their own phones, kept in step with yours, or just add songs to your queue, party style. You decide whether guests can also play, pause and skip. Phones talk to each other directly: there's no Pulse server, and nothing is shared once the session ends.
 - **Share** any song, album, playlist or artist as a link or as a story card made from its artwork. A private playlist's link only works for you, so the share sheet offers to make it unlisted. Liked songs and Downloads share as a card and a track list.
-- **Play in Prism:** share a YouTube or YouTube Music link from any app to Prism to open it.
-- **"Hey Google, play … on Prism":** Google Assistant and Gemini can play songs in Prism by voice; "play music on Prism" carries on with your last queue.
+- **Play in Pulse:** share a YouTube or YouTube Music link from any app to Pulse to open it.
+- **"Hey Google, play … on Pulse":** Google Assistant and Gemini can play songs in Pulse by voice; "play music on Pulse" carries on with your last queue.
 
 ### Android Auto
 - Browse Home, Liked songs, your library and recent plays, and search or ask Google Assistant / Gemini by voice.
@@ -142,13 +144,13 @@ Every screen follows the phone's theme, or pick Light or Dark in Appearance.
 
 ### Android Auto
 
-<img src="docs/screenshots/android-auto-lyrics.jpg" width="600" alt="Prism on Android Auto, the sung line shown in place of the song title">
+<img src="docs/screenshots/android-auto-lyrics.jpg" width="600" alt="Pulse on Android Auto, the sung line shown in place of the song title">
 
 The sung line shows in place of the song title on the car's player (parked or passengers only).
 
 ## Credits and inspiration
 
-Prism doesn't ship artwork, fonts or code copied from other apps, but several ideas and data sources come from elsewhere:
+Pulse doesn't ship artwork, fonts or code copied from other apps, but several ideas and data sources come from elsewhere:
 
 - **Apple Music** inspired the artist page layout (including its 2026 frosted redesign, with the name and Info, Play and Favourite centred under the photo), starred most-played album tracks, headline artist typefaces and the animated cover style.
 - **Spotify Jam** inspired Listen Together (built here to work without any server), and Spotify and Apple Music's share cards inspired the story cards.
@@ -158,20 +160,20 @@ Prism doesn't ship artwork, fonts or code copied from other apps, but several id
 - **Spotify's Crossfade and Mix** inspired Crossfade and its beat-matched blends between songs.
 - **Lyrics:** [Better Lyrics](https://betterlyrics.org) (Apple Music TTML and QQ Music "Portato"), NetEase, KuGou, LyricsPlus, Bini, [LRCLIB](https://lrclib.net), Unison, Genius and YouTube Music. Lyrics belong to their rights holders.
 - **Animated covers** come from Apple Music, Tidal and the ViVi Music canvas list.
-- **Playlist import** hands off to [TuneMyMusic](https://www.tunemymusic.com), the transfer service YouTube Music's own app uses. It's a separate service; Prism shares nothing with it.
+- **Playlist import** hands off to [TuneMyMusic](https://www.tunemymusic.com), the transfer service YouTube Music's own app uses. It's a separate service; Pulse shares nothing with it.
 - **Signed-in streams:** [yt-dlp's EJS solver](https://github.com/yt-dlp/ejs) (Unlicense, bundling [meriyah](https://github.com/meriyah/meriyah) and [astring](https://github.com/davidbonnet/astring)) deciphers them, running on WebView's JavaScript engine through androidx.javascriptengine.
 - **Libraries:** [NewPipe Extractor](https://github.com/TeamNewPipe/NewPipeExtractor), [Haze](https://github.com/chrisbanes/haze), [Coil](https://coil-kt.github.io/coil/), Media3 ExoPlayer and the rest of the stack below.
 - Music and metadata are streamed from YouTube Music. All trademarks belong to their owners.
 
 ## Privacy
 
-Prism talks to YouTube Music and the lyric services directly from your phone. There is no Prism server and no telemetry. Listening history, Replay stats, downloads and settings stay on the device; if you sign in, your session is stored only in the app's private storage. Listen Together only ever talks to the other phones in your session, on your local network, and only while it's open. Lyrics translation (off unless you turn it on) sends the lyrics' text to Google Translate.
+Pulse talks to YouTube Music and the lyric services directly from your phone. There is no Pulse server and no telemetry. Listening history, Replay stats, downloads and settings stay on the device; if you sign in, your session is stored only in the app's private storage. Listen Together only ever talks to the other phones in your session, on your local network, and only while it's open. Lyrics translation (off unless you turn it on) sends the lyrics' text to Google Translate.
 
-## Support Prism
+## Support Pulse
 
-Prism is free, has no ads and doesn't track you. It's built and maintained in my spare time. If you enjoy it and want to help keep it going, you can buy me a coffee on **[Ko-fi](https://ko-fi.com/yigder)**. Every tip helps, and is never expected.
+Pulse is free, has no ads and doesn't track you. It's built and maintained in my spare time. If you enjoy it and want to help keep it going, you can buy me a coffee on **[Ko-fi](https://ko-fi.com/yigder)**. Every tip helps, and is never expected.
 
-<a href="https://ko-fi.com/yigder"><img src="https://img.shields.io/badge/Buy%20me%20a%20coffee-Ko--fi-ff5e5b?style=for-the-badge&logo=ko-fi&logoColor=white" alt="Support Prism on Ko-fi"></a>
+<a href="https://ko-fi.com/yigder"><img src="https://img.shields.io/badge/Buy%20me%20a%20coffee-Ko--fi-ff5e5b?style=for-the-badge&logo=ko-fi&logoColor=white" alt="Support Pulse on Ko-fi"></a>
 
 ## Building from source
 
@@ -181,7 +183,7 @@ Requirements: JDK 17+ and the Android SDK (compile SDK 37).
 ./gradlew :app:assembleRelease
 ```
 
-The APK lands in `app/build/outputs/apk/release/`. Without a `keystore.properties` (and its keystore) in the project root, release builds are signed with the debug key so they install directly; official releases use Prism's own key, so a self-built APK installs beside them only after uninstalling the official one. Release builds are deliberately unminified (NewPipe Extractor and Rhino rely on reflection).
+The APK lands in `app/build/outputs/apk/release/`. Without a `keystore.properties` (and its keystore) in the project root, release builds are signed with the debug key so they install directly; official releases use Pulse's own key, so a self-built APK installs beside them only after uninstalling the official one. Release builds are deliberately unminified (NewPipe Extractor and Rhino rely on reflection).
 
 Unit tests (some call live lyric and YouTube Music endpoints, so they need a network connection):
 
@@ -191,7 +193,7 @@ Unit tests (some call live lyric and YouTube Music endpoints, so they need a net
 
 ### Project layout
 
-| Area | Where (`app/src/main/java/com/prism/music/`) |
+| Area | Where (`app/src/main/java/com/techfisher/pulsestream/`) |
 |---|---|
 | YouTube Music API, parsing and search ranking | `data/innertube/` |
 | Stream resolving (NewPipe Extractor) | `data/stream/` |
@@ -200,12 +202,13 @@ Unit tests (some call live lyric and YouTube Music endpoints, so they need a net
 | Listen Together (local-network sessions) | `playback/together/` |
 | Downloads and smart downloads | `download/` |
 | Compose UI and design kit | `ui/` |
+| Home screen widgets | `widget/` |
 
 Stack: Kotlin, Jetpack Compose (Material 3), Media3 ExoPlayer and MediaSession, Room, DataStore, OkHttp, kotlinx.serialization, Coil, WorkManager, NewPipe Extractor.
 
 ## Changelog
 
-What's new in each release is in [CHANGELOG.md](CHANGELOG.md) and on the [Releases page](https://github.com/Yigder/Prism/releases).
+What's new in each release is in [CHANGELOG.md](CHANGELOG.md) and on the [Releases page](https://github.com/Winter-soljer/pulse/releases).
 
 ## Contributing
 
@@ -215,6 +218,6 @@ Bug reports, ideas and pull requests are welcome. See [CONTRIBUTING.md](CONTRIBU
 
 Copyright (C) 2026 Yigder
 
-Prism is free software: you can redistribute it and/or modify it under the terms of the [GNU General Public License](LICENSE) as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version. It is distributed in the hope that it will be useful, but without any warranty; see the license for details.
+Pulse is free software: you can redistribute it and/or modify it under the terms of the [GNU General Public License](LICENSE) as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version. It is distributed in the hope that it will be useful, but without any warranty; see the license for details.
 
-The license covers Prism's own code. The libraries it's built with keep their own licenses (listed in the app under Settings → About → Open-source licenses). Music, artwork, lyrics and the YouTube and YouTube Music names belong to their respective owners, and Prism is not affiliated with Google or YouTube.
+The license covers Pulse's own code. The libraries it's built with keep their own licenses (listed in the app under Settings → About → Open-source licenses). Music, artwork, lyrics and the YouTube and YouTube Music names belong to their respective owners, and Pulse is not affiliated with Google or YouTube.

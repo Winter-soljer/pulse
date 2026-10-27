@@ -13,3 +13,7 @@ captures/
 .claude/settings.local.json
 keystore.properties
 CLAUDE.md
+
+*.log
+
+.agents/

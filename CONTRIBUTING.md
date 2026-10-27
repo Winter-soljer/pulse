@@ -1,4 +1,4 @@
-# Contributing to Prism
+# Contributing to Pulse
 
 Thanks for wanting to help. Bug reports, ideas and pull requests are all welcome.
 
@@ -6,7 +6,7 @@ Thanks for wanting to help. Bug reports, ideas and pull requests are all welcome
 
 Open an [issue](../../issues/new/choose) and pick **Bug report**. The most useful things to include:
 
-- Prism version (Settings → About) and your Android version and phone
+- Pulse version (Settings → About) and your Android version and phone
 - Whether you're signed in
 - What you did, what you expected, and what happened instead
 - For playback or lyric problems: the song (a link is perfect)
@@ -21,7 +21,7 @@ You need JDK 17+ and the Android SDK (compile SDK 37). On Windows use `.\gradlew
 ./gradlew :app:assembleDebug
 ```
 
-To try your build without touching an installed Prism, build a side-by-side copy. It installs as `com.prism.music.dev` with its own data:
+To try your build without touching an installed Pulse, build a side-by-side copy. It installs as `com.techfisher.pulsestream.dev` with its own data:
 
 ```bash
 ./gradlew :app:assembleDebug -PsideBySide
@@ -46,10 +46,10 @@ If you change a screen background, run `BackdropRenderTest` and look at the cont
 
 ## Ground rules
 
-- **Privacy.** Prism has no server and no telemetry, and that's not going to change. Listening history, Replay and settings stay on the phone. Pull requests that add analytics, crash reporting services or tracking won't be merged.
-- **Your YouTube session stays in Prism.** Never send Prism's YouTube cookies or account details to any third-party service.
-- Prism is unofficial and not affiliated with Google or YouTube. Keep it that way in names, icons and wording.
+- **Privacy.** Pulse has no server and no telemetry, and that's not going to change. Listening history, Replay and settings stay on the phone. Pull requests that add analytics, crash reporting services or tracking won't be merged.
+- **Your YouTube session stays in Pulse.** Never send Pulse's YouTube cookies or account details to any third-party service.
+- Pulse is unofficial and not affiliated with Google or YouTube. Keep it that way in names, icons and wording.
 
 ## License
 
-Prism is licensed under the [GNU General Public License v3.0 or later](LICENSE). By sending a contribution you agree that it's licensed the same way.
+Pulse is licensed under the [GNU General Public License v3.0 or later](LICENSE). By sending a contribution you agree that it's licensed the same way.

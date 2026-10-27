@@ -8,17 +8,17 @@ plugins {
 }
 
 android {
-    namespace = "com.prism.music"
+    namespace = "com.techfisher.pulsestream"
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "com.prism.music"
+        applicationId = "com.techfisher.pulsestream"
         minSdk = 26
         targetSdk = 36
         versionCode = 37
         versionName = "1.6.9.2"
         vectorDrawables { useSupportLibrary = true }
-        // The name under the launcher icon; a side-by-side build (below) is called "Prism Dev" so it can't be mistaken for Prism.
+        // The name under the launcher icon; a side-by-side build (below) is called "Pulse Dev" so it can't be mistaken for Pulse.
         manifestPlaceholders["appLabel"] = "@string/app_name"
         // Optional: `lastfm.apiKey=…` in local.properties lets genre detection ask Last.fm too.
         val localProps = Properties().apply {
@@ -44,11 +44,11 @@ android {
 
     buildTypes {
         debug {
-            // `-PsideBySide`: a debug Prism that installs next to the real one (for trying changes on your own phone), as
-            // "Prism Dev". `-PsideBySide=name` installs as com.prism.music.name instead of .dev, beside an older dev copy.
+            // `-PsideBySide`: a debug Pulse that installs next to the real one (for trying changes on your own phone), as
+            // "Pulse Dev". `-PsideBySide=name` installs as com.techfisher.pulsestream.name instead of .dev, beside an older dev copy.
             if (project.hasProperty("sideBySide")) {
                 applicationIdSuffix = "." + (project.property("sideBySide") as String).ifBlank { "dev" }
-                manifestPlaceholders["appLabel"] = "Prism Dev"
+                manifestPlaceholders["appLabel"] = "Pulse Dev"
             }
         }
         release {
@@ -98,6 +98,8 @@ dependencies {
     implementation(composeBom)
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-graphics")
+    implementation("androidx.compose.ui:ui-tooling-preview")
+    debugImplementation("androidx.compose.ui:ui-tooling")
     implementation("androidx.compose.foundation:foundation")
     implementation("androidx.compose.animation:animation")
     implementation("androidx.compose.material3:material3")

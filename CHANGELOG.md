@@ -1,11 +1,11 @@
 # Changelog
 
-What changed in each release. Older releases are described on the [Releases page](https://github.com/Yigder/Prism/releases).
+What changed in each release. Older releases are described on the [Releases page](https://github.com/Winter-soljer/pulse/releases).
 
 ## 1.6.9.2
 
 ### Fixed
-- **Discord sign-in stayed on Discord's page after signing in.** Prism now picks up the session from Discord's own sign-in answer (password, two-factor or QR code) and its requests, checks on every page rather than only once the address changes, and finds Discord's session wherever its current code keeps it.
+- **Discord sign-in stayed on Discord's page after signing in.** Pulse now picks up the session from Discord's own sign-in answer (password, two-factor or QR code) and its requests, checks on every page rather than only once the address changes, and finds Discord's session wherever its current code keeps it.
 
 ## 1.6.9.1
 
@@ -17,7 +17,7 @@ What changed in each release. Older releases are described on the [Releases page
 
 ### New
 - **More than one account**: Settings → "Switch account" lists every YouTube channel you can use, including several channels (brand accounts) under one email, and "Add a Google account" signs another one in beside it. Switching brings that channel's library, likes and recommendations; Replay and this phone's history stay.
-- **Discord** (Settings → Discord): "Listening to Prism" on your Discord profile, with the song, artist and how far in, cleared when you pause. Off until you sign in to Discord on its own page; the sign-in stays on this phone and never goes in a backup. Discord has no official way for Android apps to do this, so it works the way other Android music players do, which Discord's terms don't allow for third-party apps: there's a small risk to your Discord account.
+- **Discord** (Settings → Discord): "Listening to Pulse" on your Discord profile, with the song, artist and how far in, cleared when you pause. Off until you sign in to Discord on its own page; the sign-in stays on this phone and never goes in a backup. Discord has no official way for Android apps to do this, so it works the way other Android music players do, which Discord's terms don't allow for third-party apps: there's a small risk to your Discord account.
 - **Cupertino icons** (Settings → Appearance → Icons → Pack): the most-seen icons redrawn in the style of Apple's apps (filled tabs, a chevron for Back, two-triangle skips, circled menus and downloads).
 - **Remove from library** in an album's long-press menu.
 
@@ -25,7 +25,7 @@ What changed in each release. Older releases are described on the [Releases page
 - **Lyrics stuck on the last line** from the start of a song ("4 Steps Back, 2 Steps Forward" by Motion Sick): one source sent plain lyrics marked as synced, every line at 0:00. Those now count as plain, so a source with real timings wins.
 - **Quick picks popping in and out**, and Home showing the same songs twice: Quick picks and Speed dial no longer reload each time they scroll off screen, a refresh without Quick picks keeps the last ones, and a section already shown isn't repeated.
 - **Slow starts and buffering since 1.6.8**: saving playlists, albums and covers for offline, and retrying failed downloads, now wait while music is loading, and do less at a time.
-- **A crash** when Prism started in the background with failed downloads waiting (Android 12 and newer).
+- **A crash** when Pulse started in the background with failed downloads waiting (Android 12 and newer).
 - **Albums that wouldn't leave the library** when YouTube opened them as another edition (a remaster or deluxe).
 
 ## 1.6.8
@@ -38,11 +38,11 @@ What changed in each release. Older releases are described on the [Releases page
 - **Covers offline**: downloaded songs' covers (a lossless file's own embedded cover first) and your playlists' and albums' are kept on the phone, for the player and its blurred background, the notification, widgets and lists. Local files whose album has no artwork in Android show the cover inside the file (#54, #55).
 - **Data saver** (Settings → Playback & sound → Mobile data): on mobile data, pictures come at the size they're shown, artist photos and animated covers wait for Wi-Fi, songs stream at your mobile data quality (at most Normal) and music videos at 480p at most (#40).
 - **Songs, not videos** (Settings → Playback, on by default): autoplay and radios play music videos as their songs and leave out videos with no song version (#39).
-- **Stop when swiped away** (Settings → Playback): swiping Prism out of your recent apps stops the music (#45).
-- **Choose your lyrics sources**: each source in Settings → Lyrics → Sources has a switch and a line on what it's good for; Prism only asks the ones switched on (#51).
+- **Stop when swiped away** (Settings → Playback): swiping Pulse out of your recent apps stops the music (#45).
+- **Choose your lyrics sources**: each source in Settings → Lyrics → Sources has a switch and a line on what it's good for; Pulse only asks the ones switched on (#51).
 - **Save lyrics into your music files** (Settings → Lyrics, or a song's ⋯ menu): synced lyrics go into your FLAC and MP3 files' tags as LRC, so other players show them too (#16).
 
-  > **About #16:** Prism has always left your own music files alone, so this only happens when you ask for it: nothing is written until you tap it in Settings → Lyrics or a song's menu, and on Android 11 and newer Android asks you to allow the change first. Only the lyrics tag is written; the audio and every other tag stay as they were. Each file is copied first and checked before it goes back (if anything goes wrong, even Prism closing mid-way, the original is put back). Prism still never deletes or moves your files.
+  > **About #16:** Pulse has always left your own music files alone, so this only happens when you ask for it: nothing is written until you tap it in Settings → Lyrics or a song's menu, and on Android 11 and newer Android asks you to allow the change first. Only the lyrics tag is written; the audio and every other tag stay as they were. Each file is copied first and checked before it goes back (if anything goes wrong, even Pulse closing mid-way, the original is put back). Pulse still never deletes or moves your files.
 - **New widgets**: Cover (2×2), Disc (2×2, with a progress ring) and Strip (4×1) (#34).
 - **Local files sorting**: a sort sheet with the direction in plain words and more orders (date added, year, length, file size), plus orders for Artists and Albums (#35).
 - **Every artist of a song**: a song's menu has "Go to …" for each of its artists, and tapping the artist on the player asks which one (#42).
@@ -66,21 +66,21 @@ What changed in each release. Older releases are described on the [Releases page
 
 ### Fixed
 - **Lossless FLAC at double speed with harsh noise** on Samsung phones (#25): Samsung's FLAC decoder mishandled 16-bit (CD-quality) files in lossless mode. They're now decoded at 16-bit, which loses nothing; 24-bit files stay hi-res.
-- **Searches showing up in your YouTube search history** (#27): Prism's searches, every keystroke and the lookups it makes for songs, were saved to your YouTube account. Searches no longer go out with your account.
-- **Podcasts "Requested entity was not found"** (#18): in countries where YouTube Music has no Podcasts page, Prism shows your followed shows and saved episodes, and points to Search, instead of an error.
-- **Phones in other languages** (Korean, Spanish and more): YouTube answers in your phone's language, and Prism misread its words for "Song", "Single", "Album", years ("2026년") and listener counts, which mixed up artists, album types and search ranking. They're understood in 20 languages now. The date on Home follows your language's order. (Prism's own screens are still in English.)
+- **Searches showing up in your YouTube search history** (#27): Pulse's searches, every keystroke and the lookups it makes for songs, were saved to your YouTube account. Searches no longer go out with your account.
+- **Podcasts "Requested entity was not found"** (#18): in countries where YouTube Music has no Podcasts page, Pulse shows your followed shows and saved episodes, and points to Search, instead of an error.
+- **Phones in other languages** (Korean, Spanish and more): YouTube answers in your phone's language, and Pulse misread its words for "Song", "Single", "Album", years ("2026년") and listener counts, which mixed up artists, album types and search ranking. They're understood in 20 languages now. The date on Home follows your language's order. (Pulse's own screens are still in English.)
 
 ## 1.6.6
 
 ### New
 - **Hold previous / next to seek** (Settings → Player → Hold to seek, on by default): holding jumps back or forward, again and again while you hold. Pick 1–20 seconds per step, or turn it off. A tap still changes songs (#21).
-- **Local files as a tab** (Settings → Layout & navigation → Tabs): put Local files in the bottom bar, and open Prism on it if you like (#17).
+- **Local files as a tab** (Settings → Layout & navigation → Tabs): put Local files in the bottom bar, and open Pulse on it if you like (#17).
 - **Song / Video switch** (Settings → Player → On the player): turn it off to keep the player audio only (#22).
-- **"Hey Google, play … on Prism"**: Google Assistant and Gemini can now pick Prism as the app to play from. "Play music on Prism" carries on with your last queue (#23).
+- **"Hey Google, play … on Pulse"**: Google Assistant and Gemini can now pick Pulse as the app to play from. "Play music on Pulse" carries on with your last queue (#23).
 
 ### Fixed
 - **Right-to-left lyrics on the player:** the arrow after an Arabic line now sits on its left, at the end of the line, and points left (#14).
-- **Podcasts** showed "Requested entity was not found" for some signed-in accounts. Prism now loads the page as a guest when YouTube refuses it for the account (#18).
+- **Podcasts** showed "Requested entity was not found" for some signed-in accounts. Pulse now loads the page as a guest when YouTube refuses it for the account (#18).
 - **Closing the player:** swiping it down and pressing Back now slide it away the same way (#26).
 
 ## 1.6.5
@@ -122,12 +122,12 @@ What changed in each release. Older releases are described on the [Releases page
 ## 1.6.3
 
 ### New
-- **Your music files.** Library → **On this phone** lists the music on your phone (MP3, M4A, FLAC, OGG, WAV…) with its own tags and album art, sorted by date added, title, artist or album, with Play and Shuffle. Songs play from the file, with normalization, EQ, Mix, lyrics and Replay. Prism asks once for access and only reads the files.
+- **Your music files.** Library → **On this phone** lists the music on your phone (MP3, M4A, FLAC, OGG, WAV…) with its own tags and album art, sorted by date added, title, artist or album, with Play and Shuffle. Songs play from the file, with normalization, EQ, Mix, lyrics and Replay. Pulse asks once for access and only reads the files.
 - **Smart Downloads is one storage space.** It now covers both the songs you stream (the old song cache) and the songs it downloads ahead, under one size (your old two sizes added together). When it's full, the songs you're least likely to play again make room, and liked songs are kept longest. **Smart Downloads on mobile data** lets it download without Wi-Fi, and **Clear Smart Downloads** empties it (songs you downloaded yourself stay).
-- **Prism's own icons** everywhere: minimal, rounded line icons in place of Google's.
+- **Pulse's own icons** everywhere: minimal, rounded line icons in place of Google's.
 - **Search:** better top results. Abbreviations work ("adtr" finds A Day to Remember, also "rhcp", "mcr"), YouTube's own top pick is used unless it's a cover or remix you didn't ask for, a song wins over its music video, and suggestions start with your artists and recent searches.
 - **Replay** lists your top 100 songs.
-- Settings → About → tapping the version opens Prism's GitHub page.
+- Settings → About → tapping the version opens Pulse's GitHub page.
 
 ### Fixed
 - **Normalize volume** really evens songs out now: each song's loudness is measured on your phone (LUFS, as Spotify and YouTube use) and brought to the same level. YouTube's own figure, used before, hardly differed between loud and quiet songs. The next song's level is ready before it starts. Stats for nerds shows the measured loudness.
@@ -156,7 +156,7 @@ Everything since 1.6.0 (1.6.1 was tagged but never released).
   - **Search:** new Podcasts and Episodes filters.
   - **Speed:** 0.75× to 2× from the player's ⋯ menu, for episodes only.
   - Episodes don't look up lyrics, don't blend with Mix, aren't followed by music radio and don't count in Replay.
-- **Home screen widgets**, in four looks: Prism (frosted cover), Spotify style, Apple Music style and YouTube Music style. Each shows the cover, title, progress, previous/play/next and like; tapping the cover opens the player.
+- **Home screen widgets**, in four looks: Pulse (frosted cover), Spotify style, Apple Music style and YouTube Music style. Each shows the cover, title, progress, previous/play/next and like; tapping the cover opens the player.
 - **Content country** (Settings → Home screen → Region). Where YouTube Music isn't offered, pick a country where it is to get Home, charts and search back. Songs a label blocks in your country still won't play.
 - **Mix on mobile data.** "Measure tempo on mobile data" lets beat matching work away from Wi-Fi (about 1–4 MB per song).
 
@@ -176,7 +176,7 @@ Everything since 1.6.0 (1.6.1 was tagged but never released).
 ### New
 - **Mix.** Songs blend into each other instead of stopping and starting (Settings → Playback & sound → Mix, off by default).
   - **Blend length:** 2 to 12 seconds.
-  - **Match tempo and beats:** Prism measures each song's tempo on the phone, on Wi-Fi. The next song comes in on the beat and plays at the outgoing song's tempo while they overlap (pitch kept), then eases back to its own.
+  - **Match tempo and beats:** Pulse measures each song's tempo on the phone, on Wi-Fi. The next song comes in on the beat and plays at the outgoing song's tempo while they overlap (pitch kept), then eases back to its own.
   - **No blend for:** an album's own tracks, live streams, music videos and Listen Together. These still play as before.
 - **Translated lyrics.** A translation can show under each lyric line when a song is in another language.
   - **Where:** Settings → Lyrics, or the player's ⋯ menu.
@@ -185,7 +185,7 @@ Everything since 1.6.0 (1.6.1 was tagged but never released).
 - **"Next in queue".** Songs you add with Play next or Add to queue get their own heading in the queue. Add to queue now puts songs before autoplay's suggestions instead of after them.
 
 ### Faster
-- **Songs start sooner.** Prism gets the likeliest next song ready ahead of time and, on Wi-Fi, saves its first few seconds. This covers:
+- **Songs start sooner.** Pulse gets the likeliest next song ready ahead of time and, on Wi-Fi, saves its first few seconds. This covers:
   - the top search result;
   - the first song of an open album or playlist;
   - the next song in the queue, including after the queue changes or shuffle is turned on;
@@ -198,7 +198,7 @@ Everything since 1.6.0 (1.6.1 was tagged but never released).
   - "You're offline", instead of technical text;
   - searching with no connection says so, instead of "Search failed";
   - a clear message when YouTube is limiting playback on the network.
-- **Refused requests after signing in:** YouTube refused some requests ("Request contains an invalid argument") for some accounts and regions, such as brand accounts and es-419. Prism now retries them in a plainer form.
+- **Refused requests after signing in:** YouTube refused some requests ("Request contains an invalid argument") for some accounts and regions, such as brand accounts and es-419. Pulse now retries them in a plainer form.
 - **Blocked networks:** when YouTube blocks anonymous playback on a network, signed-in playback goes straight to the account's own clients for a while, instead of failing on each song first.
 - **Bitrate:** the player shows each song's real average bitrate. It used to show YouTube's nominal figure (Opus always said 160 kbps).
 - **Album tracks:** signed out, some albums' tracks opened as music videos. They now play as songs.
