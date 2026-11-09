@@ -1,15 +1,14 @@
 /**
  * Pulse Music - Proprietary Share & Deep Link Engine
- * Handles opening shared music directly in Pulse (via Android Intents / pulse:// URI scheme)
- * or prompting automatic download of Pulse.apk if Pulse is not installed.
+ * Connects shared links to Pulse for playback, or provides one-tap APK download
+ * and YouTube Music web fallback when Pulse is not installed.
  */
 
 (function () {
   const APK_DOWNLOAD_URL = "https://github.com/Winter-soljer/pulse/releases/latest/download/Pulse.apk";
-  const GITHUB_REPO_URL = "https://github.com/Winter-soljer/pulse";
   const YTM_BASE = "https://music.youtube.com";
 
-  // Elements
+  // DOM Elements
   const elArtwork = document.getElementById("artwork");
   const elSongKind = document.getElementById("song-kind");
   const elSongTitle = document.getElementById("song-title");
@@ -21,7 +20,7 @@
   const elBtnOpen = document.getElementById("btn-open");
   const elBtnWeb = document.getElementById("btn-web");
 
-  // Parse current URL path & search params
+  // Parse URL & query parameters
   const url = new URL(window.location.href);
   const params = url.searchParams;
 
@@ -29,7 +28,7 @@
   const rawPath = url.pathname.split("/").filter(Boolean);
   const segments = rawPath[0] === "pulse" ? rawPath.slice(1) : rawPath;
 
-  // Extract ID / action
+  // Extract content ID
   let videoId = params.get("v") || params.get("id");
   let playlistId = params.get("list");
   let browseId = null;
@@ -45,32 +44,30 @@
     playlistId = params.get("list");
   }
 
-  // Pre-filled metadata from query if available
+  // Pre-fill metadata from query if available
   const queryTitle = params.get("title");
   const queryArtist = params.get("artist");
   if (queryTitle) elSongTitle.textContent = queryTitle;
   if (queryArtist) elSongArtist.textContent = queryArtist;
 
-  // Target item setup
+  // Set up destination URLs
   let ytmFallbackUrl = YTM_BASE;
   let pulseSchemeUrl = "pulse://player";
-  // Compatible with both currently installed Pulse builds (which filter for https://music.youtube.com)
-  // and new Pulse builds. S.browser_fallback_url ensures Chrome NEVER redirects to Google Play Store.
-  let androidIntentUrl = `intent://music.youtube.com#Intent;scheme=https;package=com.techfisher.pulsestream;S.browser_fallback_url=${encodeURIComponent(APK_DOWNLOAD_URL)};end`;
+  let androidIntentUrl = `intent://music.youtube.com#Intent;scheme=https;package=com.techfisher.pulsestream;action=android.intent.action.VIEW;category=android.intent.category.BROWSABLE;S.browser_fallback_url=${encodeURIComponent(APK_DOWNLOAD_URL)};end`;
 
   if (videoId) {
     elSongKind.textContent = "Song";
     ytmFallbackUrl = `${YTM_BASE}/watch?v=${encodeURIComponent(videoId)}`;
     pulseSchemeUrl = `pulse://watch?v=${encodeURIComponent(videoId)}`;
-    androidIntentUrl = `intent://music.youtube.com/watch?v=${encodeURIComponent(videoId)}#Intent;scheme=https;package=com.techfisher.pulsestream;S.browser_fallback_url=${encodeURIComponent(APK_DOWNLOAD_URL)};end`;
-    
-    // Set HQ thumbnail
+    androidIntentUrl = `intent://music.youtube.com/watch?v=${encodeURIComponent(videoId)}#Intent;scheme=https;package=com.techfisher.pulsestream;action=android.intent.action.VIEW;category=android.intent.category.BROWSABLE;S.browser_fallback_url=${encodeURIComponent(APK_DOWNLOAD_URL)};end`;
+
+    // High quality thumbnail
     elArtwork.src = `https://i.ytimg.com/vi/${encodeURIComponent(videoId)}/hqdefault.jpg`;
     elArtwork.onerror = function () {
       elArtwork.src = "https://winter-soljer.github.io/pulse/screenshots/now-playing.png";
     };
 
-    // If title wasn't passed in query, fetch title & artist via oEmbed
+    // If title wasn't in query, fetch live via oEmbed
     if (!queryTitle) {
       fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${encodeURIComponent(videoId)}&format=json`)
         .then((res) => (res.ok ? res.json() : null))
@@ -87,107 +84,70 @@
     elSongTitle.textContent = queryTitle || (browseId.startsWith("MPRE") ? "Shared Album" : "Shared Collection");
     ytmFallbackUrl = `${YTM_BASE}/browse/${encodeURIComponent(browseId)}`;
     pulseSchemeUrl = `pulse://browse/${encodeURIComponent(browseId)}`;
-    androidIntentUrl = `intent://music.youtube.com/browse/${encodeURIComponent(browseId)}#Intent;scheme=https;package=com.techfisher.pulsestream;S.browser_fallback_url=${encodeURIComponent(APK_DOWNLOAD_URL)};end`;
+    androidIntentUrl = `intent://music.youtube.com/browse/${encodeURIComponent(browseId)}#Intent;scheme=https;package=com.techfisher.pulsestream;action=android.intent.action.VIEW;category=android.intent.category.BROWSABLE;S.browser_fallback_url=${encodeURIComponent(APK_DOWNLOAD_URL)};end`;
   } else if (playlistId) {
     elSongKind.textContent = "Playlist";
     elSongTitle.textContent = queryTitle || "Shared Playlist";
     ytmFallbackUrl = `${YTM_BASE}/playlist?list=${encodeURIComponent(playlistId)}`;
     pulseSchemeUrl = `pulse://playlist?list=${encodeURIComponent(playlistId)}`;
-    androidIntentUrl = `intent://music.youtube.com/playlist?list=${encodeURIComponent(playlistId)}#Intent;scheme=https;package=com.techfisher.pulsestream;S.browser_fallback_url=${encodeURIComponent(APK_DOWNLOAD_URL)};end`;
+    androidIntentUrl = `intent://music.youtube.com/playlist?list=${encodeURIComponent(playlistId)}#Intent;scheme=https;package=com.techfisher.pulsestream;action=android.intent.action.VIEW;category=android.intent.category.BROWSABLE;S.browser_fallback_url=${encodeURIComponent(APK_DOWNLOAD_URL)};end`;
   } else if (channelId) {
     elSongKind.textContent = "Artist";
     elSongTitle.textContent = queryTitle || "Shared Artist";
     ytmFallbackUrl = `${YTM_BASE}/channel/${encodeURIComponent(channelId)}`;
     pulseSchemeUrl = `pulse://channel/${encodeURIComponent(channelId)}`;
-    androidIntentUrl = `intent://music.youtube.com/channel/${encodeURIComponent(channelId)}#Intent;scheme=https;package=com.techfisher.pulsestream;S.browser_fallback_url=${encodeURIComponent(APK_DOWNLOAD_URL)};end`;
+    androidIntentUrl = `intent://music.youtube.com/channel/${encodeURIComponent(channelId)}#Intent;scheme=https;package=com.techfisher.pulsestream;action=android.intent.action.VIEW;category=android.intent.category.BROWSABLE;S.browser_fallback_url=${encodeURIComponent(APK_DOWNLOAD_URL)};end`;
   } else {
     elSongKind.textContent = "Pulse Music";
     elSongTitle.textContent = "Play on Pulse";
     elSongArtist.textContent = "Ad-free, open source music streamer";
   }
 
-  // Configure action buttons
+  // Detect Android
+  const isAndroid = /Android/i.test(navigator.userAgent);
+
+  // Configure action buttons directly with native links
+  if (isAndroid) {
+    elBtnOpen.href = androidIntentUrl;
+  } else {
+    elBtnOpen.href = pulseSchemeUrl;
+  }
   elBtnDownload.href = APK_DOWNLOAD_URL;
   elBtnWeb.href = ytmFallbackUrl;
 
-  elBtnOpen.addEventListener("click", function (e) {
-    e.preventDefault();
-    attemptOpenApp();
+  // Status message
+  const elStatusSpinner = document.querySelector(".status-spinner");
+  if (elStatusSpinner) elStatusSpinner.style.display = "none";
+  if (elStatusIcon) {
+    elStatusIcon.textContent = isAndroid ? "🎵" : "💻";
+    elStatusIcon.style.display = "inline-block";
+  }
+  elStatusText.innerHTML = isAndroid
+    ? "<strong>Listen on Pulse:</strong> Tap <b>Play in Pulse</b> to play immediately, or download the app below."
+    : "<strong>Pulse is an Android app.</strong> Download the APK for your phone or listen on YouTube Music.";
+
+  // Clicking "Play in Pulse"
+  elBtnOpen.addEventListener("click", function () {
+    if (elStatusIcon) elStatusIcon.textContent = "▶️";
+    elStatusText.innerHTML = "<strong>Launching Pulse…</strong> If the app doesn't open, tap Download Pulse (.apk) below.";
   });
 
+  // Clicking "Download Pulse"
   elBtnDownload.addEventListener("click", function () {
-    showDownloadingState();
+    if (elStatusIcon) elStatusIcon.textContent = "⬇️";
+    elStatusText.innerHTML = "<strong>Downloading Pulse.apk…</strong> When finished, tap the notification to install.";
   });
 
-  // Track if user switched away to the app
-  let appOpened = false;
-  function markAppOpened() {
-    appOpened = true;
-  }
-  document.addEventListener("visibilitychange", function () {
-    if (document.hidden) markAppOpened();
-  });
-  window.addEventListener("pagehide", markAppOpened);
-  window.addEventListener("blur", markAppOpened);
-
-  function attemptOpenApp() {
-    const isAndroid = /Android/i.test(navigator.userAgent);
-    if (isAndroid) {
-      // Launch Android Intent targeting package com.techfisher.pulsestream with S.browser_fallback_url
-      // This matches both previous and new Pulse installs, and NEVER opens Google Play Store.
-      window.location.href = androidIntentUrl;
-    } else {
-      // Non-Android: try custom scheme
-      window.location.href = pulseSchemeUrl;
-    }
-  }
-
-  function showDownloadingState() {
-    if (elStatusSpinner) elStatusSpinner.style.display = "none";
-    if (elStatusIcon) {
-      elStatusIcon.textContent = "⬇️";
-      elStatusIcon.style.display = "inline-block";
-    }
-    elStatusText.innerHTML = "<strong>Downloading Pulse.apk...</strong> When finished, tap the download in your notifications to install and play.";
-  }
-
-  function showNotInstalledState() {
-    const elStatusSpinner = document.querySelector(".status-spinner");
-    if (elStatusSpinner) elStatusSpinner.style.display = "none";
-    if (elStatusIcon) {
-      elStatusIcon.textContent = "📦";
-      elStatusIcon.style.display = "inline-block";
-    }
-    elStatusText.innerHTML = "<strong>Pulse isn't installed yet.</strong> Downloading Pulse APK now, or install manually below to listen.";
-  }
-
-  // Automatic Flow:
-  // 1. Try launching Pulse app
-  // 2. If app not opened after 1.2s, automatically initiate APK download
-  const isAndroid = /Android/i.test(navigator.userAgent);
+  // Safe background trigger for Android without hijacking the page or forcing download
   if (isAndroid && (videoId || playlistId || browseId || channelId)) {
-    attemptOpenApp();
-
-    setTimeout(function () {
-      if (!appOpened) {
-        showNotInstalledState();
-        // Trigger APK download
-        const downloadFrame = document.createElement("iframe");
-        downloadFrame.style.display = "none";
-        downloadFrame.src = APK_DOWNLOAD_URL;
-        document.body.appendChild(downloadFrame);
-      }
-    }, 1400);
-  } else {
-    // Desktop or iOS or generic page
-    const elStatusSpinner = document.querySelector(".status-spinner");
-    if (elStatusSpinner) elStatusSpinner.style.display = "none";
-    if (elStatusIcon) {
-      elStatusIcon.textContent = isAndroid ? "📱" : "💻";
-      elStatusIcon.style.display = "inline-block";
-    }
-    elStatusText.innerHTML = isAndroid
-      ? "<strong>Play in Pulse</strong> · Open with the app or download the APK below."
-      : "<strong>Pulse is an Android app.</strong> Download the APK for your phone or listen on YouTube Music.";
+    try {
+      const iframe = document.createElement("iframe");
+      iframe.style.display = "none";
+      iframe.src = pulseSchemeUrl;
+      document.body.appendChild(iframe);
+      setTimeout(function () {
+        iframe.remove();
+      }, 2000);
+    } catch (_) {}
   }
 })();
