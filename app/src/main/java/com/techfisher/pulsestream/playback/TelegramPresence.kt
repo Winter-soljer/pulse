@@ -151,7 +151,7 @@ class TelegramPresence(
         val titleDisplay = if (song.isLocal) {
             "<b>$titleEscaped</b>"
         } else {
-            "<a href=\"https://music.youtube.com/watch?v=${song.id}\"><b>$titleEscaped</b></a>"
+            "<a href=\"${com.techfisher.pulsestream.data.ShareLinks.song(song.id)}\"><b>$titleEscaped</b></a>"
         }
 
         val sb = StringBuilder()

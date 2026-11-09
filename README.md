@@ -81,8 +81,8 @@ Updating works the same way: install the new APK over the old one, and your down
 
 ### Together and sharing
 - **Listen together.** Start a session and friends on the same Wi-Fi (or your hotspot) join with a four-digit code. They can play the same music on their own phones, kept in step with yours, or just add songs to your queue, party style. You decide whether guests can also play, pause and skip. Phones talk to each other directly: there's no Pulse server, and nothing is shared once the session ends.
-- **Share** any song, album, playlist or artist as a link or as a story card made from its artwork. A private playlist's link only works for you, so the share sheet offers to make it unlisted. Liked songs and Downloads share as a card and a track list.
-- **Play in Pulse:** share a YouTube or YouTube Music link from any app to Pulse to open it.
+- **Share** any song, album, playlist or artist using Pulse's proprietary links (`https://winter-soljer.github.io/pulse/watch?v=...`) or as a story card made from its artwork. If the receiver has Pulse, the song opens and plays directly; if they don't, it opens a landing page that prompts them to download Pulse (.apk) with a fallback to listen on the web.
+- **Play in Pulse:** share a Pulse, YouTube or YouTube Music link from any app to Pulse to open and play it directly.
 - **"Hey Google, play … on Pulse":** Google Assistant and Gemini can play songs in Pulse by voice; "play music on Pulse" carries on with your last queue.
 
 ### Android Auto

@@ -55,6 +55,24 @@
             android:showWhenLocked="true"
             android:turnScreenOn="true"
             android:windowSoftInputMode="adjustResize">
+            <!-- Pulse proprietary web App Links (GitHub Pages) -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="http" />
+                <data android:scheme="https" />
+                <data android:host="winter-soljer.github.io" />
+                <data android:pathPrefix="/pulse" />
+            </intent-filter>
+            <!-- Pulse proprietary custom scheme -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="pulse" />
+            </intent-filter>
+            <!-- YouTube / YouTube Music links opened in Pulse -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />

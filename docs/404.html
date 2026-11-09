@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#0a0a0f">
+  <meta name="description" content="Listen to this song on Pulse — the free, ad-free, open-source music streamer for Android.">
+  <title>Pulse Music · Play</title>
+  <link rel="stylesheet" href="/pulse/style.css">
+  <link rel="icon" type="image/png" href="/pulse/screenshots/now-playing.png">
+</head>
+<body>
+  <!-- Ambient background glow -->
+  <div class="bg-glow-orb orb-primary"></div>
+  <div class="bg-glow-orb orb-accent"></div>
+
+  <!-- Main Card -->
+  <main class="main-card">
+    <!-- Brand Header -->
+    <header class="brand-header">
+      <div class="brand-icon">
+        <svg viewBox="0 0 24 24">
+          <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
+        </svg>
+      </div>
+      <span class="brand-title">PULSE</span>
+      <span class="brand-badge">Free & Open Source</span>
+    </header>
+
+    <!-- Artwork -->
+    <div class="artwork-wrapper">
+      <img id="artwork" class="artwork-img" src="/pulse/screenshots/now-playing.png" alt="Song Artwork">
+      <div class="artwork-badge">
+        <span>HQ STREAM</span>
+        <span class="eq-container">
+          <span class="eq-bar"></span>
+          <span class="eq-bar"></span>
+          <span class="eq-bar"></span>
+        </span>
+      </div>
+    </div>
+
+    <!-- Song Metadata -->
+    <div class="song-meta">
+      <div id="song-kind" class="song-kind">Song</div>
+      <h1 id="song-title" class="song-title">Loading track…</h1>
+      <p id="song-artist" class="song-artist">Pulse Music</p>
+    </div>
+
+    <!-- Status Banner -->
+    <div id="status-banner" class="status-banner">
+      <div class="status-spinner"></div>
+      <span id="status-icon" class="status-icon-ready" style="display: none;"></span>
+      <div id="status-text" class="status-text">
+        <strong>Connecting to Pulse…</strong>
+        Opening track in your app or preparing download.
+      </div>
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="actions-group">
+      <a id="btn-download" class="btn btn-primary" href="https://github.com/Winter-soljer/pulse/releases/latest/download/Pulse.apk">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM17 13l-5 5-5-5h3V9h4v4h3z"/>
+        </svg>
+        <span>Download Pulse (.apk)</span>
+      </a>
+
+      <button id="btn-open" class="btn btn-secondary" type="button">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M8 5v14l11-7z"/>
+        </svg>
+        <span>Open in Pulse</span>
+      </button>
+
+      <a id="btn-web" class="btn btn-tertiary" href="https://music.youtube.com" target="_blank" rel="noopener">
+        Listen on YouTube Music web &rarr;
+      </a>
+    </div>
+
+    <!-- Installation Guide Dropdown -->
+    <details class="install-guide">
+      <summary>
+        <span>How to install Pulse APK</span>
+        <span>&#9662;</span>
+      </summary>
+      <ol class="install-steps">
+        <li>Tap <strong>Download Pulse (.apk)</strong> above.</li>
+        <li>Once downloaded, open the file from your notifications or browser downloads.</li>
+        <li>Tap <strong>Install</strong> (if asked, allow installation from your browser).</li>
+        <li>Tap <strong>Open in Pulse</strong> to play this song instantly!</li>
+      </ol>
+    </details>
+  </main>
+
+  <!-- Footer -->
+  <footer class="footer-text">
+    <p>Pulse is free, ad-free software under GPL-3.0 · <a href="https://github.com/Winter-soljer/pulse" target="_blank" rel="noopener">GitHub</a></p>
+  </footer>
+
+  <script src="/pulse/app.js"></script>
+</body>
+</html>

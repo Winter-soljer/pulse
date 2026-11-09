@@ -79,7 +79,7 @@ data class ShareTarget(
     /** "Song", "Album", "Playlist", "Artist"… shown over the title on the card. */
     val kind: String,
     val art: String?,
-    /** The music.youtube.com link; null for lists that only exist in Pulse (Liked songs, Downloads). */
+    /** The link to share; null for lists that only exist in Pulse (Liked songs, Downloads). */
     val url: String?,
     /** Artist photos are round. */
     val round: Boolean = false,
@@ -260,7 +260,7 @@ private fun ShareCard(target: ShareTarget, frost: FrostImage?, palette: ArtPalet
             )
             Spacer(Modifier.weight(1f))
             Text(
-                if (target.url != null) "Listen on YouTube Music" else com.techfisher.pulsestream.data.model.songCount(target.songs.size), color = Color.White.copy(alpha = 0.7f),
+                if (target.url != null) "Play in Pulse" else com.techfisher.pulsestream.data.model.songCount(target.songs.size), color = Color.White.copy(alpha = 0.7f),
                 style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp),
             )
             Spacer(Modifier.height(2.dp))

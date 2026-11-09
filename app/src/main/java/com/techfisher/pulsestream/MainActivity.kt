@@ -521,10 +521,10 @@ open class MainActivity : ComponentActivity() {
         return super.onGenericMotionEvent(event)
     }
 
-    /** A music.youtube.com link opened in Pulse, or a YouTube / YouTube Music link shared to it. */
+    /** A Pulse or YouTube link opened in Pulse, or shared to it. */
     private fun linkIn(intent: Intent?): Uri? = when (intent?.action) {
         Intent.ACTION_SEND -> com.techfisher.pulsestream.data.ShareLinks.findIn(intent.getStringExtra(Intent.EXTRA_TEXT))?.let(Uri::parse).also {
-            if (it == null) Toast.makeText(this, "That isn't a YouTube or YouTube Music link", Toast.LENGTH_SHORT).show()
+            if (it == null) Toast.makeText(this, "That isn't a Pulse or YouTube link", Toast.LENGTH_SHORT).show()
         }
         else -> intent?.data
     }
@@ -971,26 +971,32 @@ private fun MinimalTab(tab: Tab, selected: Boolean, onClick: () -> Unit) {
     }
 }
 
-/** Opens music.youtube.com links shared into the app. */
+/** Opens Pulse or YouTube links shared into the app. */
 private fun handleDeepLink(uri: Uri, nav: Navigator, c: AppContainer) {
     val v = uri.getQueryParameter("v")
     val list = uri.getQueryParameter("list")
     val path = uri.pathSegments
+    val segments = if (path.firstOrNull() == "pulse") path.drop(1) else path
+    val videoId = v ?: uri.getQueryParameter("id") ?: run {
+        if (segments.firstOrNull() in setOf("watch", "song", "play") && segments.size > 1) segments[1]
+        else if (uri.scheme == "pulse" && uri.host in setOf("watch", "song", "play") && path.isNotEmpty()) path[0]
+        else null
+    }
     when {
         // A widget's cover or title: the player.
         uri.scheme == "pulse" && uri.host == "player" -> nav.openPlayer()
-        v != null -> {
+        videoId != null -> {
             nav.openPlayer()
-            launchSingle(c, v)
+            launchSingle(c, videoId)
         }
         list != null -> nav.go(Routes.playlist(list))
-        path.firstOrNull() == "browse" && path.size > 1 -> {
-            val id = path[1]
+        segments.firstOrNull() == "browse" && segments.size > 1 -> {
+            val id = segments[1]
             if (id.startsWith("MPRE")) nav.go(Routes.album(id))
             else if (id.startsWith("MPSP")) nav.go(Routes.podcast(id))
             else nav.go(Routes.browse(id, null, ""))
         }
-        path.firstOrNull() == "channel" && path.size > 1 -> nav.go(Routes.artist(path[1]))
+        segments.firstOrNull() == "channel" && segments.size > 1 -> nav.go(Routes.artist(segments[1]))
     }
 }
 
