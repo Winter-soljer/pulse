@@ -54,13 +54,15 @@
   // Target item setup
   let ytmFallbackUrl = YTM_BASE;
   let pulseSchemeUrl = "pulse://player";
-  let androidIntentUrl = "intent://player#Intent;scheme=pulse;package=com.techfisher.pulsestream;end";
+  // Compatible with both currently installed Pulse builds (which filter for https://music.youtube.com)
+  // and new Pulse builds. S.browser_fallback_url ensures Chrome NEVER redirects to Google Play Store.
+  let androidIntentUrl = `intent://music.youtube.com#Intent;scheme=https;package=com.techfisher.pulsestream;S.browser_fallback_url=${encodeURIComponent(APK_DOWNLOAD_URL)};end`;
 
   if (videoId) {
     elSongKind.textContent = "Song";
     ytmFallbackUrl = `${YTM_BASE}/watch?v=${encodeURIComponent(videoId)}`;
     pulseSchemeUrl = `pulse://watch?v=${encodeURIComponent(videoId)}`;
-    androidIntentUrl = `intent://watch?v=${encodeURIComponent(videoId)}#Intent;scheme=pulse;package=com.techfisher.pulsestream;end`;
+    androidIntentUrl = `intent://music.youtube.com/watch?v=${encodeURIComponent(videoId)}#Intent;scheme=https;package=com.techfisher.pulsestream;S.browser_fallback_url=${encodeURIComponent(APK_DOWNLOAD_URL)};end`;
     
     // Set HQ thumbnail
     elArtwork.src = `https://i.ytimg.com/vi/${encodeURIComponent(videoId)}/hqdefault.jpg`;
@@ -85,19 +87,19 @@
     elSongTitle.textContent = queryTitle || (browseId.startsWith("MPRE") ? "Shared Album" : "Shared Collection");
     ytmFallbackUrl = `${YTM_BASE}/browse/${encodeURIComponent(browseId)}`;
     pulseSchemeUrl = `pulse://browse/${encodeURIComponent(browseId)}`;
-    androidIntentUrl = `intent://browse/${encodeURIComponent(browseId)}#Intent;scheme=pulse;package=com.techfisher.pulsestream;end`;
+    androidIntentUrl = `intent://music.youtube.com/browse/${encodeURIComponent(browseId)}#Intent;scheme=https;package=com.techfisher.pulsestream;S.browser_fallback_url=${encodeURIComponent(APK_DOWNLOAD_URL)};end`;
   } else if (playlistId) {
     elSongKind.textContent = "Playlist";
     elSongTitle.textContent = queryTitle || "Shared Playlist";
     ytmFallbackUrl = `${YTM_BASE}/playlist?list=${encodeURIComponent(playlistId)}`;
     pulseSchemeUrl = `pulse://playlist?list=${encodeURIComponent(playlistId)}`;
-    androidIntentUrl = `intent://playlist?list=${encodeURIComponent(playlistId)}#Intent;scheme=pulse;package=com.techfisher.pulsestream;end`;
+    androidIntentUrl = `intent://music.youtube.com/playlist?list=${encodeURIComponent(playlistId)}#Intent;scheme=https;package=com.techfisher.pulsestream;S.browser_fallback_url=${encodeURIComponent(APK_DOWNLOAD_URL)};end`;
   } else if (channelId) {
     elSongKind.textContent = "Artist";
     elSongTitle.textContent = queryTitle || "Shared Artist";
     ytmFallbackUrl = `${YTM_BASE}/channel/${encodeURIComponent(channelId)}`;
     pulseSchemeUrl = `pulse://channel/${encodeURIComponent(channelId)}`;
-    androidIntentUrl = `intent://channel/${encodeURIComponent(channelId)}#Intent;scheme=pulse;package=com.techfisher.pulsestream;end`;
+    androidIntentUrl = `intent://music.youtube.com/channel/${encodeURIComponent(channelId)}#Intent;scheme=https;package=com.techfisher.pulsestream;S.browser_fallback_url=${encodeURIComponent(APK_DOWNLOAD_URL)};end`;
   } else {
     elSongKind.textContent = "Pulse Music";
     elSongTitle.textContent = "Play on Pulse";
@@ -131,14 +133,9 @@
   function attemptOpenApp() {
     const isAndroid = /Android/i.test(navigator.userAgent);
     if (isAndroid) {
-      // Android Intent scheme
+      // Launch Android Intent targeting package com.techfisher.pulsestream with S.browser_fallback_url
+      // This matches both previous and new Pulse installs, and NEVER opens Google Play Store.
       window.location.href = androidIntentUrl;
-      // Fallback custom scheme attempt
-      setTimeout(function () {
-        if (!appOpened) {
-          window.location.href = pulseSchemeUrl;
-        }
-      }, 300);
     } else {
       // Non-Android: try custom scheme
       window.location.href = pulseSchemeUrl;
