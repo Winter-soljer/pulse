@@ -3,9 +3,8 @@
  * Connects shared links to Pulse for playback, or provides one-tap APK download
  * and YouTube Music web fallback when Pulse is not installed.
  */
-
 (function () {
-  const APK_DOWNLOAD_URL = "https://github.com/Winter-soljer/pulse/releases/latest/download/Pulse.apk";
+  const APK_DOWNLOAD_URL = "https://winter-soljer.github.io/pulse/Pulse.apk";
   const YTM_BASE = "https://music.youtube.com";
 
   // DOM Elements
@@ -113,6 +112,7 @@
     elBtnOpen.href = pulseSchemeUrl;
   }
   elBtnDownload.href = APK_DOWNLOAD_URL;
+  elBtnDownload.setAttribute("download", "Pulse.apk");
   elBtnWeb.href = ytmFallbackUrl;
 
   // Status message
